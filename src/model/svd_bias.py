@@ -6,8 +6,8 @@ import torch.nn as nn
 from torch import optim
 
 from loss.custom import svd_loss
-from tools.parse_args import parse_args
 from tools.logger import setup_logger
+from tools.parse_args import parse_args
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,16 +31,19 @@ class SVDWithBias(nn.Module):
         nn.init.xavier_normal_(self.item_bias.weight)
 
     def forward(self, user_idx, item_idx):
-        embed_user = self.embed_user(user_idx) # batch_size * num_factors
-        embed_item = self.embed_item(item_idx) # batch_size * num_factors
-        user_bias = self.user_bias(user_idx) # batch_size * 1
-        item_bias = self.item_bias(item_idx) # batch_size * 1
-        output = (embed_user * embed_item).sum(axis=1) + user_bias.squeeze() + item_bias.squeeze() + self.mu # batch_size * 1
+        embed_user = self.embed_user(user_idx)  # batch_size * num_factors
+        embed_item = self.embed_item(item_idx)  # batch_size * num_factors
+        user_bias = self.user_bias(user_idx)  # batch_size * 1
+        item_bias = self.item_bias(item_idx)  # batch_size * 1
+        output = (
+            (embed_user * embed_item).sum(axis=1) + user_bias.squeeze() + item_bias.squeeze() + self.mu
+        )  # batch_size * 1
         return output
 
 
 if __name__ == "__main__":
-    from preprocess.preprocess import train_test_split_stratify, prepare_torch_dataloader
+    from preprocess.preprocess import prepare_torch_dataloader, train_test_split_stratify
+
     args = parse_args()
     logger = setup_logger(args.log_path)
 
@@ -52,35 +55,41 @@ if __name__ == "__main__":
         logger.info(f"number of factors for user / item embedding: {args.num_factors}")
         logger.info(f"test ratio: {args.test_ratio}")
         logger.info(f"patience for watching validation loss: {args.patience}")
-        data = train_test_split_stratify(test_size=args.test_ratio,
-                                         min_reviews=3,
-                                         X_columns=["diner_idx", "reviewer_id"],
-                                         y_columns=["reviewer_review_score"])
-        train_dataloader, val_dataloader = prepare_torch_dataloader(data["X_train"], data["y_train"], data["X_val"], data["y_val"])
-        model = SVDWithBias(data["num_users"], data["num_diners"], args.num_factors, mu = data["y_train"].mean())
+        data = train_test_split_stratify(
+            test_size=args.test_ratio,
+            min_reviews=3,
+            X_columns=["diner_idx", "reviewer_id"],
+            y_columns=["reviewer_review_score"],
+        )
+        train_dataloader, val_dataloader = prepare_torch_dataloader(
+            data["X_train"], data["y_train"], data["X_val"], data["y_val"]
+        )
+        model = SVDWithBias(data["num_users"], data["num_diners"], args.num_factors, mu=data["y_train"].mean())
 
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
         # train model
-        best_loss = float('inf')
+        best_loss = float("inf")
         for epoch in range(args.epochs):
             logger.info(f"####### Epoch {epoch} #######")
 
             # training
             model.train()
             tr_loss = 0.0
-            for (X_train, y_train) in train_dataloader:
+            for X_train, y_train in train_dataloader:
                 diners, users = X_train[:, 0], X_train[:, 1]
                 optimizer.zero_grad()
                 y_pred = model(users, diners)
-                loss = svd_loss(pred=y_pred,
-                                true=y_train,
-                                params=[param.data for param in model.parameters()],
-                                regularization=args.regularization,
-                                user_idx=users,
-                                diner_idx=diners,
-                                num_users=data["num_users"],
-                                num_diners=data["num_diners"])
+                loss = svd_loss(
+                    pred=y_pred,
+                    true=y_train,
+                    params=[param.data for param in model.parameters()],
+                    regularization=args.regularization,
+                    user_idx=users,
+                    diner_idx=diners,
+                    num_users=data["num_users"],
+                    num_diners=data["num_diners"],
+                )
                 loss.backward()
                 optimizer.step()
 
@@ -92,17 +101,19 @@ if __name__ == "__main__":
             model.eval()
             with torch.no_grad():
                 val_loss = 0.0
-                for (X_val, y_val) in val_dataloader:
+                for X_val, y_val in val_dataloader:
                     diners, users = X_val[:, 0], X_val[:, 1]
                     y_pred = model(users, diners)
-                    loss = svd_loss(pred=y_pred,
-                                    true=y_val,
-                                    params=[param.data for param in model.parameters()],
-                                    regularization=args.regularization,
-                                    user_idx=users,
-                                    diner_idx=diners,
-                                    num_users=data["num_users"],
-                                    num_diners=data["num_diners"])
+                    loss = svd_loss(
+                        pred=y_pred,
+                        true=y_val,
+                        params=[param.data for param in model.parameters()],
+                        regularization=args.regularization,
+                        user_idx=users,
+                        diner_idx=diners,
+                        num_users=data["num_users"],
+                        num_diners=data["num_diners"],
+                    )
 
                     val_loss += loss.item()
                 val_loss = round(val_loss / len(val_dataloader), 6)
