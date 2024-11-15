@@ -1,3 +1,4 @@
 lr: 0.01
 epochs: 10
 device: cpu
+name: gnn
