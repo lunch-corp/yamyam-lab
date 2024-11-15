@@ -1,0 +1,7 @@
+test_size: 0.2
+min_reviews: 3
+X_columns:
+    - diner_idx
+    - reviewer_id
+y_columns:
+    - reviewer_review_score
