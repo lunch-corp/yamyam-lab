@@ -1,0 +1,62 @@
+[project]
+name = "yamyam-lab"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "ds-wook", email = "leewook94@gmail.com" }
+]
+dependencies = [
+    "scikit-learn==1.5.2",
+    "torch==2.5.1",
+    "numpy==2.1.3",
+    "pandas==2.2.3",
+    "hydra-core>=1.3.2",
+    "torch-geometric>=2.6.1",
+    "lightgbm>=4.5.0",
+    "xgboost>=2.1.2",
+    "ipykernel>=6.29.5",
+    "black>=24.10.0",
+    "flake8>=7.1.1",
+    "isort>=5.13.2",
+]
+readme = "README.md"
+requires-python = ">= 3.10"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yamyam_lab"]
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+line_length = 120
+
+[tool.black]
+line-length = 120
+target-version = ['py36', 'py37', 'py38']
+exclude = '''
+    \.git
+  | \.mypy_cache
+  | \.tox
+  | venv
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | ^.*\b(migrations)\b.*$
+'''

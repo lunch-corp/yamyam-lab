@@ -1,0 +1,21 @@
+test_size: 0.2
+min_reviews: 3
+X_columns:
+    - diner_idx
+    - reviewer_id
+y_columns:
+    - reviewer_review_score
+features:
+    - reviewer_review_cnt
+    - reviewer_collected_review_cnt
+    - diner_review_cnt
+    - diner_blog_review_cnt
+    - diner_review_avg
+    - diner_lat
+    - diner_lon
+    - all_review_cnt
+    - real_good_review_cnt
+    - real_bad_review_cnt
+    - real_good_review_percent
+    - real_bad_review_percent
+target: reviewer_review_score
