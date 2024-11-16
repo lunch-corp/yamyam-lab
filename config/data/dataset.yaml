@@ -14,6 +14,8 @@ features:
     - diner_lat
     - diner_lon
     - all_review_cnt
+    - real_good_review_cnt
+    - real_bad_review_cnt
     - real_good_review_percent
     - real_bad_review_percent
 target: reviewer_review_score

@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 import torch
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupKFold, train_test_split
 from torch_geometric.data import Data
 
 # Load data (same as your current implementation)
@@ -93,9 +93,13 @@ def load_and_prepare_lightgbm_data(
     reviewer_id_over = [reviewer_id for reviewer_id, cnt in reviewer2review_cnt.items() if cnt >= min_reviews]
     review_over = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
 
-    train, val = train_test_split(
-        review_over, test_size=test_size, random_state=random_state, stratify=review_over[stratify]
-    )
+    group_kfold = GroupKFold(n_splits=2)
+    train_idx, val_idx = next(group_kfold.split(review_over, groups=review_over["reviewer_id"]))
+    train, val = review_over.iloc[train_idx], review_over.iloc[val_idx]
+
+    # train, val = train_test_split(
+    #     review_over, test_size=test_size, random_state=random_state, stratify=review_over[stratify]
+    # )
 
     X_train, y_train = train.drop(columns=y_columns), train[y_columns]
     X_val, y_val = val.drop(columns=y_columns), val[y_columns]
