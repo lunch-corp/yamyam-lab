@@ -2,6 +2,14 @@ import numpy as np
 from collections import defaultdict
 
 def ranking_metrics_at_k(liked_items, reco_items, K=10):
+    """
+    Calculates ndcg, map for `one user`.
+    If you want to derive ndcg, map for n users, you should average them over n.
+
+    liked_items: item ids selected by one user.
+    reco_items: item ids recommended for one user.
+    K: number of recommended items.
+    """
     K = min(len(liked_items), len(reco_items), K)
     # map
     mean_ap = 0
