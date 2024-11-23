@@ -16,7 +16,7 @@ def ranking_metrics_at_k(liked_items, reco_items, liked_items_score=None):
         This score is used when calculating ndcg.
     """
     # when target y is rating
-    if isinstance(liked_items, np.ndarray):
+    if isinstance(liked_items_score, np.ndarray):
         assert liked_items.shape == liked_items_score.shape
     # when target y is binary
     else:

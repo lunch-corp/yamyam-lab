@@ -4,10 +4,13 @@ import traceback
 import torch
 import torch.nn as nn
 from torch import optim
+import numpy as np
 
 from loss.custom import svd_loss
+from evaluation.metric import ranking_metrics_at_k
 from tools.parse_args import parse_args
 from tools.logger import setup_logger
+from tools.utils import convert_tensor
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -18,6 +21,9 @@ class SVDWithBias(nn.Module):
 
     def __init__(self, num_users, num_items, num_factors, **kwargs):
         super(SVDWithBias, self).__init__()
+
+        self.num_users = num_users
+        self.num_items = num_items
 
         self.embed_user = nn.Embedding(num_users, num_factors)
         self.embed_item = nn.Embedding(num_items, num_factors)
@@ -37,6 +43,49 @@ class SVDWithBias(nn.Module):
         item_bias = self.item_bias(item_idx) # batch_size * 1
         output = (embed_user * embed_item).sum(axis=1) + user_bias.squeeze() + item_bias.squeeze() + self.mu # batch_size * 1
         return output
+
+    def recommend(self, X_train, X_val, top_K = [3, 5, 7, 10, 20], filter_already_liked=True):
+
+        self.map = 0.
+        self.ndcg = 0.
+
+        train_liked = convert_tensor(X_train, dict)
+        val_liked = convert_tensor(X_val, list)
+        res = {}
+        metric_at_K = {k:{"map":0, "ndcg":0, "count":0} for k in top_K}
+        for user in range(self.num_users):
+            item_idx = torch.arange(self.num_items)
+            user_idx = torch.tensor([user]).repeat(self.num_items)
+
+            # calculate one user's predicted scores for all item_ids
+            with torch.no_grad():
+                scores = self.forward(user_idx, item_idx)
+
+            # filter item_id in train dataset
+            if filter_already_liked:
+                user_liked_items = train_liked[user]
+                for already_liked_item_id in user_liked_items.keys():
+                    scores[already_liked_item_id] = -float('inf') # not recommend already chosen item_id
+
+            # calculate metric
+            val_liked_item_id = np.array(val_liked[user])
+            for K in top_K:
+                if len(val_liked_item_id) < K:
+                    continue
+                pred_liked_item_id = torch.topk(scores, k=K).indices.detach().numpy()
+                metric = ranking_metrics_at_k(val_liked_item_id, pred_liked_item_id)
+                metric_at_K[K]["map"] += metric["ap"]
+                metric_at_K[K]["ndcg"] += metric["ndcg"]
+                metric_at_K[K]["count"] += 1
+
+                # store recommendation result when K=20
+                if K == 20:
+                    res[user] = pred_liked_item_id
+        for K in top_K:
+            metric_at_K[K]["map"] /= metric_at_K[K]["count"]
+            metric_at_K[K]["ndcg"] /= metric_at_K[K]["count"]
+        self.metric_at_K = metric_at_K
+        return res
 
 
 if __name__ == "__main__":
@@ -111,6 +160,17 @@ if __name__ == "__main__":
             logger.info(f"Validation Loss: {val_loss}")
 
             # todo: calculate ndcg, map at every epoch
+            recommendations = model.recommend(
+                X_train=data["X_train"],
+                X_val=data["X_val"],
+                filter_already_liked=True
+            )
+            for K in model.metric_at_K.keys():
+                map = model.metric_at_K[K]["map"]
+                ndcg = model.metric_at_K[K]["ndcg"]
+                count = model.metric_at_K[K]["count"]
+                logger.info(f"maP@{K}: {map} with {count} users out of all {model.num_users} users")
+                logger.info(f"ndcg@{K}: {ndcg} with {count} users out of all {model.num_users} users")
 
             if best_loss > val_loss:
                 prev_best_loss = best_loss
