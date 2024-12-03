@@ -39,6 +39,15 @@ if __name__ == "__main__":
         logger.info(f"regularization: {args.regularization}")
         logger.info(f"epochs: {args.epochs}")
         logger.info(f"test ratio: {args.test_ratio}")
+        logger.info(f"embedding dimension: {args.embedding_dim}")
+        logger.info(f"walk length: {args.walk_length}")
+        logger.info(f"context size: {args.context_size}")
+        logger.info(f"walks per node: {args.walks_per_node}")
+        logger.info(f"num neg samples: {args.num_negative_samples}")
+        logger.info(f"p: {args.p}")
+        logger.info(f"q: {args.q}")
+        logger.info(f"sparse: {args.sparse}")
+
         data = train_test_split_stratify(test_size=args.test_ratio,
                                          min_reviews=3,
                                          X_columns=["diner_idx", "reviewer_id"],
