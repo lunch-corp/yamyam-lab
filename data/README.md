@@ -1,7 +1,7 @@
 
 # diner_df
 - diner_df_20241118_yamyam.csv
-- 수집된 음식점 수: 63,553 개 -> 78,044 개 
+- 수집된 음식점 수: 63,553 개 -> 78,044 개 -> 110,222 개
   
 | 컬럼명 | 설명 |
 |---------|------|
@@ -31,16 +31,18 @@
 | real_bad_review_cnt | 부정적 리뷰 수 |
 | real_good_review_percent | 긍정적 리뷰 비율 |
 | real_bad_review_percent | 부정적 리뷰 비율 |
+| combined_score | 머먹의 음식점 지수|
 
 ## 새로 추가/변경된 컬럼
 - `diner_tag` 음식점별 특징, 예를 들어 혼밥, 혼술, 점심시간, 이동약자편의, 제로페이, 삼성페이 등 
 - real_good_review_cnt 기준 -> [블로그 포스팅 참조](https://learningnrunning.github.io/post/tech/review/2024-10-03-What-to-eat-today/#%EC%A3%BC%EC%9A%94-%ED%8A%B9%EC%A7%95)
 - diner_tag, diner_review_tags, diner_menu_price, diner_menu_name 리스트 형식으로 변환
+- combined_score : [블로그 포스팅 참조](https://learningnrunning.github.io/post/tech/review/2024-10-25-what2eat-upgrade/)
   
 # review_df
 
 - data/review 디렉토리 내 파일들
-- 수집된 리뷰 수: 929,537 개 -> 107,4862 개 
+- 수집된 리뷰 수: 929,537 개 -> 107,4862 개 -> 1,703,332 개
   
 | 컬럼명 | 설명 |
 |---------|------|
