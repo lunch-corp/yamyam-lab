@@ -4,6 +4,68 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+def _hit_at_k(actual: list[int], predicted: list[int], k: int = 10) -> float:
+    """Compute Hit@K for a single user."""
+    if len(predicted) > k:
+        predicted = predicted[:k]
+
+    # 적어도 하나의 관련 항목이 추천에 포함되면 Hit
+    return 1.0 if any(p in actual for p in predicted) else 0.0
+
+
+def hit_at_k(actual: Iterable, predicted: Iterable, k: int = 10) -> float:
+    """Compute mean Hit@K across all users.
+
+    Parameters
+    ----------
+    actual : Iterable
+        Label (ground truth).
+    predicted : Iterable
+        Predictions.
+    k : int, optional
+        k, by default ``10``.
+
+    Returns
+    -------
+    float
+        Mean Hit@K.
+    """
+    return np.mean([_hit_at_k(a, p, k) for a, p in zip(actual, predicted) if a is not None])
+
+
+def _recall_at_k(actual: list[int], predicted: list[int], k: int = 10) -> float:
+    """Compute Recall@K for a single user."""
+    if len(predicted) > k:
+        predicted = predicted[:k]
+
+    relevant_items = [p for p in predicted if p in actual]
+    if len(actual) == 0:
+        return 0.0
+
+    # Recall: 추천된 항목 중 실제 관련 항목의 비율
+    return len(relevant_items) / len(actual)
+
+
+def recall_at_k(actual: Iterable, predicted: Iterable, k: int = 10) -> float:
+    """Compute mean Recall@K across all users.
+
+    Parameters
+    ----------
+    actual : Iterable
+        Label (ground truth).
+    predicted : Iterable
+        Predictions.
+    k : int, optional
+        k, by default ``10``.
+
+    Returns
+    -------
+    float
+        Mean Recall@K.
+    """
+    return np.mean([_recall_at_k(a, p, k) for a, p in zip(actual, predicted) if a is not None])
+
+
 def _ap_at_k(actual: list[int], predicted: list[int], k: int = 10) -> float:
     if len(predicted) > k:
         predicted = predicted[:k]
