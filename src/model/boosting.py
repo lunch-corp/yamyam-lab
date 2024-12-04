@@ -25,10 +25,13 @@ class LightGBMTrainer(BaseModel):
         train_groups = X_train.groupby("reviewer_id").size().to_numpy()
         valid_groups = X_valid.groupby("reviewer_id").size().to_numpy()
 
-        X_train, X_valid = X_train[self.cfg.data.features], X_valid[self.cfg.data.features]
+        X_train, X_valid = (
+            X_train[self.cfg.data.features],
+            X_valid[self.cfg.data.features],
+        )
 
-        train_set = lgb.Dataset(X_train, y_train, params=params, group=train_groups)
-        valid_set = lgb.Dataset(X_valid, y_valid, params=params, group=valid_groups)
+        train_set = lgb.Dataset(X_train, y_train, group=train_groups)
+        valid_set = lgb.Dataset(X_valid, y_valid, group=valid_groups)
 
         model = lgb.train(
             params=params,

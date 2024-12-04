@@ -20,19 +20,28 @@ def _main(cfg: DictConfig):
     predictions = ranker.predict(X_test)
 
     test["prediction"] = predictions
-    test["rank"] = test.groupby("diner_category_middle")["prediction"].rank(method="first", ascending=False)
-    test = test.sort_values("rank")
-    test = test.head(cfg.top_n)
-
+    test = test.loc[test["diner_address_constituency"].str.contains("서울")]
+    test = test.sort_values("prediction", ascending=False)
+    test = test.head(cfg.top_k)
     table = PrettyTable()
-    table.field_names = ["diner_name", "diner_address_constituency", "diner_category_middle", "prediction"]
+    table.field_names = [
+        "diner_name",
+        "diner_address_constituency",
+        "diner_category_middle",
+        "prediction",
+    ]
 
     for _, row in test.iterrows():
         table.add_row(
-            [row["diner_name"], row["diner_address_constituency"], row["diner_category_middle"], row["prediction"]]
+            [
+                row["diner_name"],
+                row["diner_address_constituency"],
+                row["diner_category_middle"],
+                row["prediction"],
+            ]
         )
 
-    print(f"{cfg.user_name}님을 위한 추천 식당 리스트를 알립니다.\n{table}")
+    print(f"이욱 님을 위한 추천 식당 리스트를 알립니다.\n{table}")
 
 
 if __name__ == "__main__":

@@ -1,15 +1,31 @@
 # %%
 import os
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import seaborn as sns
 
+# %%
+# Load data (same as your current implementation)
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../data")
 
 # load data
-review_1 = pd.read_csv(os.path.join(DATA_PATH, "review_df_20241107_071929_yamyam_1.csv"), index_col=0)
-review_2 = pd.read_csv(os.path.join(DATA_PATH, "review_df_20241107_071929_yamyam_2.csv"), index_col=0)
-diner = pd.read_csv(os.path.join(DATA_PATH, "diner_df_20241107_071929_yamyam.csv"), index_col=0)
+review_1 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241122_part_1.csv"))
+review_2 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241122_part_2.csv"))
+review_3 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241122_part_3.csv"))
+review = pd.concat([review_1, review_2, review_3], axis=0)
 
 # %%
-review_2.loc[review_2["reviewer_user_name"] == "이채은"]
+sns.countplot(x="reviewer_review_score", data=review)
+plt.show()
+# %%
+review.head()
+# %%
+diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241122_yamyam.csv"))
+# %%
+diner.head()
+# %%
+sns.histplot(diner["real_good_review_cnt"], bins=100, kde=True)
+plt.show()
 # %%

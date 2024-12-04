@@ -6,9 +6,6 @@ X_columns:
 y_columns:
     - reviewer_review_score
 features:
-    - year
-    - month
-    - day
     - badge_level
     - reviewer_review_cnt
     - reviewer_collected_review_cnt
@@ -22,3 +19,5 @@ features:
     - real_bad_review_cnt
 
 target: reviewer_review_score
+meta: res/data/
+size: 30
