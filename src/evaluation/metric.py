@@ -54,6 +54,7 @@ def ranking_metrics_at_k(
     ap /= K
 
     # Calculate recall
-    recall = hit / len(liked_items)
+    real_count = len(liked_items)
+    recall = hit / real_count if real_count != 0 else 0
 
     return {"ap": ap, "ndcg": ndcg, "recall": recall}
