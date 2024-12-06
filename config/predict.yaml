@@ -12,5 +12,5 @@ defaults:
 
 model_path: res/models/
 results: lightgbm_ranker
-user_name: 이채은
+user_name: 893438059
 top_n: 10

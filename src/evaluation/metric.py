@@ -1,9 +1,12 @@
 import numpy as np
-from collections import defaultdict
+from numpy.typing import NDArray
 
-def ranking_metrics_at_k(liked_items, reco_items, liked_items_score=None):
+
+def ranking_metrics_at_k(
+    liked_items: NDArray, reco_items: NDArray, liked_items_score: NDArray = None
+) -> dict[str, float]:
     """
-    Calculates ndcg, average precision (aP) for `one user`.
+    Calculates ndcg, average precision (aP), hit, and recall for `one user`.
     If you want to derive ndcg, map for n users, you should average them over n.
 
     liked_items:
@@ -20,7 +23,7 @@ def ranking_metrics_at_k(liked_items, reco_items, liked_items_score=None):
         assert liked_items.shape == liked_items_score.shape
     # when target y is binary
     else:
-        liked_items_score = np.array([1]*len(liked_items))
+        liked_items_score = np.array([1] * len(liked_items))
 
     # number of recommended items
     K = len(reco_items)
@@ -44,13 +47,13 @@ def ranking_metrics_at_k(liked_items, reco_items, liked_items_score=None):
 
     for i in range(K):
         score = liked_items2score.get(reco_items[i])
-        if score != None:
+        if score is not None:
             hit += 1
             ap += hit / (i + 1)
-            ndcg += (score / np.log2(i+2)) / idcg
+            ndcg += (score / np.log2(i + 2)) / idcg
     ap /= K
 
-    return {
-        "ap": ap,
-        "ndcg": ndcg
-    }
+    # Calculate recall
+    recall = hit / len(liked_items)
+
+    return {"ap": ap, "ndcg": ndcg, "recall": recall}

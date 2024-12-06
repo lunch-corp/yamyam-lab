@@ -1,9 +1,11 @@
-import os
 import glob
+import os
+
+import numpy as np
 import pandas as pd
 import torch
 from omegaconf import DictConfig
-from sklearn.model_selection import GroupKFold, train_test_split
+from sklearn.model_selection import train_test_split
 from torch_geometric.data import Data
 
 # Load data (same as your current implementation)
@@ -12,15 +14,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_device(device.type)
 
 # Load data
-review_data_paths = glob.glob(os.path.join(DATA_PATH, 'review', '*.csv'))
-    
+review_data_paths = glob.glob(os.path.join(DATA_PATH, "review", "*.csv"))
+
 
 def load_and_prepare_graph_data(test_size, min_reviews):
-
     review = pd.DataFrame()
     for review_data_path in review_data_paths:
         review = pd.concat([review, pd.read_csv(review_data_path)], axis=0)
-    
+
     # Map diner and reviewer IDs
     diner_idxs = sorted(list(review["diner_idx"].unique()))
     reviewer_ids = sorted(list(review["reviewer_id"].unique()))
@@ -54,9 +55,7 @@ def load_and_prepare_graph_data(test_size, min_reviews):
     return data
 
 
-def load_and_prepare_lightgbm_data(
-    cfg: DictConfig, test_size: float, min_reviews: int
-) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
+def load_and_prepare_lightgbm_data(cfg: DictConfig) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     """
     test_size: ratio of test dataset
     min_reviews: minimum number of reviews for each reviewer
@@ -67,17 +66,13 @@ def load_and_prepare_lightgbm_data(
     stratify: column to stratify review data
     """
     # load data
-    diner = pd.read_csv(os.path.join(DATA_PATH, "diner_df_20241118_yamyam.csv"), index_col=0)
+    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241204_yamyam.csv"))
+
     review = pd.DataFrame()
     for review_data_path in review_data_paths:
-        review = pd.concat([review, pd.read_csv(review_data_path, index_col=0)], axis=0)
-    
+        review = pd.concat([review, pd.read_csv(review_data_path)], axis=0)
 
-    # make time feature
-    for i, time in enumerate(["year", "month", "day"]):
-        review[time] = review["reviewer_review_date"].str.split(".").str[i]
-        review[time] = review[time].astype(int)
-
+    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(lambda x: np.int32(str(x).replace(",", "")))
     review = pd.merge(review, diner, on="diner_idx", how="inner")
 
     del diner
@@ -94,24 +89,21 @@ def load_and_prepare_lightgbm_data(
 
     # filter reviewer who wrote reviews more than min_reviews
     reviewer2review_cnt = review["reviewer_id"].value_counts().to_dict()
-    reviewer_id_over = [reviewer_id for reviewer_id, cnt in reviewer2review_cnt.items() if cnt >= min_reviews]
+    reviewer_id_over = [reviewer_id for reviewer_id, cnt in reviewer2review_cnt.items() if cnt >= cfg.data.min_reviews]
     review_over = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
 
-    group_kfold = GroupKFold(n_splits=2)
-    train_idx, val_idx = next(group_kfold.split(review_over, groups=review_over["reviewer_id"]))
-    train, val = review_over.iloc[train_idx], review_over.iloc[val_idx]
+    # 사용자 ID를 train과 valid로 분리
+    train, valid = train_test_split(review_over, test_size=0.2, random_state=42)
 
-    # train, val = train_test_split(
-    #     review_over, test_size=test_size, random_state=random_state, stratify=review_over[stratify]
-    # )
-
+    # 사용자 ID를 기준으로 데이터 나누기
+    # train, val = train_test_split(review_over, test_size=cfg.data.test_size, random_state=cfg.data.random_state)
     X_train, y_train = train.drop(columns=[cfg.data.target]), train[cfg.data.target]
-    X_val, y_val = val.drop(columns=[cfg.data.target]), val[cfg.data.target]
+    X_valid, y_valid = valid.drop(columns=[cfg.data.target]), valid[cfg.data.target]
 
-    return X_train, y_train, X_val, y_val
+    return X_train, y_train, X_valid, y_valid
 
 
-def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
+def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     """
     review_data: DataFrame containing review information
     diner_data: DataFrame containing diner information
@@ -122,45 +114,36 @@ def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
         - diner_id_2_name_map: Mapping of diner IDs to their names
     """
     # load data
-    review_1 = pd.read_csv(os.path.join(DATA_PATH, "review_df_20241107_071929_yamyam_1.csv"), index_col=0)
-    review_2 = pd.read_csv(os.path.join(DATA_PATH, "review_df_20241107_071929_yamyam_2.csv"), index_col=0)
-    diner = pd.read_csv(os.path.join(DATA_PATH, "diner_df_20241107_071929_yamyam.csv"), index_col=0)
-    review = pd.concat([review_1, review_2], axis=0)
+    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241204_yamyam.csv"))
+    review = pd.DataFrame()
 
-    # make time feature
-    for i, time in enumerate(["year", "month", "day"]):
-        review[time] = review["reviewer_review_date"].str.split(".").str[i]
-        review[time] = review[time].astype(int)
+    for review_data_path in review_data_paths:
+        review = pd.concat([review, pd.read_csv(review_data_path, index_col=0)], axis=0)
 
+    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(lambda x: np.int32(str(x).replace(",", "")))
+
+    reviewer_id = cfg.user_name
     review = pd.merge(review, diner, on="diner_idx", how="inner")
-    reviewer_id = review.loc[review["reviewer_user_name"] == cfg.user_name, "reviewer_id"].unique()[0]
 
     # 사용자별 리뷰한 레스토랑 ID 목록 생성
-    user_2_diner_df = review.groupby("reviewer_id").agg({"diner_idx": lambda x: list(set(x))})
-    user_2_diner_map = dict(zip(user_2_diner_df.index, user_2_diner_df["diner_idx"]))
+    user_2_diner_df = review.groupby("reviewer_id").agg({"diner_category_middle": list})
+    user_2_diner_map = dict(zip(user_2_diner_df.index, user_2_diner_df["diner_category_middle"]))
 
     # 레스토랑 후보군 리스트
     candidate_pool = diner["diner_idx"].unique().tolist()
 
-    reviewed_diners = set(user_2_diner_map.get(reviewer_id, []))
-    unreviewed_diners = [d for d in candidate_pool if d not in reviewed_diners]
+    reviewed_diners = list(set(user_2_diner_map.get(reviewer_id, [])))
+    candidates = [d for d in candidate_pool if d not in reviewed_diners]
+    candidates = np.random.choice(candidates, size=cfg.data.size)  # candidate choice
+    review = review[review["reviewer_id"] == reviewer_id].iloc[-1:]  # 마지막 리뷰 정보만 사용
 
     # Create test data
-    test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": unreviewed_diners})
+    test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": candidates})
     test = test.merge(diner, on="diner_idx")
     test = test.merge(
-        review[
-            [
-                "reviewer_id",
-                "badge_level",
-                "year",
-                "month",
-                "day",
-                "reviewer_review_cnt",
-                "reviewer_collected_review_cnt",
-            ]
-        ].drop_duplicates(),
+        review[["reviewer_id", "badge_level", "reviewer_review_cnt", "reviewer_collected_review_cnt"]],
         on="reviewer_id",
     )
+    already_reviewed = user_2_diner_map.get(reviewer_id, [])
 
-    return test
+    return test, already_reviewed

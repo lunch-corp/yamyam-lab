@@ -35,6 +35,10 @@ click==8.1.7
     # via black
 comm==0.2.2
     # via ipykernel
+contourpy==1.3.1
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
 debugpy==1.8.8
     # via ipykernel
 decorator==5.1.1
@@ -47,18 +51,27 @@ filelock==3.16.1
     # via torch
     # via triton
 flake8==7.1.1
+    # via flake8-pyproject
     # via yamyam-lab
+flake8-pyproject==1.2.3
+    # via yamyam-lab
+fonttools==4.55.1
+    # via matplotlib
 frozenlist==1.5.0
     # via aiohttp
     # via aiosignal
 fsspec==2024.10.0
     # via torch
     # via torch-geometric
+gensim==4.3.2
+    # via node2vec
 hydra-core==1.3.2
     # via yamyam-lab
 idna==3.10
     # via requests
     # via yarl
+implicit==0.7.2
+    # via yamyam-lab
 ipykernel==6.29.5
     # via yamyam-lab
 ipython==8.29.0
@@ -71,16 +84,22 @@ jinja2==3.1.4
     # via torch
     # via torch-geometric
 joblib==1.4.2
+    # via node2vec
     # via scikit-learn
 jupyter-client==8.6.3
     # via ipykernel
 jupyter-core==5.7.2
     # via ipykernel
     # via jupyter-client
+kiwisolver==1.4.7
+    # via matplotlib
 lightgbm==4.5.0
     # via yamyam-lab
 markupsafe==3.0.2
     # via jinja2
+matplotlib==3.9.2
+    # via seaborn
+    # via yamyam-lab
 matplotlib-inline==0.1.7
     # via ipykernel
     # via ipython
@@ -96,15 +115,23 @@ mypy-extensions==1.0.0
 nest-asyncio==1.6.0
     # via ipykernel
 networkx==3.4.2
+    # via node2vec
     # via torch
-numpy==2.1.3
+node2vec==0.5.0
+    # via yamyam-lab
+numpy==1.26.4
+    # via contourpy
+    # via gensim
+    # via implicit
     # via lightgbm
+    # via matplotlib
+    # via node2vec
     # via pandas
     # via scikit-learn
     # via scipy
+    # via seaborn
     # via torch-geometric
     # via xgboost
-    # via yamyam-lab
 nvidia-cublas-cu12==12.4.5.8
     # via nvidia-cudnn-cu12
     # via nvidia-cusolver-cu12
@@ -141,7 +168,9 @@ packaging==24.2
     # via black
     # via hydra-core
     # via ipykernel
+    # via matplotlib
 pandas==2.2.3
+    # via seaborn
     # via yamyam-lab
 parso==0.8.4
     # via jedi
@@ -149,6 +178,8 @@ pathspec==0.12.1
     # via black
 pexpect==4.9.0
     # via ipython
+pillow==11.0.0
+    # via matplotlib
 platformdirs==4.3.6
     # via black
     # via jupyter-core
@@ -173,9 +204,11 @@ pyflakes==3.2.0
 pygments==2.18.0
     # via ipython
 pyparsing==3.2.0
+    # via matplotlib
     # via torch-geometric
 python-dateutil==2.9.0.post0
     # via jupyter-client
+    # via matplotlib
     # via pandas
 pytz==2024.2
     # via pandas
@@ -189,20 +222,28 @@ requests==2.32.3
 scikit-learn==1.5.2
     # via yamyam-lab
 scipy==1.14.1
+    # via gensim
+    # via implicit
     # via lightgbm
     # via scikit-learn
     # via xgboost
+seaborn==0.13.2
+    # via yamyam-lab
 six==1.16.0
     # via asttokens
     # via python-dateutil
+smart-open==7.0.5
+    # via gensim
 stack-data==0.6.3
     # via ipython
 sympy==1.13.1
     # via torch
 threadpoolctl==3.5.0
+    # via implicit
     # via scikit-learn
 tomli==2.1.0
     # via black
+    # via flake8-pyproject
 torch==2.5.1
     # via yamyam-lab
 torch-geometric==2.6.1
@@ -211,6 +252,8 @@ tornado==6.4.1
     # via ipykernel
     # via jupyter-client
 tqdm==4.67.0
+    # via implicit
+    # via node2vec
     # via torch-geometric
 traitlets==5.14.3
     # via comm
@@ -233,6 +276,8 @@ urllib3==2.2.3
 wcwidth==0.2.13
     # via prettytable
     # via prompt-toolkit
+wrapt==1.17.0
+    # via smart-open
 xgboost==2.1.2
     # via yamyam-lab
 yarl==1.17.1

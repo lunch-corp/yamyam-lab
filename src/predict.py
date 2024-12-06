@@ -12,7 +12,7 @@ from data import load_test_dataset
 
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
-    test = load_test_dataset(cfg)
+    test, already_reviewed = load_test_dataset(cfg)
     X_test = test[cfg.data.features]
 
     ranker = lgb.Booster(model_file=Path(cfg.models.model_path) / f"{cfg.models.results}.txt")
@@ -20,8 +20,7 @@ def _main(cfg: DictConfig):
     predictions = ranker.predict(X_test)
 
     test["prediction"] = predictions
-    test["rank"] = test.groupby("diner_category_middle")["prediction"].rank(method="first", ascending=False)
-    test = test.sort_values("rank")
+    test = test.sort_values(by=["prediction"], ascending=False)
     test = test.head(cfg.top_n)
 
     table = PrettyTable()

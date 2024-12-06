@@ -13,9 +13,7 @@ from model.boosting import LightGBMTrainer
 def _main(cfg: DictConfig):
 
     # load dataset
-    X_train, y_train, X_test, y_test = load_and_prepare_lightgbm_data(
-        cfg, test_size=cfg.data.test_size, min_reviews=cfg.data.min_reviews
-    )
+    X_train, y_train, X_test, y_test = load_and_prepare_lightgbm_data(cfg)
 
     # train model
     trainer = LightGBMTrainer(cfg)
