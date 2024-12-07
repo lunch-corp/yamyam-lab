@@ -1,13 +1,11 @@
 import os
+
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import torch
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 
-DATA_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "../../data"
-)
+DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,12 +29,14 @@ class TorchData(Dataset):
         return self.X[idx], self.y[idx]
 
 
-def train_test_split_stratify(test_size,
-                              min_reviews,
-                              X_columns=["diner_idx", "reviewer_id"],
-                              y_columns=["reviewer_review_score"],
-                              random_state=42,
-                              stratify="reviewer_id"):
+def train_test_split_stratify(
+    test_size,
+    min_reviews,
+    X_columns=["diner_idx", "reviewer_id"],
+    y_columns=["reviewer_review_score"],
+    random_state=42,
+    stratify="reviewer_id",
+):
     """
     test_size: ratio of test dataset
     min_reviews: minimum number of reviews for each reviewer
@@ -47,9 +47,15 @@ def train_test_split_stratify(test_size,
     stratify: column to stratify review data
     """
     # load data
-    review_1 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241122_part_1.csv"))
-    review_2 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241122_part_2.csv"))
-    review_3 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241122_part_3.csv"))
+    review_1 = pd.read_csv(
+        os.path.join(DATA_PATH, "review/review_df_20241122_part_1.csv")
+    )
+    review_2 = pd.read_csv(
+        os.path.join(DATA_PATH, "review/review_df_20241122_part_2.csv")
+    )
+    review_3 = pd.read_csv(
+        os.path.join(DATA_PATH, "review/review_df_20241122_part_3.csv")
+    )
     review = pd.concat([review_1, review_2, review_3], axis=0)[X_columns + y_columns]
     del review_1
     del review_2
@@ -69,12 +75,18 @@ def train_test_split_stratify(test_size,
 
     # filter reviewer who wrote reviews more than min_reviews
     reviewer2review_cnt = review["reviewer_id"].value_counts().to_dict()
-    reviewer_id_over = [reviewer_id for reviewer_id, cnt in reviewer2review_cnt.items() if cnt >= min_reviews]
+    reviewer_id_over = [
+        reviewer_id
+        for reviewer_id, cnt in reviewer2review_cnt.items()
+        if cnt >= min_reviews
+    ]
     review_over = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
-    train, val = train_test_split(review_over,
-                                   test_size=test_size,
-                                   random_state=random_state,
-                                   stratify=review_over[stratify])
+    train, val = train_test_split(
+        review_over,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=review_over[stratify],
+    )
     return {
         "X_train": torch.tensor(train[X_columns].values),
         "y_train": torch.tensor(train[y_columns].values, dtype=torch.float32),
@@ -83,16 +95,22 @@ def train_test_split_stratify(test_size,
         "num_diners": num_diners,
         "num_users": num_reviewers,
         "diner_mapping": diner_mapping,
-        "user_mapping": reviewer_mapping
+        "user_mapping": reviewer_mapping,
     }
 
 
-def prepare_torch_dataloader(X_train, y_train, X_val, y_val, batch_size=128, random_state=42):
+def prepare_torch_dataloader(
+    X_train, y_train, X_val, y_val, batch_size=128, random_state=42
+):
     seed = torch.Generator(device=device.type).manual_seed(random_state)
 
     train_dataset = TorchData(X_train, y_train)
     val_dataset = TorchData(X_val, y_val)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=seed)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, generator=seed)
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, generator=seed
+    )
+    val_dataloader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=True, generator=seed
+    )
     return train_dataloader, val_dataloader
