@@ -2321,6 +2321,25 @@ files = [
 ]
 
 [[package]]
+name = "pyg-lib"
+version = "0.4.0+pt25"
+description = "Low-Level Graph Neural Network Operators for PyG"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "pyg_lib-0.4.0+pt25-cp311-cp311-macosx_14_0_universal2.whl", hash = "sha256:3af45a630c678c3be049fae2852ebd8595d4386db82b30ad96f1e8dfd02f13b8"},
+]
+
+[package.extras]
+dev = ["pre-commit"]
+test = ["pytest", "pytest-cov"]
+triton = ["triton"]
+
+[package.source]
+type = "url"
+url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/pyg_lib-0.4.0%2Bpt25-cp311-cp311-macosx_14_0_universal2.whl"
+
+[[package]]
 name = "pygments"
 version = "2.18.0"
 description = "Pygments is a syntax highlighting package written in Python."
@@ -2881,13 +2900,13 @@ opt-einsum = ["opt-einsum (>=3.3)"]
 optree = ["optree (>=0.12.0)"]
 
 [[package]]
-name = "torch-cluster"
+name = "torch_cluster"
 version = "1.6.3"
 description = "PyTorch Extension Library of Optimized Graph Cluster Algorithms"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "torch_cluster-1.6.3.tar.gz", hash = "sha256:78d5a930a5bbd0d8788df8c6d66addd68d6dd292fe3edb401e3dacba26308152"},
+    {file = "torch_cluster-1.6.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:2918744d22650697c4df29143ac13b170f7bfbe61258d400bb3520d572997f0c"},
 ]
 
 [package.dependencies]
@@ -2895,6 +2914,10 @@ scipy = "*"
 
 [package.extras]
 test = ["pytest", "pytest-cov"]
+
+[package.source]
+type = "url"
+url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_cluster-1.6.3-cp311-cp311-macosx_10_9_universal2.whl"
 
 [[package]]
 name = "torch-geometric"
@@ -2926,26 +2949,30 @@ modelhub = ["huggingface_hub"]
 test = ["onnx", "onnxruntime", "pytest", "pytest-cov"]
 
 [[package]]
-name = "torch-scatter"
+name = "torch_scatter"
 version = "2.1.2"
 description = "PyTorch Extension Library of Optimized Scatter Operations"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "torch_scatter-2.1.2.tar.gz", hash = "sha256:69b3aa435f2424ac6a1bfb6ff702da6eb73b33ca0db38fb26989c74159258e47"},
+    {file = "torch_scatter-2.1.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:2d79c61aa4d9d1ff78c8e8cfea995bcf404012316481f08acae795d8ddf332c2"},
 ]
 
 [package.extras]
 test = ["pytest", "pytest-cov"]
 
+[package.source]
+type = "url"
+url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp311-cp311-macosx_10_9_universal2.whl"
+
 [[package]]
-name = "torch-sparse"
+name = "torch_sparse"
 version = "0.6.18"
 description = "PyTorch Extension Library of Optimized Autograd Sparse Matrix Operations"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "torch_sparse-0.6.18.tar.gz", hash = "sha256:2f14c510a6e93f404c6ea357210615b3c15a71731f9dbd86f25434e34fb5a741"},
+    {file = "torch_sparse-0.6.18-cp311-cp311-macosx_11_0_universal2.whl", hash = "sha256:74f3d298565b2db0287aeae51c25bb7550f857bfa41337cab20cf48949db2778"},
 ]
 
 [package.dependencies]
@@ -2954,18 +2981,26 @@ scipy = "*"
 [package.extras]
 test = ["pytest", "pytest-cov"]
 
+[package.source]
+type = "url"
+url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_sparse-0.6.18-cp311-cp311-macosx_11_0_universal2.whl"
+
 [[package]]
-name = "torch-spline-conv"
+name = "torch_spline_conv"
 version = "1.2.2"
 description = "Implementation of the Spline-Based Convolution Operator of SplineCNN in PyTorch"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 files = [
-    {file = "torch_spline_conv-1.2.2.tar.gz", hash = "sha256:ed45a81da29f774665dbdd4709d7e534cdf16d2e7006dbd06957f35bd09661b2"},
+    {file = "torch_spline_conv-1.2.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:61a4725e25cd97f5b2d81a848cf92136d64e65b2e3a7864d66bb052f8e0965e6"},
 ]
 
 [package.extras]
 test = ["pytest", "pytest-cov"]
+
+[package.source]
+type = "url"
+url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_spline_conv-1.2.2-cp311-cp311-macosx_10_9_universal2.whl"
 
 [[package]]
 name = "tornado"
@@ -3297,4 +3332,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "1ebce46c30e5b672a541008c650b7c8f8f9016a4c358b1dee16a2808e7bd986f"
+content-hash = "dd12ec4731abc43968ecc89e64b20db9840acc0a3efc3aef28aa23fa33d633cc"
