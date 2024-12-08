@@ -22,6 +22,12 @@ Python 3.11.11
 
 If python version is lower than `3.11`, try installing required version using `pyenv`.
 
+Create virtual environment.
+
+```shell
+$ poetry shell
+```
+
 After setting up python version, just run following command which will install all the required packages from `poetry.lock`.
 
 ```shell
