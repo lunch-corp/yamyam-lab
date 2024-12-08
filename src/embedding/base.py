@@ -19,25 +19,25 @@ class BaseEmbedding(ABC):
         self.num_diners = len(self.diner_ids)
 
     @abstractmethod
-    def initialize(self, **kwargs):
+    def initialize(self, edge_index, **kwargs):
         raise NotImplementedError
 
-    def train(self, model, optimizer, **kwargs):
-        model.train()
-        loader = model.loader(batch_size=kwargs["batch_size"], shuffle=True)
+    def train(self, **kwargs):
+        self.model.train()
+        loader = self.model.loader(batch_size=kwargs["batch_size"], shuffle=True)
         total_loss = 0
         for pos_rw, neg_rw in loader:
-            optimizer.zero_grad()
-            loss = model.loss(pos_rw.to(device), neg_rw.to(device))
+            self.optimizer.zero_grad()
+            loss = self.model.loss(pos_rw.to(device), neg_rw.to(device))
             loss.backward()
-            optimizer.step()
+            self.optimizer.step()
             total_loss += loss.item()
         total_loss /= len(loader)
-        return model, total_loss
+        return total_loss
 
-    def recommend(self, model, X_train, X_val, top_K = [3, 5, 7, 10, 20], filter_already_liked=True):
-        user_embeds = model.embedding(self.user_ids)
-        diner_embeds = model.embedding(self.diner_ids)
+    def recommend(self, X_train, X_val, top_K = [3, 5, 7, 10, 20], filter_already_liked=True):
+        user_embeds = self.model.embedding(self.user_ids)
+        diner_embeds = self.model.embedding(self.diner_ids)
         scores = torch.mm(user_embeds, diner_embeds.t())
 
         self.map = 0.
@@ -60,8 +60,6 @@ class BaseEmbedding(ABC):
         for user_id in self.user_ids:
             user_id = user_id.item()
             val_liked_item_id = np.array(val_liked[user_id])
-            if len(val_liked_item_id) >= 3:
-                print("hi")
             for K in top_K:
                 if len(val_liked_item_id) < K:
                     continue

@@ -17,7 +17,7 @@ class Node2Vec(BaseEmbedding):
         )
 
     def initialize(self, edge_index, **kwargs):
-        model = Node2VecPG(
+        self.model = Node2VecPG(
             edge_index=edge_index,
             embedding_dim=kwargs["embedding_dim"],
             walk_length=kwargs["walk_length"],
@@ -28,8 +28,7 @@ class Node2Vec(BaseEmbedding):
             q=kwargs["q"],
             sparse=kwargs["sparse"],
         )
-        optimizer = torch.optim.Adam(list(model.parameters()), lr=kwargs["lr"])
-        return model, optimizer
+        self.optimizer = torch.optim.Adam(list(self.model.parameters()), lr=kwargs["lr"])
 
 
 if __name__ == "__main__":
@@ -71,24 +70,34 @@ if __name__ == "__main__":
             user_ids=torch.tensor(list(data["user_mapping"].values())),
             diner_ids=torch.tensor(list(data["diner_mapping"].values())),
         )
-        model, optimizer = node2vec.initialize(
+        node2vec.initialize(
             edge_index=train.edge_index,
             **vars(args)
         )
         for epoch in range(args.epochs):
-            model, train_loss = node2vec.train(model, optimizer, batch_size=args.batch_size)
+            train_loss = node2vec.train(batch_size=args.batch_size)
             logger.info(f"epoch {epoch}: train loss {train_loss:.4f}")
 
-            recommendations = node2vec.recommend(model, data["X_train"], data["X_val"], filter_already_liked=True)
+            recommendations = node2vec.recommend(data["X_train"], data["X_val"], filter_already_liked=True)
 
+            maps = []
+            ndcgs = []
             for K in node2vec.metric_at_K.keys():
-                map = node2vec.metric_at_K[K]["map"]
-                ndcg = node2vec.metric_at_K[K]["ndcg"]
+                map = round(node2vec.metric_at_K[K]["map"], 5)
+                ndcg = round(node2vec.metric_at_K[K]["ndcg"], 5)
                 count = node2vec.metric_at_K[K]["count"]
                 logger.info(f"maP@{K}: {map} with {count} users out of all {node2vec.num_users} users")
                 logger.info(f"ndcg@{K}: {ndcg} with {count} users out of all {node2vec.num_users} users")
 
-        pickle.dump(node2vec, open("node2vec.pkl", "wb"))
+                maps.append(str(map))
+                ndcgs.append(str(ndcg))
+
+            logger.info(f"map result: {'|'.join(maps)}")
+            logger.info(f"ndcg result: {'|'.join(ndcgs)}")
+
+        torch.save(node2vec.model.state_dict(), "node2vec.pt")
+
+        logger.info("successfully saved node2vec torch model")
     except:
         logger.error(traceback.format_exc())
         raise
