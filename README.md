@@ -33,3 +33,10 @@ After setting up python version, just run following command which will install a
 ```shell
 $ poetry install
 ```
+
+## Experiment results
+
+|Algorithm|Task|mAP@3|mAP@7|mAP@10|NDCG@3|NDCG@7|NDCG@10|
+|----------------|---------|------|------|------|-------|-------|-------|
+|SVD|Regression|TBD|TBD|TBD|TBD|TBD|TBD|
+|node2vec|Embedding|TBD|TBD|TBD|TBD|TBD|TBD|
