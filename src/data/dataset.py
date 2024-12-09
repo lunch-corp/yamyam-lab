@@ -8,6 +8,8 @@ from omegaconf import DictConfig
 from sklearn.model_selection import train_test_split
 from torch_geometric.data import Data
 
+from preprocess.preprocess import build_text_dataset
+
 # Load data (same as your current implementation)
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -74,7 +76,7 @@ def load_and_prepare_lightgbm_data(cfg: DictConfig) -> tuple[pd.DataFrame, pd.Se
 
     review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(lambda x: np.int32(str(x).replace(",", "")))
     review = pd.merge(review, diner, on="diner_idx", how="inner")
-
+    review = review.dropna(subset=["reviewer_review"])
     del diner
 
     # store unique number of diner and reviewer
@@ -93,7 +95,13 @@ def load_and_prepare_lightgbm_data(cfg: DictConfig) -> tuple[pd.DataFrame, pd.Se
     review_over = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
 
     # 사용자 ID를 train과 valid로 분리
-    train, valid = train_test_split(review_over, test_size=0.2, random_state=42)
+    user_ids = review_over["reviewer_id"].unique()
+    train, valid = train_test_split(user_ids, test_size=0.2, random_state=42)
+
+    train = review_over[review_over["reviewer_id"].isin(train)]
+    valid = review_over[review_over["reviewer_id"].isin(valid)]
+    train = train.sort_values(by=["reviewer_id"])
+    valid = valid.sort_values(by=["reviewer_id"])
 
     # 사용자 ID를 기준으로 데이터 나누기
     # train, val = train_test_split(review_over, test_size=cfg.data.test_size, random_state=cfg.data.random_state)
@@ -124,7 +132,8 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
 
     reviewer_id = cfg.user_name
     review = pd.merge(review, diner, on="diner_idx", how="inner")
-
+    review["reviewer_review"] = review["reviewer_review"].fillna("No Review")
+    review = build_text_dataset(review)
     # 사용자별 리뷰한 레스토랑 ID 목록 생성
     user_2_diner_df = review.groupby("reviewer_id").agg({"diner_category_middle": list})
     user_2_diner_map = dict(zip(user_2_diner_df.index, user_2_diner_df["diner_category_middle"]))
@@ -134,7 +143,7 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
 
     reviewed_diners = list(set(user_2_diner_map.get(reviewer_id, [])))
     candidates = [d for d in candidate_pool if d not in reviewed_diners]
-    candidates = np.random.choice(candidates, size=cfg.data.size)  # candidate choice
+    candidates = np.random.choice(candidates, size=cfg.size)  # candidate choice
     review = review[review["reviewer_id"] == reviewer_id].iloc[-1:]  # 마지막 리뷰 정보만 사용
 
     # Create test data
@@ -144,6 +153,11 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
         review[["reviewer_id", "badge_level", "reviewer_review_cnt", "reviewer_collected_review_cnt"]],
         on="reviewer_id",
     )
+
+    test = test.loc[
+        (test["diner_category_middle"] == cfg.diner_middle_category)
+        & (test["diner_address_constituency"] == cfg.diner_address_constituency)
+    ]
     already_reviewed = user_2_diner_map.get(reviewer_id, [])
 
     return test, already_reviewed

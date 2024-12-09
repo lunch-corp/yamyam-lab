@@ -29,9 +29,10 @@ class Node2Vec(BaseEmbedding):
 
 if __name__ == "__main__":
     import traceback
-    from tools.parse_args import parse_args
+
+    from preprocess.preprocess import prepare_torch_geometric_data, train_test_split_stratify
     from tools.logger import setup_logger
-    from preprocess.preprocess import train_test_split_stratify, prepare_torch_geometric_data
+    from tools.parse_args import parse_args
 
     args = parse_args()
     logger = setup_logger(args.log_path)

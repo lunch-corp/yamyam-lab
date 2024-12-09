@@ -17,6 +17,10 @@ features:
     - all_review_cnt
     - real_good_review_cnt
     - real_bad_review_cnt
-    - combined_score
+drop_features:
+- reviewer_user_name
+- diner_category_large
+- diner_category_middle
+- diner_category_small
+- diner_category_detail
 target: reviewer_review_score
-size: 30

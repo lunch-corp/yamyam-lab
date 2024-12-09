@@ -3,6 +3,7 @@ from __future__ import annotations
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
+from catboost import CatBoostRanker, Pool
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import Self
 
@@ -39,6 +40,40 @@ class LightGBMTrainer(BaseModel):
                 lgb.log_evaluation(self.cfg.models.verbose_eval),
                 lgb.early_stopping(self.cfg.models.early_stopping_rounds),
             ],
+        )
+
+        return model
+
+
+class CatBoostTrainer(BaseModel):
+    def __init__(self, cfg: DictConfig) -> None:
+        super().__init__(cfg)
+
+    def _fit(
+        self: Self,
+        X_train: pd.DataFrame | np.ndarray,
+        y_train: pd.Series | np.ndarray,
+        X_valid: pd.DataFrame | np.ndarray | None = None,
+        y_valid: pd.Series | np.ndarray | None = None,
+    ) -> CatBoostRanker:
+        train_groups = X_train.index.to_numpy()  # user_id query
+        valid_groups = X_valid.index.to_numpy()  # user_id query
+        train_set = Pool(X_train, y_train, cat_features=self.cfg.generator.categorical_features, group_id=train_groups)
+        valid_set = Pool(X_valid, y_valid, cat_features=self.cfg.generator.categorical_features, group_id=valid_groups)
+
+        params = OmegaConf.to_container(self.cfg.models.params)
+        model = CatBoostRanker(
+            **params,
+            custom_metric=[f"NDCG:top={i}" for i in range(2, 6)] + ["MAP"],
+            random_seed=self.cfg.models.seed,
+            verbose=self.cfg.models.verbose_eval,
+        )
+
+        model.fit(
+            train_set,
+            eval_set=valid_set,
+            verbose_eval=self.cfg.models.verbose_eval,
+            early_stopping_rounds=self.cfg.models.early_stopping_rounds,
         )
 
         return model

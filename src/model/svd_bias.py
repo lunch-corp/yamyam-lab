@@ -1,15 +1,15 @@
 import copy
 import traceback
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
-import numpy as np
 
-from loss.custom import svd_loss
 from evaluation.metric import ranking_metrics_at_k
-from tools.parse_args import parse_args
+from loss.custom import svd_loss
 from tools.logger import setup_logger
+from tools.parse_args import parse_args
 from tools.utils import convert_tensor
 
 # set cpu or cuda for default option
@@ -91,7 +91,7 @@ class SVDWithBias(nn.Module):
 
 
 if __name__ == "__main__":
-    from preprocess.preprocess import train_test_split_stratify, prepare_torch_dataloader
+    from preprocess.preprocess import prepare_torch_dataloader, train_test_split_stratify
 
     args = parse_args()
     logger = setup_logger(args.log_path)

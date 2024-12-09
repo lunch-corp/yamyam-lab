@@ -24,11 +24,7 @@ matplotlib = "3.9.2"
 implicit = "0.7.2"
 node2vec = ">=0.5.0"
 flake8-pyproject = ">=1.2.3"
-pyg_lib = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/pyg_lib-0.4.0%2Bpt25-cp311-cp311-macosx_14_0_universal2.whl" }
-torch_scatter = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp311-cp311-macosx_10_9_universal2.whl" }
-torch_sparse = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_sparse-0.6.18-cp311-cp311-macosx_11_0_universal2.whl" }
-torch-cluster = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_cluster-1.6.3-cp311-cp311-macosx_10_9_universal2.whl" }
-torch_spline_conv = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_spline_conv-1.2.2-cp311-cp311-macosx_10_9_universal2.whl" }
+catboost = "^1.2.7"
 
 
 [build-system]

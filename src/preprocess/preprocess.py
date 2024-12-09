@@ -1,8 +1,9 @@
 import os
-import pandas as pd
-from sklearn.model_selection import train_test_split
 
+import pandas as pd
 import torch
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
@@ -117,3 +118,18 @@ def prepare_torch_geometric_data(X_train, X_val, num_diners, num_reviewers):
     train = Data(edge_index=edge_index_train, num_nodes=num_diners + num_reviewers)
     val = Data(edge_index=edge_index_val, num_nodes=num_diners + num_reviewers)
     return train, val
+
+
+def build_text_dataset(review: pd.DataFrame) -> pd.DataFrame:
+    """
+    review: review data
+    """
+    # tf-idf vectorizer
+    stopwords = ["이", "그", "저", "그리고", "하지만", "은", "는", "이", "가", "을", "를"]
+
+    vectorizer = TfidfVectorizer(max_features=10, stop_words=stopwords)
+    tfidf_matrix = vectorizer.fit_transform(review["reviewer_review"])
+
+    tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=[f"tfidf_{i}" for i in range(10)])
+
+    return pd.concat([review, tfidf_df], axis=1)

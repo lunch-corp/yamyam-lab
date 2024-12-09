@@ -13,4 +13,7 @@ defaults:
 model_path: res/models/
 results: lightgbm_ranker
 user_name: 893438059
+diner_middle_category: 한식
+diner_address_constituency: 서울 노원구
 top_n: 10
+size: 1000

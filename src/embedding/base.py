@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-import torch
-import numpy as np
 
-from tools.utils import convert_tensor
+import numpy as np
+import torch
+
 from evaluation.metric import ranking_metrics_at_k
+from tools.utils import convert_tensor
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
