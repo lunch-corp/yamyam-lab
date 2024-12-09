@@ -10,7 +10,7 @@ def convert_tensor(ts, structure):
     assert ts.shape[1] == 2
     assert structure in [dict, list]
     res = defaultdict(structure)
-    for (diner_id, reviewer_id) in ts:
+    for diner_id, reviewer_id in ts:
         reviewer_id = reviewer_id.item()
         diner_id = diner_id.item()
         if structure == dict:

@@ -17,7 +17,7 @@ def _main(cfg: DictConfig):
     test, already_reviewed = load_test_dataset(cfg)
     X_test = test[cfg.data.features]
 
-    ranker = lgb.Booster(model_file=Path(cfg.models.model_path) / f"{cfg.models.results}.txt")
+    ranker = lgb.Booster(model_file=Path(cfg.models.model_path) / f"{cfg.models.results}.model")
     predictions = ranker.predict(X_test)
     test["prediction"] = predictions
     test = test.sort_values(by=["prediction"], ascending=False)

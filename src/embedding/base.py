@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import pickle
 import torch
 import numpy as np
 
@@ -35,13 +34,13 @@ class BaseEmbedding(ABC):
         total_loss /= len(loader)
         return total_loss
 
-    def recommend(self, X_train, X_val, top_K = [3, 5, 7, 10, 20], filter_already_liked=True):
+    def recommend(self, X_train, X_val, top_K=[3, 5, 7, 10, 20], filter_already_liked=True):
         user_embeds = self.model.embedding(self.user_ids)
         diner_embeds = self.model.embedding(self.diner_ids)
         scores = torch.mm(user_embeds, diner_embeds.t())
 
-        self.map = 0.
-        self.ndcg = 0.
+        self.map = 0.0
+        self.ndcg = 0.0
 
         train_liked = convert_tensor(X_train, list)
         val_liked = convert_tensor(X_val, list)
@@ -54,7 +53,9 @@ class BaseEmbedding(ABC):
                 user_id = user_id.item()
                 user_liked_items = train_liked[user_id]
                 for already_liked_item_id in user_liked_items:
-                    scores[user_id - self.num_diners][already_liked_item_id] = -float('inf')  # not recommend already chosen item_id
+                    scores[user_id - self.num_diners][already_liked_item_id] = -float(
+                        "inf"
+                    )  # not recommend already chosen item_id
 
         # calculate metric
         for user_id in self.user_ids:

@@ -6,10 +6,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
-DATA_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "../../data"
-)
+DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,13 +30,15 @@ class TorchData(Dataset):
         return self.X[idx], self.y[idx]
 
 
-def train_test_split_stratify(test_size,
-                              min_reviews,
-                              X_columns=["diner_idx", "reviewer_id"],
-                              y_columns=["reviewer_review_score"],
-                              random_state=42,
-                              stratify="reviewer_id",
-                              pg_model=False):
+def train_test_split_stratify(
+    test_size,
+    min_reviews,
+    X_columns=["diner_idx", "reviewer_id"],
+    y_columns=["reviewer_review_score"],
+    random_state=42,
+    stratify="reviewer_id",
+    pg_model=False,
+):
     """
     test_size: ratio of test dataset
     min_reviews: minimum number of reviews for each reviewer
@@ -72,18 +71,18 @@ def train_test_split_stratify(test_size,
 
     # mapping diner_idx and reviewer_id
     diner_mapping = {diner_idx: i for i, diner_idx in enumerate(diner_idxs)}
-    if pg_model == True:
+
+    if pg_model is True:
         # each node index in torch_geometric should be unique
-        reviewer_mapping = {reviewer_id: (i+num_diners) for i, reviewer_id in enumerate(reviewer_ids)}
+        reviewer_mapping = {reviewer_id: (i + num_diners) for i, reviewer_id in enumerate(reviewer_ids)}
+
     else:
         reviewer_mapping = {reviewer_id: i for i, reviewer_id in enumerate(reviewer_ids)}
+
     review["diner_idx"] = review["diner_idx"].map(diner_mapping)
     review["reviewer_id"] = review["reviewer_id"].map(reviewer_mapping)
 
-    train, val = train_test_split(review,
-                                   test_size=test_size,
-                                   random_state=random_state,
-                                   stratify=review[stratify])
+    train, val = train_test_split(review, test_size=test_size, random_state=random_state, stratify=review[stratify])
     return {
         "X_train": torch.tensor(train[X_columns].values),
         "y_train": torch.tensor(train[y_columns].values, dtype=torch.float32),
@@ -92,7 +91,7 @@ def train_test_split_stratify(test_size,
         "num_diners": num_diners,
         "num_users": num_reviewers,
         "diner_mapping": diner_mapping,
-        "user_mapping": reviewer_mapping
+        "user_mapping": reviewer_mapping,
     }
 
 
@@ -112,21 +111,9 @@ def prepare_torch_geometric_data(X_train, X_val, num_diners, num_reviewers):
     assert X_train.shape[1] == 2
     assert X_val.shape[1] == 2
     # make edges for undirected graph
-    edge_index_train = torch.concat(
-        (X_train, X_train[:, [1, 0]]),
-        axis=0
-    ).T
-    edge_index_val = torch.concat(
-        (X_val, X_val[:, [1, 0]]),
-        axis=0
-    ).T
+    edge_index_train = torch.concat((X_train, X_train[:, [1, 0]]), axis=0).T
+    edge_index_val = torch.concat((X_val, X_val[:, [1, 0]]), axis=0).T
     # make pg data
-    train = Data(
-        edge_index=edge_index_train,
-        num_nodes=num_diners+num_reviewers
-    )
-    val = Data(
-        edge_index=edge_index_val,
-        num_nodes=num_diners + num_reviewers
-    )
+    train = Data(edge_index=edge_index_train, num_nodes=num_diners + num_reviewers)
+    val = Data(edge_index=edge_index_val, num_nodes=num_diners + num_reviewers)
     return train, val

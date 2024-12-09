@@ -1,45 +1,39 @@
-[project]
+[tool.poetry]
 name = "yamyam-lab"
 version = "0.1.0"
-description = "Add your description here"
-authors = [
-    { name = "ds-wook", email = "leewook94@gmail.com" }
-]
-dependencies = [
-    "scikit-learn==1.5.2",
-    "torch==2.5.1",
-    "pandas==2.2.3",
-    "hydra-core>=1.3.2",
-    "torch-geometric>=2.6.1",
-    "lightgbm>=4.5.0",
-    "xgboost>=2.1.2",
-    "ipykernel>=6.29.5",
-    "black>=24.10.0",
-    "flake8>=7.1.1",
-    "isort>=5.13.2",
-    "prettytable>=3.12.0",
-    "matplotlib==3.9.2",
-    "implicit==0.7.2",
-    "node2vec>=0.5.0",
-    "flake8-pyproject>=1.2.3",
-    "seaborn>=0.13.2",
-]
+description = ""
+authors = ["skip"]
 readme = "README.md"
-requires-python = ">= 3.10"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+scikit-learn = "1.5.2"
+torch = "2.5.1"
+pandas = "2.2.3"
+hydra-core = ">=1.3.2"
+torch-geometric = ">=2.6.1"
+lightgbm = ">=4.5.0"
+xgboost = ">=2.1.2"
+ipykernel = ">=6.29.5"
+black = ">=24.10.0"
+flake8 = ">=7.1.1"
+isort = ">=5.13.2"
+prettytable = ">=3.12.0"
+seaborn = ">=0.13.2"
+matplotlib = "3.9.2"
+implicit = "0.7.2"
+node2vec = ">=0.5.0"
+flake8-pyproject = ">=1.2.3"
+pyg_lib = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/pyg_lib-0.4.0%2Bpt25-cp311-cp311-macosx_14_0_universal2.whl" }
+torch_scatter = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp311-cp311-macosx_10_9_universal2.whl" }
+torch_sparse = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_sparse-0.6.18-cp311-cp311-macosx_11_0_universal2.whl" }
+torch-cluster = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_cluster-1.6.3-cp311-cp311-macosx_10_9_universal2.whl" }
+torch_spline_conv = { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_spline_conv-1.2.2-cp311-cp311-macosx_10_9_universal2.whl" }
+
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.rye]
-managed = true
-dev-dependencies = []
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/yamyam_lab"]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.isort]
 profile = "black"

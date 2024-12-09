@@ -1,4 +1,3 @@
-import pickle
 import torch
 from torch_geometric.nn import Node2Vec as Node2VecPG
 
@@ -11,10 +10,7 @@ torch.set_default_device(device.type)
 
 class Node2Vec(BaseEmbedding):
     def __init__(self, user_ids, diner_ids):
-        super().__init__(
-            user_ids=user_ids,
-            diner_ids=diner_ids
-        )
+        super().__init__(user_ids=user_ids, diner_ids=diner_ids)
 
     def initialize(self, edge_index, **kwargs):
         self.model = Node2VecPG(
@@ -55,11 +51,13 @@ if __name__ == "__main__":
         logger.info(f"q: {args.q}")
         logger.info(f"sparse: {args.sparse}")
 
-        data = train_test_split_stratify(test_size=args.test_ratio,
-                                         min_reviews=3,
-                                         X_columns=["diner_idx", "reviewer_id"],
-                                         y_columns=["reviewer_review_score"],
-                                         pg_model=True)
+        data = train_test_split_stratify(
+            test_size=args.test_ratio,
+            min_reviews=3,
+            X_columns=["diner_idx", "reviewer_id"],
+            y_columns=["reviewer_review_score"],
+            pg_model=True,
+        )
         train, val = prepare_torch_geometric_data(
             X_train=data["X_train"],
             X_val=data["X_val"],
@@ -70,10 +68,7 @@ if __name__ == "__main__":
             user_ids=torch.tensor(list(data["user_mapping"].values())),
             diner_ids=torch.tensor(list(data["diner_mapping"].values())),
         )
-        node2vec.initialize(
-            edge_index=train.edge_index,
-            **vars(args)
-        )
+        node2vec.initialize(edge_index=train.edge_index, **vars(args))
         for epoch in range(args.epochs):
             train_loss = node2vec.train(batch_size=args.batch_size)
             logger.info(f"epoch {epoch}: train loss {train_loss:.4f}")
@@ -98,6 +93,7 @@ if __name__ == "__main__":
         torch.save(node2vec.model.state_dict(), "node2vec.pt")
 
         logger.info("successfully saved node2vec torch model")
+
     except:
         logger.error(traceback.format_exc())
         raise

@@ -1,12 +1,13 @@
 import logging
 
+
 def setup_logger(log_file):
     # Create a logger object
     logger = logging.getLogger("yamyam")
     logger.setLevel(logging.DEBUG)
 
     # Create a file handler to log messages to a file
-    file_handler = logging.FileHandler(log_file, mode='w')  # Open file in write mode to overwrite on each run
+    file_handler = logging.FileHandler(log_file, mode="w")  # Open file in write mode to overwrite on each run
 
     # Set a logging format
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
