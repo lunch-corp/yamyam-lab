@@ -93,7 +93,6 @@ class SVDWithBias(nn.Module):
                     # sort indices using predicted score
                     indices = np.argsort(near_diner_score)[::-1]
                     pred_near_liked_item_id = near_diner[indices][:K]
-                    # pred_near_liked_item_id = torch.topk(scores_cp, k=K).indices.detach().cpu().numpy()
                     metric_at_K[K]["ranked_prec"] += ranked_precision(location, pred_near_liked_item_id)
 
 
@@ -130,6 +129,15 @@ if __name__ == "__main__":
         model = SVDWithBias(data["num_users"], data["num_diners"], args.num_factors, mu = data["y_train"].mean())
 
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
+
+        # get near 1km diner_ids
+        nearby_candidates = get_diner_nearby_candidates(max_distance_km=1)
+        # convert diner_ids
+        diner_mapping = data["diner_mapping"]
+        nearby_candidates_mapping = {}
+        for ref_id, nearby_id in nearby_candidates.items():
+            nearby_id_mapping = [diner_mapping[diner_id] for diner_id in nearby_id]
+            nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
 
         # train model
         best_loss = float('inf')
@@ -179,15 +187,6 @@ if __name__ == "__main__":
 
             logger.info(f"Train Loss: {tr_loss}")
             logger.info(f"Validation Loss: {val_loss}")
-
-            # get near 1km diner_ids
-            nearby_candidates = get_diner_nearby_candidates(max_distance_km=1)
-            # convert diner_ids
-            diner_mapping = data["diner_mapping"]
-            nearby_candidates_mapping = {}
-            for ref_id, nearby_id in nearby_candidates.items():
-                nearby_id_mapping = [diner_mapping[diner_id] for diner_id in nearby_id]
-                nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
 
             recommendations = model.recommend(
                 X_train=data["X_train"],

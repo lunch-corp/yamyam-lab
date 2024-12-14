@@ -2,6 +2,7 @@ import torch
 from torch_geometric.nn import Node2Vec as Node2VecPG
 
 from embedding.base import BaseEmbedding
+from tools.candidate import get_diner_nearby_candidates
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,6 +74,16 @@ if __name__ == "__main__":
             edge_index=train.edge_index,
             **vars(args)
         )
+
+        # get near 1km diner_ids
+        nearby_candidates = get_diner_nearby_candidates(max_distance_km=1)
+        # convert diner_ids
+        diner_mapping = data["diner_mapping"]
+        nearby_candidates_mapping = {}
+        for ref_id, nearby_id in nearby_candidates.items():
+            nearby_id_mapping = [diner_mapping[diner_id] for diner_id in nearby_id]
+            nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
+
         for epoch in range(args.epochs):
             train_loss = node2vec.train(
                 batch_size=args.batch_size,
@@ -80,22 +91,32 @@ if __name__ == "__main__":
             )
             logger.info(f"epoch {epoch}: train loss {train_loss:.4f}")
 
-            recommendations = node2vec.recommend(data["X_train"], data["X_val"], filter_already_liked=True)
+            recommendations = node2vec.recommend(
+                X_train=data["X_train"],
+                X_val=data["X_val"],
+                nearby_candidates=nearby_candidates_mapping,
+                filter_already_liked=True
+            )
 
             maps = []
             ndcgs = []
+            ranked_precs = []
             for K in node2vec.metric_at_K.keys():
                 map = round(node2vec.metric_at_K[K]["map"], 5)
                 ndcg = round(node2vec.metric_at_K[K]["ndcg"], 5)
+                ranked_prec = round(node2vec.metric_at_K[K]["ranked_prec"], 5)
                 count = node2vec.metric_at_K[K]["count"]
                 logger.info(f"maP@{K}: {map} with {count} users out of all {node2vec.num_users} users")
                 logger.info(f"ndcg@{K}: {ndcg} with {count} users out of all {node2vec.num_users} users")
+                logger.info(f"ranked_prec@{K}: {ranked_prec}")
 
                 maps.append(str(map))
                 ndcgs.append(str(ndcg))
+                ranked_precs.append(str(ranked_prec))
 
             logger.info(f"map result: {'|'.join(maps)}")
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
+            logger.info(f"ranked_prec result: {'|'.join(ranked_precs)}")
 
         torch.save(node2vec.model.state_dict(), "node2vec.pt")
 

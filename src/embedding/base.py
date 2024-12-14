@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 import torch
 import numpy as np
 
-from tools.utils import convert_tensor
-from evaluation.metric import ranking_metrics_at_k
+from tools.utils import convert_tensor, get_user_locations
+from evaluation.metric import ranking_metrics_at_k, ranked_precision
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,7 +35,7 @@ class BaseEmbedding(ABC):
         total_loss /= len(loader)
         return total_loss
 
-    def recommend(self, X_train, X_val, top_K = [3, 5, 7, 10, 20], filter_already_liked=True):
+    def recommend(self, X_train, X_val, nearby_candidates, top_K = [3, 5, 7, 10, 20], filter_already_liked=True):
         user_embeds = self.model.embedding(self.user_ids)
         diner_embeds = self.model.embedding(self.diner_ids)
         scores = torch.mm(user_embeds, diner_embeds.t())
@@ -45,6 +45,7 @@ class BaseEmbedding(ABC):
 
         train_liked = convert_tensor(X_train, list)
         val_liked = convert_tensor(X_val, list)
+        user_locations = get_user_locations(X_val)
         res = {}
         metric_at_K = {k: {"map": 0, "ndcg": 0, "count": 0} for k in top_K}
 
@@ -60,6 +61,10 @@ class BaseEmbedding(ABC):
         for user_id in self.user_ids:
             user_id = user_id.item()
             val_liked_item_id = np.array(val_liked[user_id])
+
+            # diner_ids visited by user in validation dataset
+            locations = user_locations[user_id]
+
             for K in top_K:
                 if len(val_liked_item_id) < K:
                     continue
@@ -70,11 +75,22 @@ class BaseEmbedding(ABC):
                 metric_at_K[K]["ndcg"] += metric["ndcg"]
                 metric_at_K[K]["count"] += 1
 
+                for location in locations:
+                    # filter only near diner
+                    near_diner = np.array(nearby_candidates[location])
+                    near_diner_score = np.array([score[i].item() for i in near_diner])
+
+                    # sort indices using predicted score
+                    indices = np.argsort(near_diner_score)[::-1]
+                    pred_near_liked_item_id = near_diner[indices][:K]
+                    metric_at_K[K]["ranked_prec"] += ranked_precision(location, pred_near_liked_item_id)
+
                 # store recommendation result when K=20
                 if K == 20:
                     res[user_id] = pred_liked_item_id
         for K in top_K:
             metric_at_K[K]["map"] /= metric_at_K[K]["count"]
             metric_at_K[K]["ndcg"] /= metric_at_K[K]["count"]
+            metric_at_K[K]["ranked_prec"] /= X_val.shape[0]
         self.metric_at_K = metric_at_K
         return res
