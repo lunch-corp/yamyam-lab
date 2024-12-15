@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 import torch
 from omegaconf import DictConfig
+from scipy.stats import norm
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 from torch_geometric.data import Data
 
 # Load data (same as your current implementation)
@@ -15,6 +17,31 @@ torch.set_default_device(device.type)
 
 # Load data
 review_data_paths = glob.glob(os.path.join(DATA_PATH, "review", "*.csv"))
+# Categories for extracting scores
+CATEGORIES = [
+    ("맛", "taste"),
+    ("친절", "kind"),
+    ("분위기", "mood"),
+    ("가성비", "chip"),
+    ("주차", "parking"),
+]
+
+
+# numpy 기반으로 점수 추출 최적화
+def extract_scores_array(reviews: str, categories: list[tuple[str, str]]) -> np.ndarray:
+    # 리뷰 데이터를 파싱하여 배열로 변환
+    parsed = [eval(review) for review in reviews]
+    # 카테고리별 점수 초기화 (rows x categories)
+    scores = np.zeros((len(reviews), len(categories)), dtype=int)
+
+    # 각 리뷰에서 카테고리 점수 추출
+    category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
+    for row_idx, review in enumerate(parsed):
+        for cat, score in review:
+            if cat in category_map:  # 해당 카테고리가 정의된 경우
+                scores[row_idx, category_map[cat]] = score
+
+    return scores
 
 
 def load_and_prepare_graph_data(test_size, min_reviews):
@@ -27,35 +54,50 @@ def load_and_prepare_graph_data(test_size, min_reviews):
     reviewer_ids = sorted(list(review["reviewer_id"].unique()))
 
     diner_mapping = {diner_idx: i for i, diner_idx in enumerate(diner_idxs)}
-    reviewer_mapping = {reviewer_id: i + len(diner_mapping) for i, reviewer_id in enumerate(reviewer_ids)}
+    reviewer_mapping = {
+        reviewer_id: i + len(diner_mapping)
+        for i, reviewer_id in enumerate(reviewer_ids)
+    }
 
     review["diner_idx"] = review["diner_idx"].map(diner_mapping)
     review["reviewer_id"] = review["reviewer_id"].map(reviewer_mapping)
 
     # Filter reviewers with minimum reviews
     reviewer2review_cnt = review["reviewer_id"].value_counts()
-    reviewer_id_over = [r_id for r_id, cnt in reviewer2review_cnt.items() if cnt >= min_reviews]
+    reviewer_id_over = [
+        r_id for r_id, cnt in reviewer2review_cnt.items() if cnt >= min_reviews
+    ]
     review_over = review[review["reviewer_id"].isin(reviewer_id_over)]
 
     # Split data
-    train, val = train_test_split(review_over, test_size=test_size, stratify=review_over["reviewer_id"])
+    train, val = train_test_split(
+        review_over, test_size=test_size, stratify=review_over["reviewer_id"]
+    )
 
     # Create edge index
-    edge_index = torch.tensor([train["diner_idx"].values, train["reviewer_id"].values], dtype=torch.long)
+    edge_index = torch.tensor(
+        [train["diner_idx"].values, train["reviewer_id"].values], dtype=torch.long
+    )
 
     # Optional: create node features or use identifiers as features
     num_nodes = len(diner_mapping) + len(reviewer_mapping)
-    x = torch.eye(num_nodes, device=device)  # One-hot encoding as example; use embeddings if available
+    x = torch.eye(
+        num_nodes, device=device
+    )  # One-hot encoding as example; use embeddings if available
 
     # Labels (edge attributes)
-    y = torch.tensor(train["reviewer_review_score"].values, dtype=torch.float).view(-1, 1)
+    y = torch.tensor(train["reviewer_review_score"].values, dtype=torch.float).view(
+        -1, 1
+    )
 
     # Create Data object
     data = Data(x=x, edge_index=edge_index, edge_attr=y).to(device)
     return data
 
 
-def load_and_prepare_lightgbm_data(cfg: DictConfig) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
+def load_and_prepare_lightgbm_data(
+    cfg: DictConfig,
+) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     """
     test_size: ratio of test dataset
     min_reviews: minimum number of reviews for each reviewer
@@ -66,14 +108,30 @@ def load_and_prepare_lightgbm_data(cfg: DictConfig) -> tuple[pd.DataFrame, pd.Se
     stratify: column to stratify review data
     """
     # load data
-    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241204_yamyam.csv"))
+    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241211_yamyam.csv"))
+    # Extract scores
+    scores = extract_scores_array(diner["diner_review_tags"], CATEGORIES)
+
+    # 결과를 DataFrame으로 변환 및 병합
+    diner[["taste", "kind", "mood", "chip", "parking"]] = scores
 
     review = pd.DataFrame()
     for review_data_path in review_data_paths:
         review = pd.concat([review, pd.read_csv(review_data_path)], axis=0)
 
-    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(lambda x: np.int32(str(x).replace(",", "")))
+    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
+        lambda x: np.int32(str(x).replace(",", ""))
+    )
     review = pd.merge(review, diner, on="diner_idx", how="inner")
+    review = review.drop_duplicates(subset=["reviewer_id", "diner_idx"])
+
+    # label Encoder
+    le = LabelEncoder()
+    review["badge_grade"] = le.fit_transform(review["badge_grade"])
+
+    # 정규분포를 5개의 구간으로 나눔 (1, 2, 3, 4, 5)
+    bins = norm.ppf([0.2, 0.4, 0.6, 0.8])  # 정규분포의 20%, 40%, 60%, 80%에 해당하는 값
+    review["target"] = np.digitize(review["combined_score"], bins, right=True) + 1
 
     del diner
 
@@ -89,14 +147,26 @@ def load_and_prepare_lightgbm_data(cfg: DictConfig) -> tuple[pd.DataFrame, pd.Se
 
     # filter reviewer who wrote reviews more than min_reviews
     reviewer2review_cnt = review["reviewer_id"].value_counts().to_dict()
-    reviewer_id_over = [reviewer_id for reviewer_id, cnt in reviewer2review_cnt.items() if cnt >= cfg.data.min_reviews]
+    reviewer_id_over = [
+        reviewer_id
+        for reviewer_id, cnt in reviewer2review_cnt.items()
+        if cnt >= cfg.data.min_reviews
+    ]
     review_over = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
 
     # 사용자 ID를 train과 valid로 분리
-    train, valid = train_test_split(review_over, test_size=0.2, random_state=42)
+    user_ids = review_over["reviewer_id"].unique()
+    train_user_ids, valid_user_ids = train_test_split(
+        user_ids, test_size=cfg.data.test_size, random_state=cfg.data.random_state
+    )
+
+    train = review_over[lambda x: x["reviewer_id"].isin(train_user_ids)]
+    valid = review_over[lambda x: x["reviewer_id"].isin(valid_user_ids)]
 
     # 사용자 ID를 기준으로 데이터 나누기
-    # train, val = train_test_split(review_over, test_size=cfg.data.test_size, random_state=cfg.data.random_state)
+    # train, valid = train_test_split(
+    #     review_over, test_size=cfg.data.test_size, random_state=cfg.data.random_state
+    # )
     X_train, y_train = train.drop(columns=[cfg.data.target]), train[cfg.data.target]
     X_valid, y_valid = valid.drop(columns=[cfg.data.target]), valid[cfg.data.target]
 
@@ -114,20 +184,39 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
         - diner_id_2_name_map: Mapping of diner IDs to their names
     """
     # load data
-    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241204_yamyam.csv"))
+    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241211_yamyam.csv"))
+    # Extract scores
+    scores = extract_scores_array(diner["diner_review_tags"], CATEGORIES)
+
+    # 결과를 DataFrame으로 변환 및 병합
+    diner[["taste", "kind", "mood", "chip", "parking"]] = scores
     review = pd.DataFrame()
-
     for review_data_path in review_data_paths:
-        review = pd.concat([review, pd.read_csv(review_data_path, index_col=0)], axis=0)
+        review = pd.concat([review, pd.read_csv(review_data_path)], axis=0)
 
-    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(lambda x: np.int32(str(x).replace(",", "")))
+    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
+        lambda x: np.int32(str(x).replace(",", ""))
+    )
+    review = pd.merge(review, diner, on="diner_idx", how="inner")
+    review = review.drop_duplicates(subset=["reviewer_id", "diner_idx"])
+
+    # label Encoder
+    le = LabelEncoder()
+    review["badge_grade"] = le.fit_transform(review["badge_grade"])
+
+    # 정규분포를 5개의 구간으로 나눔 (1, 2, 3, 4, 5)
+    bins = norm.ppf([0.2, 0.4, 0.6, 0.8])  # 정규분포의 20%, 40%, 60%, 80%에 해당하는 값
+    review["target"] = (
+        np.digitize(review["reviewer_review_score"], bins, right=True) + 1
+    )
 
     reviewer_id = cfg.user_name
-    review = pd.merge(review, diner, on="diner_idx", how="inner")
 
     # 사용자별 리뷰한 레스토랑 ID 목록 생성
     user_2_diner_df = review.groupby("reviewer_id").agg({"diner_category_middle": list})
-    user_2_diner_map = dict(zip(user_2_diner_df.index, user_2_diner_df["diner_category_middle"]))
+    user_2_diner_map = dict(
+        zip(user_2_diner_df.index, user_2_diner_df["diner_category_middle"])
+    )
 
     # 레스토랑 후보군 리스트
     candidate_pool = diner["diner_idx"].unique().tolist()
@@ -135,15 +224,23 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     reviewed_diners = list(set(user_2_diner_map.get(reviewer_id, [])))
     candidates = [d for d in candidate_pool if d not in reviewed_diners]
     candidates = np.random.choice(candidates, size=cfg.data.size)  # candidate choice
-    review = review[review["reviewer_id"] == reviewer_id].iloc[-1:]  # 마지막 리뷰 정보만 사용
+    review = review[review["reviewer_id"] == reviewer_id].iloc[-1:]
 
     # Create test data
     test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": candidates})
     test = test.merge(diner, on="diner_idx")
     test = test.merge(
-        review[["reviewer_id", "badge_level", "reviewer_review_cnt", "reviewer_collected_review_cnt"]],
+        review[
+            [
+                "reviewer_id",
+                "badge_grade",
+                "reviewer_review_cnt",
+                "reviewer_collected_review_cnt",
+            ]
+        ],
         on="reviewer_id",
     )
+    test = test.drop_duplicates(subset=["reviewer_id", "diner_idx"])
     already_reviewed = user_2_diner_map.get(reviewer_id, [])
 
     return test, already_reviewed
