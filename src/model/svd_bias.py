@@ -194,14 +194,25 @@ if __name__ == "__main__":
                 nearby_candidates=nearby_candidates_mapping,
                 filter_already_liked=True
             )
+            maps = []
+            ndcgs = []
+            ranked_precs = []
             for K in model.metric_at_K.keys():
-                map = model.metric_at_K[K]["map"]
-                ndcg = model.metric_at_K[K]["ndcg"]
-                ranked_prec = model.metric_at_K[K]["ranked_prec"]
+                map = round(model.metric_at_K[K]["map"], 5)
+                ndcg = round(model.metric_at_K[K]["ndcg"], 5)
+                ranked_prec = round(model.metric_at_K[K]["ranked_prec"], 5)
                 count = model.metric_at_K[K]["count"]
                 logger.info(f"maP@{K}: {map} with {count} users out of all {model.num_users} users")
                 logger.info(f"ndcg@{K}: {ndcg} with {count} users out of all {model.num_users} users")
                 logger.info(f"ranked precision@{K}: {ranked_prec}")
+
+                maps.append(str(map))
+                ndcgs.append(str(ndcg))
+                ranked_precs.append(str(ranked_prec))
+
+            logger.info(f"map result: {'|'.join(maps)}")
+            logger.info(f"ndcg result: {'|'.join(ndcgs)}")
+            logger.info(f"ranked_prec result: {'|'.join(ranked_precs)}")
 
             if best_loss > val_loss:
                 prev_best_loss = best_loss
