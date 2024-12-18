@@ -6,12 +6,13 @@ import torch.nn as nn
 from torch import optim
 import numpy as np
 
+from candidate.near import NearCandidateGenerator
 from loss.custom import svd_loss
 from evaluation.metric import ranking_metrics_at_k, ranked_precision
 from tools.parse_args import parse_args
 from tools.logger import setup_logger
 from tools.utils import convert_tensor, get_user_locations
-from tools.candidate import get_diner_nearby_candidates
+# from tools.candidate import get_diner_nearby_candidates
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -131,11 +132,12 @@ if __name__ == "__main__":
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
         # get near 1km diner_ids
-        nearby_candidates = get_diner_nearby_candidates(max_distance_km=1)
+        candidate_generator = NearCandidateGenerator()
+        near_diners = candidate_generator.get_near_candidates_for_all_diners(max_distance_km=1)
         # convert diner_ids
         diner_mapping = data["diner_mapping"]
         nearby_candidates_mapping = {}
-        for ref_id, nearby_id in nearby_candidates.items():
+        for ref_id, nearby_id in near_diners.items():
             nearby_id_mapping = [diner_mapping[diner_id] for diner_id in nearby_id]
             nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
 

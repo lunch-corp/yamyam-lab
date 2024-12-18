@@ -61,7 +61,7 @@ def train_test_split_stratify(test_size,
     del review_3
     del review_4
 
-    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241204_yamyam.csv"))
+    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241211_yamyam.csv"))
 
     # filter reviewer who wrote reviews more than min_reviews
     reviewer2review_cnt = review["reviewer_id"].value_counts().to_dict()
