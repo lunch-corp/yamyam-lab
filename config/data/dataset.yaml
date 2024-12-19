@@ -1,23 +1,24 @@
 test_size: 0.2
 min_reviews: 3
 random_state: 42
+path: data/
 X_columns:
     - diner_idx
     - reviewer_id
 y_columns:
     - reviewer_review_score
 features:
-    - badge_grade
-    - reviewer_review_cnt
+    - badge_level
     - reviewer_collected_review_cnt
-    - diner_review_cnt
-    - diner_review_avg
-    - all_review_cnt
+    - min_price
+    - max_price
+    - mean_price
+    - median_price
+    - menu_count
     - taste
     - kind
     - mood
     - chip
     - parking
-
 target: target
 size: 30

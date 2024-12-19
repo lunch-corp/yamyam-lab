@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import torch
 from omegaconf import DictConfig
-from scipy.stats import norm
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from torch_geometric.data import Data
@@ -25,6 +24,15 @@ CATEGORIES = [
     ("가성비", "chip"),
     ("주차", "parking"),
 ]
+
+
+# NaN 또는 빈 리스트를 처리할 수 있도록 정의
+def extract_statistics(prices: list[int, float]) -> pd.Series:
+    if not prices:  # 빈 리스트라면 NaN 반환
+        return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
+    return pd.Series(
+        [min(prices), max(prices), np.mean(prices), np.median(prices), len(prices)]
+    )
 
 
 # numpy 기반으로 점수 추출 최적화
@@ -115,6 +123,14 @@ def load_and_prepare_lightgbm_data(
     # 결과를 DataFrame으로 변환 및 병합
     diner[["taste", "kind", "mood", "chip", "parking"]] = scores
 
+    # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
+    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = (
+        diner["diner_menu_price"].apply(lambda x: extract_statistics(eval(x)))
+    )
+
+    for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
+        diner[col] = diner[col].fillna(diner[col].median())
+
     review = pd.DataFrame()
     for review_data_path in review_data_paths:
         review = pd.concat([review, pd.read_csv(review_data_path)], axis=0)
@@ -129,10 +145,14 @@ def load_and_prepare_lightgbm_data(
     le = LabelEncoder()
     review["badge_grade"] = le.fit_transform(review["badge_grade"])
 
-    # 정규분포를 5개의 구간으로 나눔 (1, 2, 3, 4, 5)
-    bins = norm.ppf([0.2, 0.4, 0.6, 0.8])  # 정규분포의 20%, 40%, 60%, 80%에 해당하는 값
-    review["target"] = np.digitize(review["combined_score"], bins, right=True) + 1
-
+    # target value 생성
+    review["target"] = np.where(
+        (review["real_good_review_percent"] > review["real_bad_review_percent"])
+        & (review["reviewer_review_score"] - review["reviewer_avg"] >= 0.5),
+        1,
+        0,
+    )
+    print(review["target"].value_counts())
     del diner
 
     # store unique number of diner and reviewer
@@ -185,11 +205,21 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     """
     # load data
     diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241211_yamyam.csv"))
+
     # Extract scores
     scores = extract_scores_array(diner["diner_review_tags"], CATEGORIES)
 
     # 결과를 DataFrame으로 변환 및 병합
     diner[["taste", "kind", "mood", "chip", "parking"]] = scores
+
+    # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
+    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = (
+        diner["diner_menu_price"].apply(lambda x: extract_statistics(eval(x)))
+    )
+
+    for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
+        diner[col] = diner[col].fillna(diner[col].median())
+
     review = pd.DataFrame()
     for review_data_path in review_data_paths:
         review = pd.concat([review, pd.read_csv(review_data_path)], axis=0)
@@ -204,26 +234,17 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     le = LabelEncoder()
     review["badge_grade"] = le.fit_transform(review["badge_grade"])
 
-    # 정규분포를 5개의 구간으로 나눔 (1, 2, 3, 4, 5)
-    bins = norm.ppf([0.2, 0.4, 0.6, 0.8])  # 정규분포의 20%, 40%, 60%, 80%에 해당하는 값
-    review["target"] = (
-        np.digitize(review["reviewer_review_score"], bins, right=True) + 1
-    )
-
     reviewer_id = cfg.user_name
 
     # 사용자별 리뷰한 레스토랑 ID 목록 생성
-    user_2_diner_df = review.groupby("reviewer_id").agg({"diner_category_middle": list})
-    user_2_diner_map = dict(
-        zip(user_2_diner_df.index, user_2_diner_df["diner_category_middle"])
-    )
+    user_2_diner_df = review.groupby("reviewer_id").agg({"diner_idx": list})
+    user_2_diner_map = dict(zip(user_2_diner_df.index, user_2_diner_df["diner_idx"]))
 
     # 레스토랑 후보군 리스트
     candidate_pool = diner["diner_idx"].unique().tolist()
 
     reviewed_diners = list(set(user_2_diner_map.get(reviewer_id, [])))
     candidates = [d for d in candidate_pool if d not in reviewed_diners]
-    candidates = np.random.choice(candidates, size=cfg.data.size)  # candidate choice
     review = review[review["reviewer_id"] == reviewer_id].iloc[-1:]
 
     # Create test data
@@ -232,8 +253,10 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     test = test.merge(
         review[
             [
+                "reviewer_user_name",
                 "reviewer_id",
                 "badge_grade",
+                "badge_level",
                 "reviewer_review_cnt",
                 "reviewer_collected_review_cnt",
             ]
@@ -241,6 +264,10 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
         on="reviewer_id",
     )
     test = test.drop_duplicates(subset=["reviewer_id", "diner_idx"])
+
+    test["diner_category_small"] = test["diner_category_small"].fillna(
+        test["diner_category_middle"]
+    )
     already_reviewed = user_2_diner_map.get(reviewer_id, [])
 
     return test, already_reviewed
