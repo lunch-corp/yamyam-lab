@@ -9,3 +9,4 @@ __pycache__/
 .python-version
 
 res/models/*
+data/*
