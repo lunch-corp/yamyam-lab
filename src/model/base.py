@@ -4,8 +4,8 @@ import gc
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Self, TypeVar
 
+import joblib
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
@@ -13,8 +13,9 @@ import xgboost as xgb
 from omegaconf import DictConfig
 from sklearn.model_selection import KFold
 from tqdm import tqdm
+from typing_extensions import Self
 
-TreeModel = TypeVar("TreeModel", lgb.Booster, xgb.Booster)
+TreeModel = lgb.Booster | xgb.Booster
 
 
 @dataclass
@@ -37,27 +38,8 @@ class BaseModel(ABC):
     ):
         raise NotImplementedError
 
-    def save_model(self: Self, model: TreeModel) -> None:
-        if isinstance(model, lgb.Booster):
-            model.save_model(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.model")
-
-        elif isinstance(model, xgb.Booster):
-            model.save_model(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json")
-
-        else:
-            raise ValueError("Invalid model type")
-
-    def load_model(self: Self) -> TreeModel:
-        if self.cfg.models.name == "lightgbm":
-            model = lgb.Booster(model_file=Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.model")
-
-        elif self.cfg.models.name == "xgboost":
-            model = xgb.Booster(model_file=Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json")
-
-        else:
-            raise ValueError("Invalid model type")
-
-        return model
+    def save_model(self, save_dir: Path) -> None:
+        joblib.dump(self.result, save_dir)
 
     def fit(
         self: Self,
@@ -69,18 +51,6 @@ class BaseModel(ABC):
         model = self._fit(X_train, y_train, X_valid, y_valid)
 
         return model
-
-    def predict(self: Self, model: TreeModel, X: pd.DataFrame | np.ndarray) -> np.ndarray:
-        if isinstance(model, lgb.Booster):
-            preds = model.predict(X)
-
-        elif isinstance(model, xgb.Booster):
-            preds = model.predict(xgb.DMatrix(X))
-
-        else:
-            raise ValueError("Invalid model type")
-
-        return preds
 
     def run_cv_training(self: Self, X: pd.DataFrame, y: pd.Series) -> Self:
         oof_preds = np.zeros(X.shape[0])
