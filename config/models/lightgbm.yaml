@@ -1,7 +1,7 @@
 name: lightgbm
 
 model_path: res/models/
-results: lightgbm_ranker
+results: lgb_ranker
 
 params:
   objective: lambdarank

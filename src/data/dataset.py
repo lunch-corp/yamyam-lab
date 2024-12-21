@@ -116,7 +116,16 @@ def load_and_prepare_lightgbm_data(
     stratify: column to stratify review data
     """
     # load data
-    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241211_yamyam.csv"))
+    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
+
+    # 범주를 정의
+    bins = [-1, 0, 10, 50, 200, float("inf")]
+
+    # pd.cut을 사용하여 정수형 범주 생성
+    diner["diner_review_cnt_category"] = pd.cut(
+        diner["all_review_cnt"], bins=bins, labels=False
+    )
+
     # Extract scores
     scores = extract_scores_array(diner["diner_review_tags"], CATEGORIES)
 
@@ -131,9 +140,9 @@ def load_and_prepare_lightgbm_data(
     for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
         diner[col] = diner[col].fillna(diner[col].median())
 
-    review = pd.DataFrame()
-    for review_data_path in review_data_paths:
-        review = pd.concat([review, pd.read_csv(review_data_path)], axis=0)
+    review = pd.concat(
+        [pd.read_csv(review_data_path) for review_data_path in review_data_paths]
+    )
 
     review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
         lambda x: np.int32(str(x).replace(",", ""))
@@ -145,11 +154,16 @@ def load_and_prepare_lightgbm_data(
     le = LabelEncoder()
     review["badge_grade"] = le.fit_transform(review["badge_grade"])
 
+    # 리뷰어
+    review["reviewer_trust_score"] = (
+        0.7 * review["reviewer_review_cnt"] + 0.3 * review["badge_level"]
+    )
+
     # target value 생성
     review["target"] = np.where(
-        (review["reviewer_avg"] > 3.5)
-        & (review["reviewer_review_score"] - review["reviewer_avg"] > -1)
-        & (review["reviewer_review_score"] - review["reviewer_avg"] < 1),
+        (review["reviewer_avg"] > 3)
+        & (review["reviewer_review_score"] - review["reviewer_avg"] > 1)
+        & (review["reviewer_review_score"] - review["reviewer_avg"] < 2),
         1,
         0,
     )
@@ -184,10 +198,6 @@ def load_and_prepare_lightgbm_data(
     train = review_over[lambda x: x["reviewer_id"].isin(train_user_ids)]
     valid = review_over[lambda x: x["reviewer_id"].isin(valid_user_ids)]
 
-    # 사용자 ID를 기준으로 데이터 나누기
-    # train, valid = train_test_split(
-    #     review_over, test_size=cfg.data.test_size, random_state=cfg.data.random_state
-    # )
     X_train, y_train = train.drop(columns=[cfg.data.target]), train[cfg.data.target]
     X_valid, y_valid = valid.drop(columns=[cfg.data.target]), valid[cfg.data.target]
 
@@ -205,7 +215,15 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
         - diner_id_2_name_map: Mapping of diner IDs to their names
     """
     # load data
-    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241211_yamyam.csv"))
+    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
+
+    # 범주를 정의
+    bins = [-1, 0, 10, 50, 200, float("inf")]
+
+    # pd.cut을 사용하여 정수형 범주 생성
+    diner["diner_review_cnt_category"] = pd.cut(
+        diner["all_review_cnt"], bins=bins, labels=False
+    )
 
     # Extract scores
     scores = extract_scores_array(diner["diner_review_tags"], CATEGORIES)
@@ -221,9 +239,9 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
         diner[col] = diner[col].fillna(diner[col].median())
 
-    review = pd.DataFrame()
-    for review_data_path in review_data_paths:
-        review = pd.concat([review, pd.read_csv(review_data_path)], axis=0)
+    review = pd.concat(
+        [pd.read_csv(review_data_path) for review_data_path in review_data_paths]
+    )
 
     review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
         lambda x: np.int32(str(x).replace(",", ""))
@@ -234,6 +252,11 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     # label Encoder
     le = LabelEncoder()
     review["badge_grade"] = le.fit_transform(review["badge_grade"])
+
+    # 리뷰어
+    review["reviewer_trust_score"] = (
+        0.7 * review["reviewer_review_cnt"] + 0.3 * review["badge_level"]
+    )
 
     reviewer_id = cfg.user_name
 
@@ -257,6 +280,7 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
                 "reviewer_user_name",
                 "reviewer_id",
                 "badge_grade",
+                "reviewer_trust_score",
                 "badge_level",
                 "reviewer_review_cnt",
                 "reviewer_collected_review_cnt",

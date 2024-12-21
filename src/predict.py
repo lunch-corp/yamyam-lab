@@ -4,14 +4,14 @@ import math
 from pathlib import Path
 
 import hydra
-import lightgbm as lgb
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 
 from data import load_test_dataset
+from model import build_model
 
 
-def haversine(lat1, lon1, lat2, lon2):
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
     Calculate the great-circle distance between two points
     on the Earth's surface using the Haversine formula.
@@ -59,23 +59,18 @@ def _main(cfg: DictConfig):
     test = test.loc[test["distance"] <= cfg.distance_threshold]
     X_test = test[cfg.data.features]
 
-    ranker = lgb.Booster(
-        model_file=Path(cfg.models.model_path) / f"{cfg.models.results}.model"
-    )
+    # load model
+    trainer = build_model(cfg)
+    ranker = trainer.load_model()
+    predictions = trainer.predict(ranker, X_test)
 
-    predictions = ranker.predict(X_test)
     test["prediction"] = predictions
     test = test.sort_values(by=["prediction"], ascending=False)
     test = test.loc[(test["diner_category_middle"].isin([*cfg.diner_category_middle]))]
     test = test.head(cfg.top_n)
 
     table = PrettyTable()
-    table.field_names = [
-        "diner_name",
-        "diner_category_small",
-        "url",
-        "prediction",
-    ]
+    table.field_names = ["diner_name", "diner_category_small", "url", "prediction"]
 
     for _, row in test.iterrows():
         table.add_row(
