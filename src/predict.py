@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import math
-from pathlib import Path
 
 import hydra
-import lightgbm as lgb
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 
 from data import load_test_dataset
+from model import build_model
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -29,10 +28,7 @@ def haversine(lat1, lon1, lat2, lon2):
     # Haversine formula
     dlat = lat2 - lat1
     dlon = lon2 - lon1
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    )
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     # Earth's radius in kilometers
@@ -46,50 +42,36 @@ def haversine(lat1, lon1, lat2, lon2):
 
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
-    test, already_reviewed = load_test_dataset(cfg)
+    test, _ = load_test_dataset(cfg)
     test["user_lat"] = cfg.user_lat
     test["user_lon"] = cfg.user_lon
 
     test["distance"] = test.apply(
-        lambda x: haversine(
-            x["user_lat"], x["user_lon"], x["diner_lat"], x["diner_lon"]
-        ),
+        lambda x: haversine(x["user_lat"], x["user_lon"], x["diner_lat"], x["diner_lon"]),
         axis=1,
     )
     test = test.loc[test["distance"] <= cfg.distance_threshold]
     X_test = test[cfg.data.features]
 
-    ranker = lgb.Booster(
-        model_file=Path(cfg.models.model_path) / f"{cfg.models.results}.model"
-    )
+    # build model
+    trainer = build_model(cfg)
 
-    predictions = ranker.predict(X_test)
+    # load model
+    ranker = trainer.load_model()
+
+    predictions = trainer.predict(ranker, X_test)
     test["prediction"] = predictions
     test = test.sort_values(by=["prediction"], ascending=False)
     test = test.loc[(test["diner_category_middle"].isin([*cfg.diner_category_middle]))]
     test = test.head(cfg.top_n)
 
     table = PrettyTable()
-    table.field_names = [
-        "diner_name",
-        "diner_category_small",
-        "url",
-        "prediction",
-    ]
+    table.field_names = ["diner_name", "diner_category_small", "url", "prediction"]
 
     for _, row in test.iterrows():
-        table.add_row(
-            [
-                row["diner_name"],
-                row["diner_category_small"],
-                row["diner_url"],
-                row["prediction"],
-            ]
-        )
+        table.add_row([row["diner_name"], row["diner_category_small"], row["diner_url"], row["prediction"]])
 
-    print(
-        f"{test['reviewer_user_name'].values[0]}님을 위한 추천 식당 리스트를 알립니다.\n{table}"
-    )
+    print(f"{test['reviewer_user_name'].values[0]}님을 위한 추천 식당 리스트를 알립니다.\n{table}")
 
 
 if __name__ == "__main__":

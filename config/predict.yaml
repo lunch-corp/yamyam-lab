@@ -12,11 +12,10 @@ defaults:
 
 model_path: res/models/
 results: lightgbm_ranker
-user_name: 1345014100
+user_name: 711984913
 top_n: 20
-user_lat: 37.498095
-user_lon: 127.027610
-distance_threshold: 1
+user_lat: 37.561159
+user_lon: 126.986165
+distance_threshold: 0.5
 diner_category_middle:
-- 치킨
-- 술집
+- 해물,생선
