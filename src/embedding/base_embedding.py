@@ -1,6 +1,11 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from typing import List, Union, Tuple, Dict, Any
 import torch
 import numpy as np
+
+from torch import Tensor
+import torch.nn as nn
+from torch.utils.data import DataLoader
 
 from tools.utils import convert_tensor, get_user_locations
 from evaluation.metric import ranking_metrics_at_k, ranked_precision
@@ -10,34 +15,52 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_device(device.type)
 
 
-class BaseEmbedding(ABC):
-    def __init__(self, user_ids, diner_ids):
+class BaseEmbedding(nn.Module):
+    def __init__(
+            self,
+            user_ids: Tensor,
+            diner_ids: Tensor
+        ):
+        super().__init__()
         self.user_ids = user_ids
         self.diner_ids = diner_ids
         self.num_users = len(self.user_ids)
         self.num_diners = len(self.diner_ids)
 
     @abstractmethod
-    def initialize(self, edge_index, **kwargs):
+    def forward(self, batch: Tensor) -> Tensor:
         raise NotImplementedError
 
-    def train(self, **kwargs):
-        self.model.train()
-        seed = torch.Generator(device=device.type).manual_seed(kwargs["random_state"])
-        loader = self.model.loader(batch_size=kwargs["batch_size"], shuffle=True, generator=seed)
-        total_loss = 0
-        for pos_rw, neg_rw in loader:
-            self.optimizer.zero_grad()
-            loss = self.model.loss(pos_rw.to(device), neg_rw.to(device))
-            loss.backward()
-            self.optimizer.step()
-            total_loss += loss.item()
-        total_loss /= len(loader)
-        return total_loss
+    @abstractmethod
+    def loader(self, **kwargs) -> DataLoader:
+        raise NotImplementedError
 
-    def recommend(self, X_train, X_val, nearby_candidates, top_K = [3, 5, 7, 10, 20], filter_already_liked=True):
-        user_embeds = self.model.embedding(self.user_ids)
-        diner_embeds = self.model.embedding(self.diner_ids)
+    @abstractmethod
+    def pos_sample(self, batch: Tensor) -> Tensor:
+        raise NotImplementedError
+
+    @abstractmethod
+    def neg_sample(self, batch: Tensor) -> Tensor:
+        raise NotImplementedError
+
+    @abstractmethod
+    def sample(self, batch: Union[List[int], Tensor]) -> Tuple[Tensor, Tensor]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
+        raise NotImplementedError
+
+    def recommend(
+            self,
+            X_train: Tensor,
+            X_val: Tensor,
+            nearby_candidates: Dict[int, list],
+            top_K = [3, 5, 7, 10, 20],
+            filter_already_liked=True
+        ) -> Dict[int, Any]:
+        user_embeds = self.embedding(self.user_ids)
+        diner_embeds = self.embedding(self.diner_ids)
         scores = torch.mm(user_embeds, diner_embeds.t())
 
         self.map = 0.

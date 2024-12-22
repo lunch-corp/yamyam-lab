@@ -1,8 +1,12 @@
+from typing import Tuple
 import os
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
+import networkx as nx
 
 import torch
+from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
@@ -51,16 +55,17 @@ def train_test_split_stratify(test_size,
     pg_model: indicator whether using torch_geometric model or not
     """
     # load data
-    review_1 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_1.csv"))
-    review_2 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_2.csv"))
-    review_3 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_3.csv"))
-    review_4 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_4.csv"))
-    review = pd.concat([review_1, review_2, review_3, review_4], axis=0)[X_columns + y_columns]
-    del review_1
-    del review_2
-    del review_3
-    del review_4
+    # review_1 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_1.csv"))
+    # review_2 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_2.csv"))
+    # review_3 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_3.csv"))
+    # review_4 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_4.csv"))
+    # review = pd.concat([review_1, review_2, review_3, review_4], axis=0)[X_columns + y_columns]
+    # del review_1
+    # del review_2
+    # del review_3
+    # del review_4
 
+    review = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241204_part_1.csv"))
     diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241211_yamyam.csv"))
 
     # filter reviewer who wrote reviews more than min_reviews
@@ -69,7 +74,7 @@ def train_test_split_stratify(test_size,
     review = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
 
     # store unique number of diner and reviewer
-    diner_idxs = sorted(list(diner["diner_idx"].unique()))
+    diner_idxs = sorted(list(review["diner_idx"].unique()))
     reviewer_ids = sorted(list(review["reviewer_id"].unique()))
 
     num_diners = len(diner_idxs)
@@ -89,6 +94,13 @@ def train_test_split_stratify(test_size,
                                    test_size=test_size,
                                    random_state=random_state,
                                    stratify=review[stratify])
+    # check whether reviewers from train is equivalent with reviewers from val
+    assert np.array_equal(
+        np.sort(train["reviewer_id"].unique()),
+        np.sort(val["reviewer_id"].unique())
+    )
+    # TODO: check whether diners from train is equivalent with diners from val
+
     return {
         "X_train": torch.tensor(train[X_columns].values),
         "y_train": torch.tensor(train[y_columns].values, dtype=torch.float32),
@@ -135,3 +147,18 @@ def prepare_torch_geometric_data(X_train, X_val, num_diners, num_reviewers):
         num_nodes=num_diners + num_reviewers
     )
     return train, val
+
+
+def prepare_networkx_data(
+        X_train: Tensor,
+        X_val: Tensor,
+) -> Tuple[nx.Graph, nx.Graph]:
+    train_graph = nx.Graph()
+    val_graph = nx.Graph()
+
+    for diner_id, reviewer_id in X_train:
+        train_graph.add_edge(diner_id.item(), reviewer_id.item())
+    for diner_id, reviewer_id in X_val:
+        val_graph.add_edge(diner_id.item(), reviewer_id.item())
+
+    return train_graph, val_graph
