@@ -427,13 +427,13 @@ files = [
 
 [[package]]
 name = "click"
-version = "8.1.7"
+version = "8.1.8"
 description = "Composable command line interface toolkit"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "click-8.1.7-py3-none-any.whl", hash = "sha256:ae74fb96c20a0277a1d615f1e4d73c8414f5a98db8b799a7931d1582f3390c28"},
-    {file = "click-8.1.7.tar.gz", hash = "sha256:ca9853ad459e787e2192211578cc907e7594e294c7ccc834310722b41b9ca6de"},
+    {file = "click-8.1.8-py3-none-any.whl", hash = "sha256:63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2"},
+    {file = "click-8.1.8.tar.gz", hash = "sha256:ed53c9d8990d83c2a27deae68e4ee337473f6330c040a31d4225c9574d16096a"},
 ]
 
 [package.dependencies]
@@ -1111,13 +1111,13 @@ testing = ["Django", "attrs", "colorama", "docopt", "pytest (<9.0.0)"]
 
 [[package]]
 name = "jinja2"
-version = "3.1.4"
+version = "3.1.5"
 description = "A very fast and expressive template engine."
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "jinja2-3.1.4-py3-none-any.whl", hash = "sha256:bc5dd2abb727a5319567b7a813e6a2e7318c39f4f487cfe6c89c6f9c7d25197d"},
-    {file = "jinja2-3.1.4.tar.gz", hash = "sha256:4a3aee7acbbe7303aede8e9648d13b8bf88a429282aa6122a993f0ac800cb369"},
+    {file = "jinja2-3.1.5-py3-none-any.whl", hash = "sha256:aba0f4dc9ed8013c424088f68a5c226f7d6097ed89b246d7749c2ec4175c6adb"},
+    {file = "jinja2-3.1.5.tar.gz", hash = "sha256:8fefff8dc3034e27bb80d67c671eb8a9bc424c0ef4c0826edbff304cceff43bb"},
 ]
 
 [package.dependencies]
@@ -2347,25 +2347,6 @@ files = [
 ]
 
 [[package]]
-name = "pyg-lib"
-version = "0.4.0+pt25"
-description = "Low-Level Graph Neural Network Operators for PyG"
-optional = false
-python-versions = ">=3.9"
-files = [
-    {file = "pyg_lib-0.4.0+pt25-cp311-cp311-macosx_14_0_universal2.whl", hash = "sha256:3af45a630c678c3be049fae2852ebd8595d4386db82b30ad96f1e8dfd02f13b8"},
-]
-
-[package.extras]
-dev = ["pre-commit"]
-test = ["pytest", "pytest-cov"]
-triton = ["triton"]
-
-[package.source]
-type = "url"
-url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/pyg_lib-0.4.0%2Bpt25-cp311-cp311-macosx_14_0_universal2.whl"
-
-[[package]]
 name = "pygments"
 version = "2.18.0"
 description = "Pygments is a syntax highlighting package written in Python."
@@ -2946,26 +2927,6 @@ opt-einsum = ["opt-einsum (>=3.3)"]
 optree = ["optree (>=0.12.0)"]
 
 [[package]]
-name = "torch_cluster"
-version = "1.6.3"
-description = "PyTorch Extension Library of Optimized Graph Cluster Algorithms"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "torch_cluster-1.6.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:2918744d22650697c4df29143ac13b170f7bfbe61258d400bb3520d572997f0c"},
-]
-
-[package.dependencies]
-scipy = "*"
-
-[package.extras]
-test = ["pytest", "pytest-cov"]
-
-[package.source]
-type = "url"
-url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_cluster-1.6.3-cp311-cp311-macosx_10_9_universal2.whl"
-
-[[package]]
 name = "torch-geometric"
 version = "2.6.1"
 description = "Graph Neural Network Library for PyTorch"
@@ -2993,60 +2954,6 @@ full = ["ase", "captum (<0.7.0)", "graphviz", "h5py", "matplotlib", "networkx", 
 graphgym = ["protobuf (<4.21)", "pytorch-lightning (<2.3.0)", "yacs"]
 modelhub = ["huggingface_hub"]
 test = ["onnx", "onnxruntime", "pytest", "pytest-cov"]
-
-[[package]]
-name = "torch_scatter"
-version = "2.1.2"
-description = "PyTorch Extension Library of Optimized Scatter Operations"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "torch_scatter-2.1.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:2d79c61aa4d9d1ff78c8e8cfea995bcf404012316481f08acae795d8ddf332c2"},
-]
-
-[package.extras]
-test = ["pytest", "pytest-cov"]
-
-[package.source]
-type = "url"
-url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp311-cp311-macosx_10_9_universal2.whl"
-
-[[package]]
-name = "torch_sparse"
-version = "0.6.18"
-description = "PyTorch Extension Library of Optimized Autograd Sparse Matrix Operations"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "torch_sparse-0.6.18-cp311-cp311-macosx_11_0_universal2.whl", hash = "sha256:74f3d298565b2db0287aeae51c25bb7550f857bfa41337cab20cf48949db2778"},
-]
-
-[package.dependencies]
-scipy = "*"
-
-[package.extras]
-test = ["pytest", "pytest-cov"]
-
-[package.source]
-type = "url"
-url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_sparse-0.6.18-cp311-cp311-macosx_11_0_universal2.whl"
-
-[[package]]
-name = "torch_spline_conv"
-version = "1.2.2"
-description = "Implementation of the Spline-Based Convolution Operator of SplineCNN in PyTorch"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "torch_spline_conv-1.2.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:61a4725e25cd97f5b2d81a848cf92136d64e65b2e3a7864d66bb052f8e0965e6"},
-]
-
-[package.extras]
-test = ["pytest", "pytest-cov"]
-
-[package.source]
-type = "url"
-url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_spline_conv-1.2.2-cp311-cp311-macosx_10_9_universal2.whl"
 
 [[package]]
 name = "tornado"
@@ -3378,4 +3285,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "5b08f19205fc9df63e1e037e9a0e49fd0c96eff9506f67fd75a4dd48153d6d6c"
+content-hash = "12a53550674dbc18e636119976fee0598af93c7ecd449f96cec035e53aa8c19f"
