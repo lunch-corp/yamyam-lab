@@ -13,7 +13,7 @@ from loss.custom import svd_loss
 from evaluation.metric import ranking_metrics_at_k, ranked_precision
 from tools.parse_args import parse_args
 from tools.logger import setup_logger
-from tools.utils import convert_tensor, get_user_locations
+from tools.utils import convert_tensor
 
 # set cpu or cuda for default option
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -114,7 +114,6 @@ class SVDWithBias(nn.Module):
 
         train_liked = convert_tensor(X_train, dict)
         val_liked = convert_tensor(X_val, list)
-        user_locations = get_user_locations(X_val)
         res = {}
         metric_at_K = {k:{"map":0, "ndcg":0, "count":0, "ranked_prec":0} for k in top_K}
         for user in range(self.num_users):
@@ -122,7 +121,7 @@ class SVDWithBias(nn.Module):
             user_idx = torch.tensor([user]).repeat(self.num_items)
 
             # diner_ids visited by user in validation dataset
-            locations = user_locations[user]
+            locations = val_liked[user]
 
             # calculate one user's predicted scores for all item_ids
             with torch.no_grad():

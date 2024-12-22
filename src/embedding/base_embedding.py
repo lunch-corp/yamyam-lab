@@ -7,7 +7,7 @@ from torch import Tensor
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from tools.utils import convert_tensor, get_user_locations
+from tools.utils import convert_tensor
 from evaluation.metric import ranking_metrics_at_k, ranked_precision
 
 # set cpu or cuda for default option
@@ -68,7 +68,6 @@ class BaseEmbedding(nn.Module):
 
         train_liked = convert_tensor(X_train, list)
         val_liked = convert_tensor(X_val, list)
-        user_locations = get_user_locations(X_val)
         res = {}
         metric_at_K = {k: {"map": 0, "ndcg": 0, "count": 0, "ranked_prec": 0} for k in top_K}
 
@@ -86,7 +85,7 @@ class BaseEmbedding(nn.Module):
             val_liked_item_id = np.array(val_liked[user_id])
 
             # diner_ids visited by user in validation dataset
-            locations = user_locations[user_id]
+            locations = val_liked[user_id]
 
             for K in top_K:
                 if len(val_liked_item_id) < K:
