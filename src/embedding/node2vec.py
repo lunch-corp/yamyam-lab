@@ -13,6 +13,8 @@ torch.set_default_device(device.type)
 from candidate.near import NearCandidateGenerator
 from embedding.base_embedding import BaseEmbedding
 from tools.generate_walks import generate_walks, precompute_probabilities
+from constant.preprocess import MIN_REVIEWS
+from constant.candidate import MAX_DISTANCE_KM
 
 
 class Node2Vec(BaseEmbedding):
@@ -249,11 +251,13 @@ if __name__ == "__main__":
         logger.info(f"q: {args.q}")
         logger.info(f"sparse: {args.sparse}")
 
-        data = train_test_split_stratify(test_size=0.3,
-                                         min_reviews=3,
-                                         X_columns=["diner_idx", "reviewer_id"],
-                                         y_columns=["reviewer_review_score"],
-                                         pg_model=False)
+        data = train_test_split_stratify(
+            test_size=args.test_ratio,
+            min_reviews=MIN_REVIEWS,
+            X_columns=["diner_idx", "reviewer_id"],
+            y_columns=["reviewer_review_score"],
+            pg_model=False
+        )
         train_graph, val_graph = prepare_networkx_data(
             X_train=data["X_train"],
             X_val=data["X_val"],
@@ -263,18 +267,20 @@ if __name__ == "__main__":
             user_ids=torch.tensor(list(data["user_mapping"].values())),
             diner_ids=torch.tensor(list(data["diner_mapping"].values())),
             graph=train_graph,
-            embedding_dim=16,
-            walk_length=10,
-            walks_per_node=4,
+            embedding_dim=args.embedding_dim,
+            walk_length=args.walk_length,
+            walks_per_node=args.walks_per_node,
             num_nodes=num_nodes,
-            context_size=4,
-            q=0.5,
+            context_size=args.context_size,
+            q=args.q,
+            p=args.p,
+            sparse=args.sparse,
         )
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
         # get near 1km diner_ids
         candidate_generator = NearCandidateGenerator()
-        near_diners = candidate_generator.get_near_candidates_for_all_diners(max_distance_km=1)
+        near_diners = candidate_generator.get_near_candidates_for_all_diners(max_distance_km=MAX_DISTANCE_KM)
 
         # convert diner_ids
         diner_mapping = data["diner_mapping"]
@@ -288,7 +294,7 @@ if __name__ == "__main__":
 
         seed = torch.Generator(device=device.type).manual_seed(args.random_state)
         loader = model.loader(batch_size=args.batch_size, shuffle=True, generator=seed)
-        for epoch in range(10):
+        for epoch in range(args.epochs):
             total_loss = 0
             for pos_rw, neg_rw in loader:
                 optimizer.zero_grad()
