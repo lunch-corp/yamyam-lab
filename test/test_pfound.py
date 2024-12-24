@@ -2,14 +2,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-def ranked_precision(liked_item: int, reco_items: NDArray):
-    K = len(reco_items)
-    for i, item in enumerate(reco_items):
-        if liked_item == item:
-            return (K - i) / K
-    return 0
-
-
 def ranking_metrics_at_k(
     liked_items: NDArray,
     reco_items: NDArray,
@@ -85,3 +77,14 @@ def ranking_metrics_at_k(
     recall = hits / len(liked_items) if len(liked_items) > 0 else 0
 
     return {"ap": ap, "ndcg": ndcg, "recall": recall, "pfound": pfound}
+
+
+liked_items = np.array([100, 10, 50, 0, 11, 22, 33, 44, 55, 66])
+
+# case 1: hit at item_id 100, 10
+reco_items = np.array([2, 3, 4, 100, 10])
+
+
+# Call the function
+metrics = ranking_metrics_at_k(liked_items, reco_items)
+print(metrics)
