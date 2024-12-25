@@ -54,8 +54,6 @@ class Node2Vec(BaseEmbedding):
             breadth-first strategy and depth-first strategy (default: :obj:`1`)
         num_negative_samples (int, optional): The number of negative samples to
             use for each positive sample. (default: :obj:`1`)
-        sparse (bool, optional): If set to :obj:`True`, gradients w.r.t. to the
-            weight matrix will be sparse. (default: :obj:`False`)
     """
     def __init__(
         self,
@@ -70,7 +68,6 @@ class Node2Vec(BaseEmbedding):
         p: float = 1.0,
         q: float = 1.0,
         num_negative_samples: int = 1,
-        sparse: bool = False,
     ):
         super().__init__(
             user_ids=user_ids,
@@ -87,8 +84,7 @@ class Node2Vec(BaseEmbedding):
         self.EPS = 1e-15
         self.num_nodes = num_nodes
 
-        self.embedding = Embedding(self.num_nodes, embedding_dim,
-                                   sparse=sparse)
+        self.embedding = Embedding(self.num_nodes, embedding_dim)
 
         self.d_graph = precompute_probabilities(
             graph=graph,
@@ -249,7 +245,6 @@ if __name__ == "__main__":
         logger.info(f"num neg samples: {args.num_negative_samples}")
         logger.info(f"p: {args.p}")
         logger.info(f"q: {args.q}")
-        logger.info(f"sparse: {args.sparse}")
 
         data = train_test_split_stratify(
             test_size=args.test_ratio,
@@ -274,7 +269,6 @@ if __name__ == "__main__":
             context_size=args.context_size,
             q=args.q,
             p=args.p,
-            sparse=args.sparse,
         )
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
