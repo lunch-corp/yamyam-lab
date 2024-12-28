@@ -10,6 +10,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+from catboost import CatBoostRanker
 from omegaconf import DictConfig
 from sklearn.model_selection import KFold
 from tqdm import tqdm
@@ -48,6 +49,11 @@ class BaseModel(ABC):
                 Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json"
             )
 
+        elif isinstance(model, CatBoostRanker):
+            model.save_model(
+                Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
+            )
+
         else:
             raise ValueError("Invalid model type")
 
@@ -62,6 +68,11 @@ class BaseModel(ABC):
             model = xgb.Booster(
                 model_file=Path(self.cfg.models.model_path)
                 / f"{self.cfg.models.results}.json"
+            )
+
+        elif self.cfg.models.name == "catboost":
+            model = CatBoostRanker().load_model(
+                Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
             )
 
         else:
@@ -89,6 +100,9 @@ class BaseModel(ABC):
 
         elif isinstance(model, xgb.Booster):
             preds = model.predict(xgb.DMatrix(X))
+
+        elif isinstance(model, CatBoostRanker):
+            preds = model.predict(X)
 
         else:
             raise ValueError("Invalid model type")

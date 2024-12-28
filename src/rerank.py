@@ -4,7 +4,7 @@ import hydra
 from omegaconf import DictConfig
 
 from data import load_and_prepare_lightgbm_data
-from model import build_model
+from rank import build_model
 
 
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")

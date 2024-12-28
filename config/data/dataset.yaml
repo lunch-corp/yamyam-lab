@@ -24,6 +24,7 @@ features:
 
 cat_features:
   - diner_review_cnt_category
+  - badge_level
 
 target: target
 size: 30
