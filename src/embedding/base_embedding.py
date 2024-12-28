@@ -8,6 +8,7 @@ from torch import Tensor
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from constant.device.device import DEVICE
 from tools.utils import convert_tensor
 from evaluation.metric import ranking_metrics_at_k, ranked_precision
 
@@ -128,12 +129,12 @@ class BaseEmbedding(nn.Module):
                 locations = self.val_liked[user_id]
                 for location in locations:
                     # filter only near diner
-                    near_diner_ids = torch.tensor(nearby_candidates[location])
+                    near_diner_ids = torch.tensor(nearby_candidates[location]).to(DEVICE)
                     near_diner_scores = scores[user_id - self.num_diners][near_diner_ids]
 
                     # sort indices using predicted score
                     sorted_indices = torch.argsort(near_diner_scores, descending=True)
-                    near_diner_ids_sorted = near_diner_ids[sorted_indices]
+                    near_diner_ids_sorted = near_diner_ids[sorted_indices].to(DEVICE)
 
                     # calculate metric
                     self.metric_at_k[k]["ranked_prec"] += ranked_precision(
