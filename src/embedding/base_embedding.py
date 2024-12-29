@@ -179,6 +179,9 @@ class BaseEmbedding(nn.Module):
                     sorted_indices = torch.argsort(near_diner_scores, descending=True)
                     near_diner_ids_sorted = near_diner_ids[sorted_indices].to(DEVICE)
 
+                    # top k filtering
+                    near_diner_ids_sorted = near_diner_ids_sorted[:k]
+
                     # calculate metric
                     self.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value] += ranked_precision(
                         liked_item=location,
