@@ -6,6 +6,7 @@ results: xgb_ranker
 params:
   objective: rank:ndcg
   tree_method: hist
+  device: cuda
   eval_metric:
     - ndcg@10
     - ndcg@15

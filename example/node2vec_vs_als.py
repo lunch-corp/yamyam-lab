@@ -1,10 +1,9 @@
-import numpy as np
-from scipy.sparse import csr_matrix
-
-import networkx as nx
-import matplotlib.pyplot as plt
-from node2vec import Node2Vec
 import implicit
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+from node2vec import Node2Vec
+from scipy.sparse import csr_matrix
 
 num_users = 10
 num_items = 10

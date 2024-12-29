@@ -125,6 +125,8 @@ def load_and_prepare_lightgbm_data(
     diner["diner_review_cnt_category"] = pd.cut(
         diner["all_review_cnt"], bins=bins, labels=False
     )
+    diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].fillna(0)
+    diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].astype(int)
 
     # Extract scores
     scores = extract_scores_array(diner["diner_review_tags"], CATEGORIES)
@@ -140,10 +142,10 @@ def load_and_prepare_lightgbm_data(
     for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
         diner[col] = diner[col].fillna(diner[col].median())
 
-    review = pd.concat(
-        [pd.read_csv(review_data_path) for review_data_path in review_data_paths]
-    )
-
+    # review = pd.concat(
+    #     [pd.read_csv(review_data_path) for review_data_path in review_data_paths]
+    # )
+    review = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_5.csv"))
     review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
         lambda x: np.int32(str(x).replace(",", ""))
     )
@@ -161,13 +163,12 @@ def load_and_prepare_lightgbm_data(
 
     # target value 생성
     review["target"] = np.where(
-        (review["reviewer_avg"] > 3)
-        & (review["reviewer_review_score"] - review["reviewer_avg"] > 1)
-        & (review["reviewer_review_score"] - review["reviewer_avg"] < 2),
+        (review["real_good_review_percent"] > review["real_bad_review_percent"])
+        & (review["reviewer_review_score"] - review["reviewer_avg"] > 0.5),
         1,
         0,
     )
-    print(review["target"].value_counts())
+
     del diner
 
     # store unique number of diner and reviewer
@@ -188,6 +189,7 @@ def load_and_prepare_lightgbm_data(
         if cnt >= cfg.data.min_reviews
     ]
     review_over = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
+    review_over = review_over.drop_duplicates(subset=["reviewer_id", "diner_idx"])
 
     # 사용자 ID를 train과 valid로 분리
     user_ids = review_over["reviewer_id"].unique()
@@ -197,6 +199,8 @@ def load_and_prepare_lightgbm_data(
 
     train = review_over[lambda x: x["reviewer_id"].isin(train_user_ids)]
     valid = review_over[lambda x: x["reviewer_id"].isin(valid_user_ids)]
+    train = train.sort_values(by=["reviewer_id"])
+    valid = valid.sort_values(by=["reviewer_id"])
 
     X_train, y_train = train.drop(columns=[cfg.data.target]), train[cfg.data.target]
     X_valid, y_valid = valid.drop(columns=[cfg.data.target]), valid[cfg.data.target]
@@ -224,6 +228,8 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     diner["diner_review_cnt_category"] = pd.cut(
         diner["all_review_cnt"], bins=bins, labels=False
     )
+    diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].fillna(0)
+    diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].astype(int)
 
     # Extract scores
     scores = extract_scores_array(diner["diner_review_tags"], CATEGORIES)
@@ -239,10 +245,10 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
         diner[col] = diner[col].fillna(diner[col].median())
 
-    review = pd.concat(
-        [pd.read_csv(review_data_path) for review_data_path in review_data_paths]
-    )
-
+    # review = pd.concat(
+    #     [pd.read_csv(review_data_path) for review_data_path in review_data_paths]
+    # )
+    review = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_5.csv"))
     review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
         lambda x: np.int32(str(x).replace(",", ""))
     )

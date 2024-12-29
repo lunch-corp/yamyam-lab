@@ -2,6 +2,7 @@ import copy
 import traceback
 from typing import Dict, List
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim, Tensor
@@ -9,9 +10,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from candidate.near import NearCandidateGenerator
+from evaluation.metric import ranked_precision, ranking_metrics_at_k
 from loss.custom import svd_loss
-from evaluation.metric import ranking_metrics_at_k, ranked_precision
-from tools.parse_args import parse_args
 from tools.logger import setup_logger
 from tools.utils import convert_tensor
 from constant.preprocess.preprocess import MIN_REVIEWS
@@ -172,7 +172,10 @@ class SVDWithBias(nn.Module):
 
 
 if __name__ == "__main__":
-    from preprocess.preprocess import train_test_split_stratify, prepare_torch_dataloader
+    from preprocess.preprocess import (
+        prepare_torch_dataloader,
+        train_test_split_stratify,
+    )
     args = parse_args()
     logger = setup_logger(args.log_path)
 
