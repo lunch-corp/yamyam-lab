@@ -39,8 +39,7 @@ def _main(cfg: DictConfig):
 
     label = review[review["target"] == 1]
 
-    label = label.groupby("reviewer_id")["diner_idx"].apply(list).reset_index(drop=True)
-    print(label)
+    label = label.groupby("reviewer_id")["diner_idx"].apply(list).reset_index()
     label.to_csv(Path(DATA_PATH) / "label.csv", index=False)
 
 
