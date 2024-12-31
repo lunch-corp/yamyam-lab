@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-from preprocess.preprocess import extract_scores_array, extract_statistics
+from preprocess.feature_store import extract_scores_array, extract_statistics
 
 # Load data (same as your current implementation)
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
