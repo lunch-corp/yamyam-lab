@@ -3,14 +3,12 @@ from __future__ import annotations
 import gc
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Self, TypeVar
 
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from catboost import CatBoostRanker
 from omegaconf import DictConfig
 from sklearn.model_selection import KFold
 from tqdm import tqdm
@@ -27,6 +25,7 @@ class ModelResult:
 class BaseModel(ABC):
     def __init__(self: Self, cfg: DictConfig) -> None:
         self.cfg = cfg
+        self.model = None
 
     @abstractmethod
     def _fit(
@@ -38,47 +37,14 @@ class BaseModel(ABC):
     ):
         raise NotImplementedError
 
-    def save_model(self: Self, model: TreeModel) -> None:
-        if isinstance(model, lgb.Booster):
-            model.save_model(
-                Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.model"
-            )
+    @abstractmethod
+    def save_model(self: Self) -> None:
+        raise NotImplementedError
 
-        elif isinstance(model, xgb.Booster):
-            model.save_model(
-                Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json"
-            )
-
-        elif isinstance(model, CatBoostRanker):
-            model.save_model(
-                Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
-            )
-
-        else:
-            raise ValueError("Invalid model type")
-
+    @abstractmethod
     def load_model(self: Self) -> TreeModel:
-        if self.cfg.models.name == "lightgbm":
-            model = lgb.Booster(
-                model_file=Path(self.cfg.models.model_path)
-                / f"{self.cfg.models.results}.model"
-            )
-
-        elif self.cfg.models.name == "xgboost":
-            model = xgb.Booster(
-                model_file=Path(self.cfg.models.model_path)
-                / f"{self.cfg.models.results}.json"
-            )
-
-        elif self.cfg.models.name == "catboost":
-            model = CatBoostRanker().load_model(
-                Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
-            )
-
-        else:
-            raise ValueError("Invalid model type")
-
-        return model
+        # return model
+        raise NotImplementedError
 
     def fit(
         self: Self,
@@ -91,23 +57,12 @@ class BaseModel(ABC):
 
         return model
 
-    def predict(
-        self: Self, model: TreeModel, X: pd.DataFrame | np.ndarray
-    ) -> np.ndarray:
+    @abstractmethod
+    def _predict(self: Self, X: pd.DataFrame | np.ndarray):
+        raise NotImplementedError
 
-        if isinstance(model, lgb.Booster):
-            preds = model.predict(X)
-
-        elif isinstance(model, xgb.Booster):
-            preds = model.predict(xgb.DMatrix(X))
-
-        elif isinstance(model, CatBoostRanker):
-            preds = model.predict(X)
-
-        else:
-            raise ValueError("Invalid model type")
-
-        return preds
+    def predict(self: Self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
+        return self._predict(X)
 
     def run_cv_training(self: Self, X: pd.DataFrame, y: pd.Series) -> Self:
         oof_preds = np.zeros(X.shape[0])
@@ -126,11 +81,7 @@ class BaseModel(ABC):
                 y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]
 
                 model = self.fit(X_train, y_train, X_valid, y_valid)
-                oof_preds[valid_idx] = (
-                    model.predict(X_valid)
-                    if isinstance(model, lgb.Booster)
-                    else model.predict(xgb.DMatrix(X_valid))
-                )
+                oof_preds[valid_idx] = self.predict(X_valid)
                 models[f"fold_{fold}"] = model
 
         del X_train, X_valid, y_train, y_valid

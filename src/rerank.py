@@ -17,13 +17,13 @@ def _main(cfg: DictConfig):
     trainer = build_model(cfg)
 
     # train model
-    ranker = trainer.fit(X_train, y_train, X_test, y_test)
+    trainer.fit(X_train, y_train, X_test, y_test)
 
     # save model
-    trainer.save_model(ranker)
+    trainer.save_model()
 
     # plot feature importance
-    trainer.plot_feature_importance(ranker)
+    trainer.plot_feature_importance()
 
 
 if __name__ == "__main__":
