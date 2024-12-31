@@ -28,6 +28,15 @@ class BaseModel(ABC):
         self.model = None
 
     @abstractmethod
+    def save_model(self: Self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def load_model(self: Self) -> TreeModel:
+        # return model
+        raise NotImplementedError
+
+    @abstractmethod
     def _fit(
         self: Self,
         X_train: pd.DataFrame | np.ndarray,
@@ -35,15 +44,6 @@ class BaseModel(ABC):
         X_valid: pd.DataFrame | np.ndarray | None = None,
         y_valid: pd.Series | np.ndarray | None = None,
     ):
-        raise NotImplementedError
-
-    @abstractmethod
-    def save_model(self: Self) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def load_model(self: Self) -> TreeModel:
-        # return model
         raise NotImplementedError
 
     def fit(
