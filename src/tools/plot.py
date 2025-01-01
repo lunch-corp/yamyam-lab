@@ -113,3 +113,4 @@ def plot_metric(
     plt.title(title)
     plt.savefig(save_path)
     plt.show()
+    plt.close()
