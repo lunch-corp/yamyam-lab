@@ -18,10 +18,12 @@ def plot_metric_at_k(
     pred_metrics = [
         Metric.MAP.value,
         Metric.NDCG.value,
-        Metric.RECALL.value,
         NearCandidateMetric.RANKED_PREC.value,
     ]
-    candidate_metrics = [NearCandidateMetric.NEAR_RECALL.value]
+    candidate_metrics = [
+        NearCandidateMetric.NEAR_RECALL.value,
+        Metric.RECALL.value,
+    ]
 
     for metric_name in pred_metrics:
         pred_metrics_df = pd.DataFrame()
