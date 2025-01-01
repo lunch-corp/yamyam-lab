@@ -25,11 +25,10 @@ def main(args: ArgumentParser.parse_args) -> None:
     logger = setup_logger(os.path.join(args.result_path, FileName.LOG.value))
 
     try:
+        logger.info(f"embedding model: {args.model}")
         logger.info(f"batch size: {args.batch_size}")
         logger.info(f"learning rate: {args.lr}")
-        logger.info(f"regularization: {args.regularization}")
         logger.info(f"epochs: {args.epochs}")
-        logger.info(f"test ratio: {args.test_ratio}")
         logger.info(f"embedding dimension: {args.embedding_dim}")
         logger.info(f"walk length: {args.walk_length}")
         logger.info(f"walks per node: {args.walks_per_node}")
