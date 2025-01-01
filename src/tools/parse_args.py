@@ -20,6 +20,7 @@ def parse_args_embedding():
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--test_ratio", type=float, default=0.3)
     parser.add_argument("--embedding_dim", type=int, default=128)
     parser.add_argument("--walk_length", type=int, default=20)
     parser.add_argument("--walks_per_node", type=int, default=10)
