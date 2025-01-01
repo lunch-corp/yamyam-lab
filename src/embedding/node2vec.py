@@ -1,6 +1,6 @@
-from typing import List, Tuple, Union
-import networkx as nx
+from typing import Union
 
+import networkx as nx
 import torch
 from torch import Tensor
 from torch.nn import Embedding
@@ -45,6 +45,7 @@ class Model(BaseEmbedding):
         num_negative_samples (int, optional): The number of negative samples to
             use for each positive sample. (default: :obj:`1`)
     """
+
     def __init__(
         self,
         user_ids: Tensor,
@@ -53,7 +54,7 @@ class Model(BaseEmbedding):
         embedding_dim: int,
         walk_length: int,
         num_nodes: int,
-        top_k_values: List[int],
+        top_k_values: list[int],
         walks_per_node: int = 1,
         p: float = 1.0,
         q: float = 1.0,
@@ -104,8 +105,11 @@ class Model(BaseEmbedding):
         Returns (DataLoader):
             DataLoader used when training model.
         """
-        return DataLoader(torch.tensor([node for node in self.graph.nodes()]), collate_fn=self.sample,
-                          **kwargs)
+        return DataLoader(
+            torch.tensor([node for node in self.graph.nodes()]),
+            collate_fn=self.sample,
+            **kwargs
+        )
 
     @torch.jit.export
     def pos_sample(self, batch: Tensor) -> Tensor:
@@ -144,14 +148,18 @@ class Model(BaseEmbedding):
         """
         batch = batch.repeat(self.walks_per_node)
 
-        rw = torch.randint(self.num_nodes, (batch.size(0), self.num_negative_samples),
-                           dtype=batch.dtype, device=batch.device)
+        rw = torch.randint(
+            self.num_nodes,
+            (batch.size(0), self.num_negative_samples),
+            dtype=batch.dtype,
+            device=batch.device,
+        )
         rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
 
         return rw
 
     @torch.jit.export
-    def sample(self, batch: Union[List[int], Tensor]) -> Tuple[Tensor, Tensor]:
+    def sample(self, batch: Union[list[int], Tensor]) -> tuple[Tensor, Tensor]:
         """
         Wrapper function for positive, negative sampling.
         This function is used as `collate_fn` in pytorch dataloader.
@@ -167,11 +175,7 @@ class Model(BaseEmbedding):
         return self.pos_sample(batch), self.neg_sample(batch)
 
     @torch.jit.export
-    def loss(
-            self,
-            pos_rw: Tensor,
-            neg_rw: Tensor
-        ) -> Tensor:
+    def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
         """
         Computes word2vec skip-gram based loss.
 
@@ -185,10 +189,10 @@ class Model(BaseEmbedding):
         # Positive loss.
         start, rest = pos_rw[:, 0], pos_rw[:, 1:].contiguous()
 
-        h_start = self.embedding(start).view(pos_rw.size(0), 1,
-                                             self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(pos_rw.size(0), -1,
-                                                    self.embedding_dim)
+        h_start = self.embedding(start).view(pos_rw.size(0), 1, self.embedding_dim)
+        h_rest = self.embedding(rest.view(-1)).view(
+            pos_rw.size(0), -1, self.embedding_dim
+        )
 
         out = (h_start * h_rest).sum(dim=-1).view(-1)
         pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
@@ -196,10 +200,10 @@ class Model(BaseEmbedding):
         # Negative loss.
         start, rest = neg_rw[:, 0], neg_rw[:, 1:].contiguous()
 
-        h_start = self.embedding(start).view(neg_rw.size(0), 1,
-                                             self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(neg_rw.size(0), -1,
-                                                    self.embedding_dim)
+        h_start = self.embedding(start).view(neg_rw.size(0), 1, self.embedding_dim)
+        h_rest = self.embedding(rest.view(-1)).view(
+            neg_rw.size(0), -1, self.embedding_dim
+        )
 
         out = (h_start * h_rest).sum(dim=-1).view(-1)
         neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()

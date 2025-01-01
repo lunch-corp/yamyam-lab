@@ -1,11 +1,11 @@
-from typing import Tuple, List, Dict, Any
 import os
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-import networkx as nx
+from typing import Any
 
+import networkx as nx
+import numpy as np
+import pandas as pd
 import torch
+from sklearn.model_selection import train_test_split
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
@@ -37,12 +37,12 @@ class TorchData(Dataset):
 def train_test_split_stratify(
     test_size: float,
     min_reviews: int,
-    X_columns: List[str] = ["diner_idx", "reviewer_id"],
-    y_columns: List[str] = ["reviewer_review_score"],
+    X_columns: list[str] = ["diner_idx", "reviewer_id"],
+    y_columns: list[str] = ["reviewer_review_score"],
     random_state: int = 42,
     stratify: str = "reviewer_id",
     pg_model: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Split review data stratifying by `stratify` column.
     This function aims for using consistent train / validation dataset across coders
@@ -155,7 +155,7 @@ def prepare_torch_dataloader(
     y_val: Tensor,
     batch_size: int = 128,
     random_state: int = 42,
-) -> Tuple[DataLoader, DataLoader]:
+) -> tuple[DataLoader, DataLoader]:
     """
     Make train / validation pytorch DataLoader.
     This function gets input from `train_test_split_stratify` function.
@@ -183,7 +183,7 @@ def prepare_torch_dataloader(
 
 def prepare_torch_geometric_data(
     X_train: Tensor, X_val: Tensor, num_diners: int, num_reviewers: int
-) -> Tuple[Data, Data]:
+) -> tuple[Data, Data]:
     """
     Make train / validation Dataset especially for pytorch geometric package.
     This function gets input from `train_test_split_stratify` function.
@@ -210,7 +210,7 @@ def prepare_torch_geometric_data(
     return train, val
 
 
-def prepare_networkx_data(X_train: Tensor, X_val: Tensor) -> Tuple[nx.Graph, nx.Graph]:
+def prepare_networkx_data(X_train: Tensor, X_val: Tensor) -> tuple[nx.Graph, nx.Graph]:
     """
     Make train / validation dataset in nx.Graph object type.
 

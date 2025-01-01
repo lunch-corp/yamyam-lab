@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 
 
-
 # NaN 또는 빈 리스트를 처리할 수 있도록 정의
 def extract_statistics(prices: list[int, float]) -> pd.Series:
     if not prices:  # 빈 리스트라면 NaN 반환
