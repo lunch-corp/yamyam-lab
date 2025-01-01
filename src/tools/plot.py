@@ -85,6 +85,7 @@ def plot_metric_at_k(
         df=tr_loss_df,
         metric_name="tr_loss",
         save_path=os.path.join(parent_save_path, "tr_loss.png"),
+        hue=False,
     )
 
 def plot_metric(
