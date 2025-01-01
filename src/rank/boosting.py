@@ -68,11 +68,30 @@ class LightGBMTrainer(BaseModel):
             ],
         )
 
+        # save train_set for feature importance
+        self.model = model
+
         return model
 
-    def plot_feature_importance(self: Self, model: lgb.Booster) -> None:
-        fig, ax = plt.subplots(figsize=(15, 10))
-        lgb.plot_importance(model, ax=ax)
+    def _predict(self: Self, X_test: pd.DataFrame | np.ndarray) -> np.ndarray:
+        X_test = X_test[self.cfg.data.features]
+        self.model = self.load_model()
+        return self.model.predict(X_test)
+
+    def save_model(self: Self) -> None:
+        self.model.save_model(
+            Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.model"
+        )
+
+    def load_model(self: Self) -> lgb.Booster:
+        return lgb.Booster(
+            model_file=Path(self.cfg.models.model_path)
+            / f"{self.cfg.models.results}.model"
+        )
+
+    def plot_feature_importance(self: Self) -> None:
+        _, ax = plt.subplots(figsize=(15, 10))
+        lgb.plot_importance(self.model, ax=ax)
         plt.savefig(
             Path(self.cfg.models.model_path)
             / f"{self.cfg.models.results}_feature_importance.png"
@@ -117,11 +136,30 @@ class XGBoostTrainer(BaseModel):
             verbose_eval=self.cfg.models.verbose_eval,
         )
 
+        # save train_set for feature importance
+        self.model = model
+
         return model
 
-    def plot_feature_importance(self: Self, model: xgb.Booster) -> None:
+    def _predict(self: Self, X_test: pd.DataFrame | np.ndarray) -> np.ndarray:
+        X_test = X_test[self.cfg.data.features]
+        self.model = self.load_model()
+        return self.model.predict(xgb.DMatrix(X_test))
+
+    def save_model(self: Self) -> None:
+        self.model.save_model(
+            Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json"
+        )
+
+    def load_model(self: Self) -> xgb.Booster:
+        return xgb.Booster(
+            model_file=Path(self.cfg.models.model_path)
+            / f"{self.cfg.models.results}.json"
+        )
+
+    def plot_feature_importance(self: Self) -> None:
         fig, ax = plt.subplots(figsize=(15, 10))
-        xgb.plot_importance(model, ax=ax)
+        xgb.plot_importance(self.model, ax=ax)
         plt.savefig(
             Path(self.cfg.models.model_path)
             / f"{self.cfg.models.results}_feature_importance.png"
@@ -177,12 +215,29 @@ class CatBoostTrainer(BaseModel):
 
         # save train_set for feature importance
         self.train_set = train_set
+        self.model = model
 
         return model
 
-    def plot_feature_importance(self: Self, model: CatBoostRanker) -> None:
+    def _predict(self: Self, X_test: pd.DataFrame) -> np.ndarray:
+        X_test = X_test[self.cfg.data.features]
+        self.model = self.load_model()
+
+        return self.model.predict(X_test)
+
+    def save_model(self: Self) -> None:
+        self.model.save_model(
+            Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
+        )
+
+    def load_model(self: Self) -> CatBoostRanker:
+        return CatBoostRanker().load_model(
+            Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
+        )
+
+    def plot_feature_importance(self: Self) -> None:
         # 피처 중요도 계산
-        importances = model.get_feature_importance(
+        importances = self.model.get_feature_importance(
             type="FeatureImportance", data=self.train_set
         )
 

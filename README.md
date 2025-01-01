@@ -50,7 +50,7 @@ $ poetry lock
 
 ## Experiment results
 
-## CASE 1) Without candidates
+### CASE 1) Without candidates
 
 Below are metric results without any candidate filtering.
 
@@ -62,7 +62,7 @@ Below are metric results without any candidate filtering.
 |SVD|Regression|TBD|TBD|TBD|TBD|TBD|TBD|TBD|TBD|
 |node2vec|Unsupervised|0.00803|0.00736|0.00743|0.00761|0.01253|0.01709|0.02082|0.02972
 
-## CASE 2) With candidates filtering with near 1km diners.
+### CASE 2) With candidates filtering with near 1km diners.
 
 Below are metric results with candidate filtering.
 
@@ -75,15 +75,30 @@ Below are metric results with candidate filtering.
 |node2vec|Unsupervised|0.10109|0.14015|0.16174|0.21334|
 
 
-## CASE 3) Candidates generation models
+### CASE 3) Candidates generation models
 
 |Algorithm|Task|recall@100|recall@300|recall@500|
 |----------------|---------|------|------|------|
 |node2vec|Unsupervised|0.50612|0.74211|0.8439|
 
 
-## CASE 4) With two-step recommendations
+### CASE 4) With two-step recommendations
 
 |Candidate model|number of candidates|Reranking model|Task|ranked_prec@3|ranked_prec@7|ranked_prec@10|ranked_prec@20|
 |---------------|--------------------|---------------|----|-------------|-------------|--------------|--------------|
 |node2vec|TBD|lightgbm ranker|TBD|TBD|TBD|TBD|TBD|
+
+## Commit 가이드
+- feat: 새로운 기능 추가
+- fix: 버그 수정
+- docs: 문서 수정
+- style: 코드 스타일 변경 (코드 포매팅, 세미콜론 누락 등)
+- design: 사용자 UI 디자인 변경 (CSS 등)
+- test: 테스트 코드, 리팩토링 (Test Code)
+- refactor: 리팩토링 (Production Code)
+- build: 빌드 파일 수정
+- ci: CI 설정 파일 수정
+- perf: 성능 개선
+- chore: 자잘한 수정이나 빌드 업데이트
+- rename: 파일 혹은 폴더명을 수정만 한 경우
+- remove: 파일을 삭제만 한 경우

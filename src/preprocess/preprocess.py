@@ -10,18 +10,11 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
-DATA_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "../../data"
-)
+DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
 
 class TorchData(Dataset):
-    def __init__(
-            self,
-            X: Tensor,
-            y: Tensor
-        ):
+    def __init__(self, X: Tensor, y: Tensor):
         """
         Make Dataset object especially for pytorch DataLoader.
         This Dataset class will be input for pytorch DataLoader.
@@ -42,14 +35,14 @@ class TorchData(Dataset):
 
 
 def train_test_split_stratify(
-        test_size: float,
-        min_reviews: int,
-        X_columns: List[str] = ["diner_idx", "reviewer_id"],
-        y_columns: List[str] = ["reviewer_review_score"],
-        random_state: int = 42,
-        stratify: str = "reviewer_id",
-        pg_model: bool = False
-    ) -> Dict[str, Any]:
+    test_size: float,
+    min_reviews: int,
+    X_columns: List[str] = ["diner_idx", "reviewer_id"],
+    y_columns: List[str] = ["reviewer_review_score"],
+    random_state: int = 42,
+    stratify: str = "reviewer_id",
+    pg_model: bool = False,
+) -> Dict[str, Any]:
     """
     Split review data stratifying by `stratify` column.
     This function aims for using consistent train / validation dataset across coders
@@ -68,12 +61,24 @@ def train_test_split_stratify(
         Dataset, statistics, and mapping information which could be used when training model.
     """
     # load data
-    review_1 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_1.csv"))
-    review_2 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_2.csv"))
-    review_3 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_3.csv"))
-    review_4 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_4.csv"))
-    review_5 = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_5.csv"))
-    review = pd.concat([review_1, review_2, review_3, review_4, review_5], axis=0)[X_columns + y_columns]
+    review_1 = pd.read_csv(
+        os.path.join(DATA_PATH, "review/review_df_20241219_part_1.csv")
+    )
+    review_2 = pd.read_csv(
+        os.path.join(DATA_PATH, "review/review_df_20241219_part_2.csv")
+    )
+    review_3 = pd.read_csv(
+        os.path.join(DATA_PATH, "review/review_df_20241219_part_3.csv")
+    )
+    review_4 = pd.read_csv(
+        os.path.join(DATA_PATH, "review/review_df_20241219_part_4.csv")
+    )
+    review_5 = pd.read_csv(
+        os.path.join(DATA_PATH, "review/review_df_20241219_part_5.csv")
+    )
+    review = pd.concat([review_1, review_2, review_3, review_4, review_5], axis=0)[
+        X_columns + y_columns
+    ]
     del review_1
     del review_2
     del review_3
@@ -83,12 +88,18 @@ def train_test_split_stratify(
     # filter diner in review dataset not existing in diner dataset
     # TODO: add this step as data validation
     diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
-    diner_idx_both_exist = np.array(list(set(review["diner_idx"].unique()) & set(diner["diner_idx"].unique())))
+    diner_idx_both_exist = np.array(
+        list(set(review["diner_idx"].unique()) & set(diner["diner_idx"].unique()))
+    )
     review = review[lambda x: x["diner_idx"].isin(diner_idx_both_exist)]
 
     # filter reviewer who wrote reviews more than min_reviews
     reviewer2review_cnt = review["reviewer_id"].value_counts().to_dict()
-    reviewer_id_over = [reviewer_id for reviewer_id, cnt in reviewer2review_cnt.items() if cnt >= min_reviews]
+    reviewer_id_over = [
+        reviewer_id
+        for reviewer_id, cnt in reviewer2review_cnt.items()
+        if cnt >= min_reviews
+    ]
     review = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
 
     # store unique number of diner and reviewer
@@ -100,22 +111,28 @@ def train_test_split_stratify(
 
     # mapping diner_idx and reviewer_id
     diner_mapping = {diner_idx: i for i, diner_idx in enumerate(diner_idxs)}
-    if pg_model == True:
+
+    if pg_model is True:
         # each node index in torch_geometric should be unique
-        reviewer_mapping = {reviewer_id: (i+num_diners) for i, reviewer_id in enumerate(reviewer_ids)}
+        reviewer_mapping = {
+            reviewer_id: (i + num_diners) for i, reviewer_id in enumerate(reviewer_ids)
+        }
     else:
-        reviewer_mapping = {reviewer_id: i for i, reviewer_id in enumerate(reviewer_ids)}
+        reviewer_mapping = {
+            reviewer_id: i for i, reviewer_id in enumerate(reviewer_ids)
+        }
     review["diner_idx"] = review["diner_idx"].map(diner_mapping)
     review["reviewer_id"] = review["reviewer_id"].map(reviewer_mapping)
 
-    train, val = train_test_split(review,
-                                   test_size=test_size,
-                                   random_state=random_state,
-                                   stratify=review[stratify])
+    train, val = train_test_split(
+        review,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=review[stratify],
+    )
     # check whether reviewers from train is equivalent with reviewers from val
     assert np.array_equal(
-        np.sort(train["reviewer_id"].unique()),
-        np.sort(val["reviewer_id"].unique())
+        np.sort(train["reviewer_id"].unique()), np.sort(val["reviewer_id"].unique())
     )
     # TODO: check whether diners from train is equivalent with diners from val
 
@@ -127,18 +144,18 @@ def train_test_split_stratify(
         "num_diners": num_diners,
         "num_users": num_reviewers,
         "diner_mapping": diner_mapping,
-        "user_mapping": reviewer_mapping
+        "user_mapping": reviewer_mapping,
     }
 
 
 def prepare_torch_dataloader(
-        X_train: Tensor,
-        y_train: Tensor,
-        X_val: Tensor,
-        y_val: Tensor,
-        batch_size: int = 128,
-        random_state: int = 42
-    ) -> Tuple[DataLoader, DataLoader]:
+    X_train: Tensor,
+    y_train: Tensor,
+    X_val: Tensor,
+    y_val: Tensor,
+    batch_size: int = 128,
+    random_state: int = 42,
+) -> Tuple[DataLoader, DataLoader]:
     """
     Make train / validation pytorch DataLoader.
     This function gets input from `train_test_split_stratify` function.
@@ -165,11 +182,8 @@ def prepare_torch_dataloader(
 
 
 def prepare_torch_geometric_data(
-        X_train: Tensor,
-        X_val: Tensor,
-        num_diners: int,
-        num_reviewers: int
-    ) -> Tuple[Data, Data]:
+    X_train: Tensor, X_val: Tensor, num_diners: int, num_reviewers: int
+) -> Tuple[Data, Data]:
     """
     Make train / validation Dataset especially for pytorch geometric package.
     This function gets input from `train_test_split_stratify` function.
@@ -188,30 +202,15 @@ def prepare_torch_geometric_data(
     assert X_train.shape[1] == 2
     assert X_val.shape[1] == 2
     # make edges for undirected graph
-    edge_index_train = torch.concat(
-        (X_train, X_train[:, [1, 0]]),
-        axis=0
-    ).T
-    edge_index_val = torch.concat(
-        (X_val, X_val[:, [1, 0]]),
-        axis=0
-    ).T
+    edge_index_train = torch.concat((X_train, X_train[:, [1, 0]]), axis=0).T
+    edge_index_val = torch.concat((X_val, X_val[:, [1, 0]]), axis=0).T
     # make pg data
-    train = Data(
-        edge_index=edge_index_train,
-        num_nodes=num_diners+num_reviewers
-    )
-    val = Data(
-        edge_index=edge_index_val,
-        num_nodes=num_diners + num_reviewers
-    )
+    train = Data(edge_index=edge_index_train, num_nodes=num_diners + num_reviewers)
+    val = Data(edge_index=edge_index_val, num_nodes=num_diners + num_reviewers)
     return train, val
 
 
-def prepare_networkx_data(
-        X_train: Tensor,
-        X_val: Tensor
-) -> Tuple[nx.Graph, nx.Graph]:
+def prepare_networkx_data(X_train: Tensor, X_val: Tensor) -> Tuple[nx.Graph, nx.Graph]:
     """
     Make train / validation dataset in nx.Graph object type.
 

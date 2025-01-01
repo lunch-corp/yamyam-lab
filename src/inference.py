@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
@@ -61,8 +60,7 @@ def _main(cfg: DictConfig):
 
     # load model
     trainer = build_model(cfg)
-    ranker = trainer.load_model()
-    predictions = trainer.predict(ranker, X_test)
+    predictions = trainer.predict(X_test)
 
     test["prediction"] = predictions
     test = test.sort_values(by=["prediction"], ascending=False)
