@@ -1,27 +1,16 @@
 from typing import List, Tuple, Union
 import networkx as nx
-import pickle
-import os
 
 import torch
 from torch import Tensor
 from torch.nn import Embedding
 from torch.utils.data import DataLoader
 
-from candidate.near import NearCandidateGenerator
 from embedding.base_embedding import BaseEmbedding
 from tools.generate_walks import generate_walks, precompute_probabilities
-from tools.utils import get_num_workers
-from tools.plot import plot_metric_at_k
-from constant.preprocess.preprocess import MIN_REVIEWS
-from constant.candidate.near import MAX_DISTANCE_KM
-from constant.device.device import DEVICE
-from constant.metric.metric import Metric, NearCandidateMetric
-from constant.evaluation.recommend import TOP_K_VALUES_FOR_PRED,TOP_K_VALUES_FOR_CANDIDATE
-from constant.save.file_name import FileName
 
 
-class Node2Vec(BaseEmbedding):
+class Model(BaseEmbedding):
     r"""
     This is a customized version of pytorch geometric implementation of node2vec.
     It differs from pg implementation in 2 aspects.
@@ -47,9 +36,6 @@ class Node2Vec(BaseEmbedding):
         graph (nx.Graph): Graph object.
         embedding_dim (int): The size of each embedding vector.
         walk_length (int): The walk length.
-        context_size (int): The actual context size which is considered for
-            positive samples. This parameter increases the effective sampling
-            rate by reusing samples across different source nodes.
         walks_per_node (int, optional): The number of walks to sample for each
             node. (default: :obj:`1`)
         p (float, optional): Likelihood of immediately revisiting a node in the
@@ -66,7 +52,6 @@ class Node2Vec(BaseEmbedding):
         graph: nx.Graph,
         embedding_dim: int,
         walk_length: int,
-        context_size: int,
         num_nodes: int,
         top_k_values: List[int],
         walks_per_node: int = 1,
@@ -83,7 +68,6 @@ class Node2Vec(BaseEmbedding):
         self.graph = graph
         self.embedding_dim = embedding_dim
         self.walk_length = walk_length
-        self.context_size = context_size
         self.walks_per_node = walks_per_node
         self.p = p
         self.q = q
@@ -221,171 +205,3 @@ class Node2Vec(BaseEmbedding):
         neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()
 
         return pos_loss + neg_loss
-
-
-if __name__ == "__main__":
-    import traceback
-    from tools.parse_args import parse_args
-    from tools.logger import setup_logger
-    from preprocess.preprocess import train_test_split_stratify, prepare_networkx_data
-
-    args = parse_args()
-    os.makedirs(args.result_path, exist_ok=True)
-    logger = setup_logger(os.path.join(args.result_path, FileName.LOG.value))
-
-    try:
-        logger.info(f"batch size: {args.batch_size}")
-        logger.info(f"learning rate: {args.lr}")
-        logger.info(f"regularization: {args.regularization}")
-        logger.info(f"epochs: {args.epochs}")
-        logger.info(f"test ratio: {args.test_ratio}")
-        logger.info(f"embedding dimension: {args.embedding_dim}")
-        logger.info(f"walk length: {args.walk_length}")
-        logger.info(f"context size: {args.context_size}")
-        logger.info(f"walks per node: {args.walks_per_node}")
-        logger.info(f"num neg samples: {args.num_negative_samples}")
-        logger.info(f"p: {args.p}")
-        logger.info(f"q: {args.q}")
-        logger.info(f"result path: {args.result_path}")
-
-        data = train_test_split_stratify(
-            test_size=args.test_ratio,
-            min_reviews=MIN_REVIEWS,
-            X_columns=["diner_idx", "reviewer_id"],
-            y_columns=["reviewer_review_score"],
-            pg_model=True
-        )
-        train_graph, val_graph = prepare_networkx_data(
-            X_train=data["X_train"],
-            X_val=data["X_val"],
-        )
-
-        # for qualitative eval
-        pickle.dump(data, open(os.path.join(args.result_path, FileName.DATA_OBJECT.value), "wb"))
-
-        num_nodes = data["num_users"] + data["num_diners"]
-        top_k_values = TOP_K_VALUES_FOR_PRED + TOP_K_VALUES_FOR_CANDIDATE
-        model = Node2Vec(
-            user_ids=torch.tensor(list(data["user_mapping"].values())).to(DEVICE),
-            diner_ids=torch.tensor(list(data["diner_mapping"].values())).to(DEVICE),
-            graph=train_graph,
-            embedding_dim=args.embedding_dim,
-            walk_length=args.walk_length,
-            walks_per_node=args.walks_per_node,
-            num_nodes=num_nodes,
-            context_size=args.context_size,
-            num_negative_samples=args.num_negative_samples,
-            q=args.q,
-            p=args.p,
-            top_k_values=top_k_values,
-            inference=True,
-        ).to(DEVICE)
-        optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
-
-        # get near 1km diner_ids
-        candidate_generator = NearCandidateGenerator()
-        near_diners = candidate_generator.get_near_candidates_for_all_diners(max_distance_km=MAX_DISTANCE_KM)
-
-        # convert diner_ids
-        diner_mapping = data["diner_mapping"]
-        nearby_candidates_mapping = {}
-        for ref_id, nearby_id in near_diners.items():
-            # only get diner appeared in train/val dataset
-            if diner_mapping.get(ref_id) is None:
-                continue
-            nearby_id_mapping = [diner_mapping.get(diner_id) for diner_id in nearby_id if diner_mapping.get(diner_id) != None]
-            nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
-
-        loader = model.loader(
-            batch_size=args.batch_size,
-            shuffle=True,
-            num_workers=get_num_workers(),
-        )
-        for epoch in range(args.epochs):
-            logger.info(f"################## epoch {epoch} ##################")
-            # total_loss = 0
-            # for pos_rw, neg_rw in loader:
-            #     optimizer.zero_grad()
-            #     loss = model.loss(pos_rw.to(DEVICE), neg_rw.to(DEVICE))
-            #     loss.backward()
-            #     optimizer.step()
-            #     total_loss += loss.item()
-            # total_loss /= len(loader)
-            # model.tr_loss.append(total_loss)
-            #
-            # logger.info(f"epoch {epoch}: train loss {total_loss:.4f}")
-
-            model.recommend_all(
-                X_train=data["X_train"],
-                X_val=data["X_val"],
-                top_k_values=top_k_values,
-                nearby_candidates=nearby_candidates_mapping,
-                filter_already_liked=True
-            )
-
-            maps = []
-            ndcgs = []
-            recalls = []
-            ranked_precs = []
-            candidate_recalls = []
-
-            for k in TOP_K_VALUES_FOR_PRED:
-                # no candidate metric
-                map = round(model.metric_at_k[k][Metric.MAP.value], 5)
-                ndcg = round(model.metric_at_k[k][Metric.NDCG.value], 5)
-                recall = round(model.metric_at_k[k][Metric.RECALL.value], 5)
-                ranked_prec = round(model.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value], 5)
-                count = model.metric_at_k[k][Metric.COUNT.value]
-                prec_count = model.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT.value]
-
-                logger.info(f"maP@{k}: {map} with {count} users out of all {model.num_users} users")
-                logger.info(f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users")
-                logger.info(f"recall@{k}: {recall} with {count} users out of all {model.num_users} users")
-                logger.info(f"ranked_prec@{k}: {ranked_prec} out of all {prec_count} validation dataset")
-
-                maps.append(str(map))
-                ndcgs.append(str(ndcg))
-                recalls.append(str(recall))
-                ranked_precs.append(str(ranked_prec))
-
-            logger.info(f"top k results for direct prediction @3, @7, @10, @20 in order")
-            logger.info(f"map result: {'|'.join(maps)}")
-            logger.info(f"ndcg result: {'|'.join(ndcgs)}")
-            logger.info(f"recall: {'|'.join(recalls)}")
-            logger.info(f"ranked_prec: {'|'.join(ranked_precs)}")
-
-            for k in TOP_K_VALUES_FOR_CANDIDATE:
-                # near candidate metric
-                prec_count = model.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT.value]
-                near_candidate_recall = round(model.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value], 5)
-                recall_count = model.metric_at_k[k][NearCandidateMetric.RECALL_COUNT.value]
-                logger.info(f"near_candidate_recall@{k}: {near_candidate_recall} with {recall_count} count out of all {prec_count} validation dataset")
-                candidate_recalls.append(str(near_candidate_recall))
-
-            logger.info(f"top k results for candidate generation @100, @300, @500")
-            logger.info(f"candidate_recall: {'|'.join(candidate_recalls)}")
-
-            torch.save(model.state_dict(), str(os.path.join(args.result_path, FileName.WEIGHT.value)))
-            pickle.dump(
-                model.tr_loss,
-                open(
-                    os.path.join(args.result_path, FileName.TRAINING_LOSS.value), "wb"
-                )
-            )
-            pickle.dump(
-                model.metric_at_k_total_epochs,
-                open(
-                    os.path.join(args.result_path, FileName.METRIC.value), "wb"
-                )
-            )
-            logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
-
-        # plot metrics
-        plot_metric_at_k(
-            metric=model.metric_at_k_total_epochs,
-            parent_save_path=args.result_path,
-        )
-
-    except:
-        logger.error(traceback.format_exc())
-        raise
