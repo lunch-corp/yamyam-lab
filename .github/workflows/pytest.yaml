@@ -2,7 +2,7 @@ name: Run tests and upload coverage
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   test:
