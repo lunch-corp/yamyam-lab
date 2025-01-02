@@ -1,4 +1,16 @@
 hydra:
+  job_logging:
+      root:
+        handlers: [console]
+        level: INFO  # 로그 레벨
+      handlers:
+        console:
+          class: logging.StreamHandler
+          level: INFO
+          formatter: simple
+      formatters:
+        simple:
+          format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
   run:
     dir: .
   output_subdir: null

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 
 import hydra
@@ -80,7 +81,7 @@ def _main(cfg: DictConfig):
             ]
         )
 
-    print(
+    logging.info(
         f"{test['reviewer_user_name'].values[0]}님을 위한 추천 식당 리스트를 알립니다.\n{table}"
     )
 
