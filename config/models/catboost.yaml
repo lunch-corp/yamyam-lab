@@ -1,6 +1,6 @@
 name: catboost
 
-model_path: res/models/
+model_path: res/rerank/
 results: catboost_rank
 
 params:

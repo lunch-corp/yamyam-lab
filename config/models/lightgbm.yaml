@@ -1,6 +1,6 @@
 name: lightgbm
 
-model_path: res/models/
+model_path: res/rerank/
 results: lgb_ranker
 
 params:

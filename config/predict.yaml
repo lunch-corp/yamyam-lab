@@ -10,8 +10,6 @@ defaults:
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
-model_path: res/models/
-results: lightgbm_ranker
 user_name: 1065730588
 top_n: 20
 user_lat: 37.498095
