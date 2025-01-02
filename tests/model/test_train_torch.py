@@ -3,7 +3,7 @@ import os
 import argparse
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src"))
 
-from train_embedding import main
+from train_torch import main
 
 
 def run_model(model):
@@ -11,19 +11,17 @@ def run_model(model):
     args.model = model
     args.batch_size = 128
     args.lr = 0.01
+    args.regularization = 1e-4
     args.epochs = 1
+    args.num_factors = 32
     args.test_ratio = 0.3
-    args.embedding_dim = 32
-    args.walk_length = 20
-    args.walks_per_node = 10
-    args.num_negative_samples = 20
-    args.p = 1
-    args.q = 0.5
+    args.random_state = 42
+    args.patience = 5
     args.result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"../result/{args.model}")
     args.test = True
 
     main(args)
 
 
-def test_run_node2vec():
-    run_model("node2vec")
+def test_run_svd_bias():
+    run_model("svd_bias")
