@@ -28,9 +28,7 @@ class BaseQualitativeEvaluation(ABC):
              user_mapping (Dict[int, int]): user mapping dictionary in preprocessing step.
              diner_mapping (Dict[int, int]): diner mapping dictionary in preprocessing step.
         """
-        self.diners = pd.read_csv(
-            os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv")
-        )
+        self.diners = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
         self.user_mapping = user_mapping
         # reverse mapping to original diner_id
         self.diner_mapping = {v: k for k, v in diner_mapping.items()}
@@ -77,9 +75,7 @@ class BaseQualitativeEvaluation(ABC):
         )
         pred_diner_id_mapping = [self.diner_mapping[diner] for diner in pred_diner_id]
 
-        tb = PrettyTable(
-            field_names=["diner_name", "diner_category_small", "url", "score", "hitted"]
-        )
+        tb = PrettyTable(field_names=["diner_name", "diner_category_small", "url", "score", "hitted"])
         for diner_idx, score in zip(pred_diner_id_mapping, pred_diner_score):
             info = self.diners[lambda x: x["diner_idx"] == diner_idx].iloc[0]
             tb.add_row(

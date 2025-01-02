@@ -10,16 +10,12 @@ DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data
 
 class NearCandidateGenerator:
     def __init__(self):
-        diners = pd.read_csv(
-            os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv")
-        )
+        diners = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
         diner_ids = diners["diner_idx"].unique()
         self.mapping_diner_idx = {i: id for i, id in enumerate(diner_ids)}
 
         # Convert latitude and longitude to radians for KDTree
-        self.diner_coords = np.radians(
-            [(r[1]["diner_lat"], r[1]["diner_lon"]) for r in diners.iterrows()]
-        )
+        self.diner_coords = np.radians([(r[1]["diner_lat"], r[1]["diner_lon"]) for r in diners.iterrows()])
 
         # get kd tree
         self.kd_tree = self.create_kd_tree()
@@ -55,9 +51,7 @@ class NearCandidateGenerator:
         near_diner_ids = self.kd_tree.query_ball_point(coord, max_distance_rad)
         return near_diner_ids
 
-    def get_near_candidates_for_all_diners(
-        self, max_distance_km: float
-    ) -> dict[int, list[int]]:
+    def get_near_candidates_for_all_diners(self, max_distance_km: float) -> dict[int, list[int]]:
         """
         Get near candidates for all of diners in dataset
 

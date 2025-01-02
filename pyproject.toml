@@ -47,3 +47,19 @@ exclude = [
 ]
 lint.ignore = ["F401", "E402", "E501"]
 lint.select = ["I", "E", "F", "W", "C90", "UP"]
+
+[tool.black]
+line-length = 120
+target-version = ['py36', 'py37', 'py38', 'py39']
+exclude = '''
+    \.git
+  | \.mypy_cache
+  | \.tox
+  | venv
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | ^.*\b(migrations)\b.*$
+'''

@@ -28,10 +28,7 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     # Haversine formula
     dlat = lat2 - lat1
     dlon = lon2 - lon1
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    )
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     # Earth's radius in kilometers
@@ -50,9 +47,7 @@ def _main(cfg: DictConfig):
     test["user_lon"] = cfg.user_lon
 
     test["distance"] = test.apply(
-        lambda x: haversine(
-            x["user_lat"], x["user_lon"], x["diner_lat"], x["diner_lon"]
-        ),
+        lambda x: haversine(x["user_lat"], x["user_lon"], x["diner_lat"], x["diner_lon"]),
         axis=1,
     )
     test = test.loc[test["distance"] <= cfg.distance_threshold]
@@ -71,18 +66,9 @@ def _main(cfg: DictConfig):
     table.field_names = ["diner_name", "diner_category_small", "url", "prediction"]
 
     for _, row in test.iterrows():
-        table.add_row(
-            [
-                row["diner_name"],
-                row["diner_category_small"],
-                row["diner_url"],
-                row["prediction"],
-            ]
-        )
+        table.add_row([row["diner_name"], row["diner_category_small"], row["diner_url"], row["prediction"]])
 
-    print(
-        f"{test['reviewer_user_name'].values[0]}님을 위한 추천 식당 리스트를 알립니다.\n{table}"
-    )
+    print(f"{test['reviewer_user_name'].values[0]}님을 위한 추천 식당 리스트를 알립니다.\n{table}")
 
 
 if __name__ == "__main__":

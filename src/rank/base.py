@@ -73,9 +73,7 @@ class BaseModel(ABC):
             random_state=self.cfg.data.seed,
         )
 
-        with tqdm(
-            kfold.split(X), total=self.cfg.data.n_splits, desc="cv", leave=False
-        ) as pbar:
+        with tqdm(kfold.split(X), total=self.cfg.data.n_splits, desc="cv", leave=False) as pbar:
             for fold, (train_idx, valid_idx) in enumerate(pbar, 1):
                 X_train, X_valid = X.iloc[train_idx], X.iloc[valid_idx]
                 y_train, y_valid = y.iloc[train_idx], y.iloc[valid_idx]

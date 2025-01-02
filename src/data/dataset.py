@@ -36,9 +36,7 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     bins = [-1, 0, 10, 50, 200, float("inf")]
 
     # pd.cut을 사용하여 정수형 범주 생성
-    diner["diner_review_cnt_category"] = pd.cut(
-        diner["all_review_cnt"], bins=bins, labels=False
-    )
+    diner["diner_review_cnt_category"] = pd.cut(diner["all_review_cnt"], bins=bins, labels=False)
     diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].fillna(0)
     diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].astype(int)
 
@@ -58,20 +56,16 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     diner[["taste", "kind", "mood", "chip", "parking"]] = scores
 
     # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
-    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = (
-        diner["diner_menu_price"].apply(lambda x: extract_statistics(eval(x)))
+    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = diner["diner_menu_price"].apply(
+        lambda x: extract_statistics(eval(x))
     )
 
     for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
         diner[col] = diner[col].fillna(diner[col].median())
 
-    review = pd.concat(
-        [pd.read_csv(review_data_path) for review_data_path in review_data_paths]
-    )
+    review = pd.concat([pd.read_csv(review_data_path) for review_data_path in review_data_paths])
     # review = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_5.csv"))
-    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
-        lambda x: np.int32(str(x).replace(",", ""))
-    )
+    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(lambda x: np.int32(str(x).replace(",", "")))
     review = pd.merge(review, diner, on="diner_idx", how="inner")
     review = review.drop_duplicates(subset=["reviewer_id", "diner_idx"])
 
@@ -80,9 +74,7 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     review["badge_grade"] = le.fit_transform(review["badge_grade"])
 
     # 리뷰어
-    review["reviewer_trust_score"] = (
-        0.7 * review["reviewer_review_cnt"] + 0.3 * review["badge_level"]
-    )
+    review["reviewer_trust_score"] = 0.7 * review["reviewer_review_cnt"] + 0.3 * review["badge_level"]
 
     return review, diner
 
@@ -122,11 +114,7 @@ def load_and_prepare_lightgbm_data(
 
     # filter reviewer who wrote reviews more than min_reviews
     reviewer2review_cnt = review["reviewer_id"].value_counts().to_dict()
-    reviewer_id_over = [
-        reviewer_id
-        for reviewer_id, cnt in reviewer2review_cnt.items()
-        if cnt >= cfg.data.min_reviews
-    ]
+    reviewer_id_over = [reviewer_id for reviewer_id, cnt in reviewer2review_cnt.items() if cnt >= cfg.data.min_reviews]
     review_over = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
     review_over = review_over.drop_duplicates(subset=["reviewer_id", "diner_idx"])
 
@@ -192,9 +180,7 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
     )
     test = test.drop_duplicates(subset=["reviewer_id", "diner_idx"])
 
-    test["diner_category_small"] = test["diner_category_small"].fillna(
-        test["diner_category_middle"]
-    )
+    test["diner_category_small"] = test["diner_category_small"].fillna(test["diner_category_middle"])
     already_reviewed = user_2_diner_map.get(reviewer_id, [])
 
     return test, already_reviewed

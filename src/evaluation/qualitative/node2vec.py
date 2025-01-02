@@ -102,9 +102,7 @@ if __name__ == "__main__":
             reviewer_name = enum.name
             reviewer_id_mapping = data["user_mapping"].get(reviewer_id)
             if reviewer_id_mapping is None:
-                logger.info(
-                    f"reviewer {reviewer_name} not existing in training dataset"
-                )
+                logger.info(f"reviewer {reviewer_name} not existing in training dataset")
                 continue
             tb = qualitative_eval.recommend(
                 user_id=reviewer_id,

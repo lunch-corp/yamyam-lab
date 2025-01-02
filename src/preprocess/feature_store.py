@@ -6,9 +6,7 @@ import pandas as pd
 def extract_statistics(prices: list[int, float]) -> pd.Series:
     if not prices:  # 빈 리스트라면 NaN 반환
         return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
-    return pd.Series(
-        [min(prices), max(prices), np.mean(prices), np.median(prices), len(prices)]
-    )
+    return pd.Series([min(prices), max(prices), np.mean(prices), np.median(prices), len(prices)])
 
 
 # numpy 기반으로 점수 추출 최적화

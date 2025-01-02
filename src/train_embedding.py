@@ -9,10 +9,7 @@ import torch
 from candidate.near import NearCandidateGenerator
 from constant.candidate.near import MAX_DISTANCE_KM
 from constant.device.device import DEVICE
-from constant.evaluation.recommend import (
-    TOP_K_VALUES_FOR_CANDIDATE,
-    TOP_K_VALUES_FOR_PRED,
-)
+from constant.evaluation.recommend import TOP_K_VALUES_FOR_CANDIDATE, TOP_K_VALUES_FOR_PRED
 from constant.metric.metric import Metric, NearCandidateMetric
 from constant.preprocess.preprocess import MIN_REVIEWS
 from constant.save.file_name import FileName
@@ -53,9 +50,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         # for qualitative eval
-        pickle.dump(
-            data, open(os.path.join(args.result_path, FileName.DATA_OBJECT.value), "wb")
-        )
+        pickle.dump(data, open(os.path.join(args.result_path, FileName.DATA_OBJECT.value), "wb"))
 
         num_nodes = data["num_users"] + data["num_diners"]
         top_k_values = TOP_K_VALUES_FOR_PRED + TOP_K_VALUES_FOR_CANDIDATE
@@ -80,9 +75,7 @@ def main(args: ArgumentParser.parse_args) -> None:
 
         # get near 1km diner_ids
         candidate_generator = NearCandidateGenerator()
-        near_diners = candidate_generator.get_near_candidates_for_all_diners(
-            max_distance_km=MAX_DISTANCE_KM
-        )
+        near_diners = candidate_generator.get_near_candidates_for_all_diners(max_distance_km=MAX_DISTANCE_KM)
 
         # convert diner_ids
         diner_mapping = data["diner_mapping"]
@@ -92,9 +85,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             if diner_mapping.get(ref_id) is None:
                 continue
             nearby_id_mapping = [
-                diner_mapping.get(diner_id)
-                for diner_id in nearby_id
-                if diner_mapping.get(diner_id) is not None
+                diner_mapping.get(diner_id) for diner_id in nearby_id if diner_mapping.get(diner_id) is not None
             ]
             nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
 
@@ -136,35 +127,21 @@ def main(args: ArgumentParser.parse_args) -> None:
                 map = round(model.metric_at_k[k][Metric.MAP.value], 5)
                 ndcg = round(model.metric_at_k[k][Metric.NDCG.value], 5)
                 recall = round(model.metric_at_k[k][Metric.RECALL.value], 5)
-                ranked_prec = round(
-                    model.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value], 5
-                )
+                ranked_prec = round(model.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value], 5)
                 count = model.metric_at_k[k][Metric.COUNT.value]
-                prec_count = model.metric_at_k[k][
-                    NearCandidateMetric.RANKED_PREC_COUNT.value
-                ]
+                prec_count = model.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT.value]
 
-                logger.info(
-                    f"maP@{k}: {map} with {count} users out of all {model.num_users} users"
-                )
-                logger.info(
-                    f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users"
-                )
-                logger.info(
-                    f"recall@{k}: {recall} with {count} users out of all {model.num_users} users"
-                )
-                logger.info(
-                    f"ranked_prec@{k}: {ranked_prec} out of all {prec_count} validation dataset"
-                )
+                logger.info(f"maP@{k}: {map} with {count} users out of all {model.num_users} users")
+                logger.info(f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users")
+                logger.info(f"recall@{k}: {recall} with {count} users out of all {model.num_users} users")
+                logger.info(f"ranked_prec@{k}: {ranked_prec} out of all {prec_count} validation dataset")
 
                 maps.append(str(map))
                 ndcgs.append(str(ndcg))
                 recalls.append(str(recall))
                 ranked_precs.append(str(ranked_prec))
 
-            logger.info(
-                "top k results for direct prediction @3, @7, @10, @20 in order"
-            )
+            logger.info("top k results for direct prediction @3, @7, @10, @20 in order")
             logger.info(f"map result: {'|'.join(maps)}")
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
             logger.info(f"recall: {'|'.join(recalls)}")
@@ -172,15 +149,9 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             for k in TOP_K_VALUES_FOR_CANDIDATE:
                 # near candidate metric
-                prec_count = model.metric_at_k[k][
-                    NearCandidateMetric.RANKED_PREC_COUNT.value
-                ]
-                near_candidate_recall = round(
-                    model.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value], 5
-                )
-                recall_count = model.metric_at_k[k][
-                    NearCandidateMetric.RECALL_COUNT.value
-                ]
+                prec_count = model.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT.value]
+                near_candidate_recall = round(model.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value], 5)
+                recall_count = model.metric_at_k[k][NearCandidateMetric.RECALL_COUNT.value]
                 logger.info(
                     f"near_candidate_recall@{k}: {near_candidate_recall} with {recall_count} count out of all {prec_count} validation dataset"
                 )
@@ -195,9 +166,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             )
             pickle.dump(
                 model.tr_loss,
-                open(
-                    os.path.join(args.result_path, FileName.TRAINING_LOSS.value), "wb"
-                ),
+                open(os.path.join(args.result_path, FileName.TRAINING_LOSS.value), "wb"),
             )
             pickle.dump(
                 model.metric_at_k_total_epochs,

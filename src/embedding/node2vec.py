@@ -105,11 +105,7 @@ class Model(BaseEmbedding):
         Returns (DataLoader):
             DataLoader used when training model.
         """
-        return DataLoader(
-            torch.tensor([node for node in self.graph.nodes()]),
-            collate_fn=self.sample,
-            **kwargs
-        )
+        return DataLoader(torch.tensor([node for node in self.graph.nodes()]), collate_fn=self.sample, **kwargs)
 
     @torch.jit.export
     def pos_sample(self, batch: Tensor) -> Tensor:
@@ -190,9 +186,7 @@ class Model(BaseEmbedding):
         start, rest = pos_rw[:, 0], pos_rw[:, 1:].contiguous()
 
         h_start = self.embedding(start).view(pos_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(
-            pos_rw.size(0), -1, self.embedding_dim
-        )
+        h_rest = self.embedding(rest.view(-1)).view(pos_rw.size(0), -1, self.embedding_dim)
 
         out = (h_start * h_rest).sum(dim=-1).view(-1)
         pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
@@ -201,9 +195,7 @@ class Model(BaseEmbedding):
         start, rest = neg_rw[:, 0], neg_rw[:, 1:].contiguous()
 
         h_start = self.embedding(start).view(neg_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(
-            neg_rw.size(0), -1, self.embedding_dim
-        )
+        h_rest = self.embedding(rest.view(-1)).view(neg_rw.size(0), -1, self.embedding_dim)
 
         out = (h_start * h_rest).sum(dim=-1).view(-1)
         neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()

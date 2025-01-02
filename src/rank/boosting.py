@@ -35,10 +35,7 @@ class LightGBMTrainer(BaseModel):
         valid_groups = X_valid.groupby("reviewer_id").size().to_numpy()
 
         # select features
-        X_train, X_valid = (
-            X_train[self.cfg.data.features],
-            X_valid[self.cfg.data.features],
-        )
+        X_train, X_valid = X_train[self.cfg.data.features], X_valid[self.cfg.data.features]
 
         train_set = lgb.Dataset(
             X_train,
@@ -79,23 +76,15 @@ class LightGBMTrainer(BaseModel):
         return self.model.predict(X_test)
 
     def save_model(self: Self) -> None:
-        self.model.save_model(
-            Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.model"
-        )
+        self.model.save_model(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.model")
 
     def load_model(self: Self) -> lgb.Booster:
-        return lgb.Booster(
-            model_file=Path(self.cfg.models.model_path)
-            / f"{self.cfg.models.results}.model"
-        )
+        return lgb.Booster(model_file=Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.model")
 
     def plot_feature_importance(self: Self) -> None:
         _, ax = plt.subplots(figsize=(15, 10))
         lgb.plot_importance(self.model, ax=ax)
-        plt.savefig(
-            Path(self.cfg.models.model_path)
-            / f"{self.cfg.models.results}_feature_importance.png"
-        )
+        plt.savefig(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}_feature_importance.png")
 
 
 class XGBoostTrainer(BaseModel):
@@ -147,23 +136,15 @@ class XGBoostTrainer(BaseModel):
         return self.model.predict(xgb.DMatrix(X_test))
 
     def save_model(self: Self) -> None:
-        self.model.save_model(
-            Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json"
-        )
+        self.model.save_model(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json")
 
     def load_model(self: Self) -> xgb.Booster:
-        return xgb.Booster(
-            model_file=Path(self.cfg.models.model_path)
-            / f"{self.cfg.models.results}.json"
-        )
+        return xgb.Booster(model_file=Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json")
 
     def plot_feature_importance(self: Self) -> None:
         fig, ax = plt.subplots(figsize=(15, 10))
         xgb.plot_importance(self.model, ax=ax)
-        plt.savefig(
-            Path(self.cfg.models.model_path)
-            / f"{self.cfg.models.results}_feature_importance.png"
-        )
+        plt.savefig(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}_feature_importance.png")
 
 
 class CatBoostTrainer(BaseModel):
@@ -226,20 +207,14 @@ class CatBoostTrainer(BaseModel):
         return self.model.predict(X_test)
 
     def save_model(self: Self) -> None:
-        self.model.save_model(
-            Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
-        )
+        self.model.save_model(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm")
 
     def load_model(self: Self) -> CatBoostRanker:
-        return CatBoostRanker().load_model(
-            Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
-        )
+        return CatBoostRanker().load_model(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm")
 
     def plot_feature_importance(self: Self) -> None:
         # 피처 중요도 계산
-        importances = self.model.get_feature_importance(
-            type="FeatureImportance", data=self.train_set
-        )
+        importances = self.model.get_feature_importance(type="FeatureImportance", data=self.train_set)
 
         # 중요도 데이터프레임 생성
         feature_importances = pd.DataFrame(
@@ -250,20 +225,13 @@ class CatBoostTrainer(BaseModel):
         )
 
         # 중요도 내림차순 정렬
-        feature_importances = feature_importances.sort_values(
-            by="Importance", ascending=False
-        )
+        feature_importances = feature_importances.sort_values(by="Importance", ascending=False)
 
         # 중요도 시각화
         plt.figure(figsize=(10, 6))
-        sns.barplot(
-            x="Importance", y="Feature", data=feature_importances, palette="viridis"
-        )
+        sns.barplot(x="Importance", y="Feature", data=feature_importances, palette="viridis")
         plt.title("CatBoost Feature Importance")
         plt.xlabel("Importance")
         plt.ylabel("Feature")
 
-        plt.savefig(
-            Path(self.cfg.models.model_path)
-            / f"{self.cfg.models.results}_feature_importance.png"
-        )
+        plt.savefig(Path(self.cfg.models.model_path) / f"{self.cfg.models.results}_feature_importance.png")

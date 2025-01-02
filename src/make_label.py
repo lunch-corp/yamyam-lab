@@ -19,12 +19,8 @@ def _main(cfg: DictConfig):
     # load data
     diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
 
-    review = pd.concat(
-        [pd.read_csv(review_data_path) for review_data_path in REVIEW_DATA_PATHS]
-    )
-    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
-        lambda x: np.int32(str(x).replace(",", ""))
-    )
+    review = pd.concat([pd.read_csv(review_data_path) for review_data_path in REVIEW_DATA_PATHS])
+    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(lambda x: np.int32(str(x).replace(",", "")))
     review = pd.merge(review, diner, on="diner_idx", how="inner")
     review = review.drop_duplicates(subset=["reviewer_id", "diner_idx"])
 

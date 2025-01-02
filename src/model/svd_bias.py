@@ -65,10 +65,7 @@ class SVDWithBias(nn.Module):
         user_bias = self.user_bias(user_idx)  # batch_size * 1
         item_bias = self.item_bias(item_idx)  # batch_size * 1
         output = (
-            (embed_user * embed_item).sum(axis=1)
-            + user_bias.squeeze()
-            + item_bias.squeeze()
-            + self.mu
+            (embed_user * embed_item).sum(axis=1) + user_bias.squeeze() + item_bias.squeeze() + self.mu
         )  # batch_size * 1
         return output
 
@@ -111,9 +108,7 @@ class SVDWithBias(nn.Module):
         train_liked = convert_tensor(X_train, dict)
         val_liked = convert_tensor(X_val, list)
         res = {}
-        metric_at_K = {
-            k: {"map": 0, "ndcg": 0, "count": 0, "ranked_prec": 0} for k in top_K
-        }
+        metric_at_K = {k: {"map": 0, "ndcg": 0, "count": 0, "ranked_prec": 0} for k in top_K}
         for user in range(self.num_users):
             item_idx = torch.arange(self.num_items)
             user_idx = torch.tensor([user]).repeat(self.num_items)
@@ -129,9 +124,7 @@ class SVDWithBias(nn.Module):
             if filter_already_liked:
                 user_liked_items = train_liked[user]
                 for already_liked_item_id in user_liked_items.keys():
-                    scores[already_liked_item_id] = -float(
-                        "inf"
-                    )  # not recommend already chosen item_id
+                    scores[already_liked_item_id] = -float("inf")  # not recommend already chosen item_id
 
             # calculate metric
             val_liked_item_id = np.array(val_liked[user])
@@ -140,9 +133,7 @@ class SVDWithBias(nn.Module):
                     continue
 
                 # recommendations for all item pools
-                pred_liked_item_id = (
-                    torch.topk(scores, k=K).indices.detach().cpu().numpy()
-                )
+                pred_liked_item_id = torch.topk(scores, k=K).indices.detach().cpu().numpy()
                 metric = ranking_metrics_at_k(val_liked_item_id, pred_liked_item_id)
                 metric_at_K[K]["map"] += metric["ap"]
                 metric_at_K[K]["ndcg"] += metric["ndcg"]
@@ -156,9 +147,7 @@ class SVDWithBias(nn.Module):
                     # sort indices using predicted score
                     indices = np.argsort(near_diner_score)[::-1]
                     pred_near_liked_item_id = near_diner[indices][:K]
-                    metric_at_K[K]["ranked_prec"] += ranked_precision(
-                        location, pred_near_liked_item_id
-                    )
+                    metric_at_K[K]["ranked_prec"] += ranked_precision(location, pred_near_liked_item_id)
 
                 # store recommendation result when K=20
                 if K == 20:
@@ -172,10 +161,7 @@ class SVDWithBias(nn.Module):
 
 
 if __name__ == "__main__":
-    from preprocess.preprocess import (
-        prepare_torch_dataloader,
-        train_test_split_stratify,
-    )
+    from preprocess.preprocess import prepare_torch_dataloader, train_test_split_stratify
 
     args = parse_args()
     logger = setup_logger(args.log_path)
@@ -208,9 +194,7 @@ if __name__ == "__main__":
 
         # get near 1km diner_ids
         candidate_generator = NearCandidateGenerator()
-        near_diners = candidate_generator.get_near_candidates_for_all_diners(
-            max_distance_km=MAX_DISTANCE_KM
-        )
+        near_diners = candidate_generator.get_near_candidates_for_all_diners(max_distance_km=MAX_DISTANCE_KM)
         # convert diner_ids
         diner_mapping = data["diner_mapping"]
         nearby_candidates_mapping = {}
@@ -219,9 +203,7 @@ if __name__ == "__main__":
             if diner_mapping.get(ref_id) is None:
                 continue
             nearby_id_mapping = [
-                diner_mapping.get(diner_id)
-                for diner_id in nearby_id
-                if diner_mapping.get(diner_id) is not None
+                diner_mapping.get(diner_id) for diner_id in nearby_id if diner_mapping.get(diner_id) is not None
             ]
             nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
 
@@ -292,12 +274,8 @@ if __name__ == "__main__":
                 ndcg = round(model.metric_at_K[K]["ndcg"], 5)
                 ranked_prec = round(model.metric_at_K[K]["ranked_prec"], 5)
                 count = model.metric_at_K[K]["count"]
-                logger.info(
-                    f"maP@{K}: {map} with {count} users out of all {model.num_users} users"
-                )
-                logger.info(
-                    f"ndcg@{K}: {ndcg} with {count} users out of all {model.num_users} users"
-                )
+                logger.info(f"maP@{K}: {map} with {count} users out of all {model.num_users} users")
+                logger.info(f"ndcg@{K}: {ndcg} with {count} users out of all {model.num_users} users")
                 logger.info(f"ranked precision@{K}: {ranked_prec}")
 
                 maps.append(str(map))
@@ -314,18 +292,12 @@ if __name__ == "__main__":
                 best_model_weights = copy.deepcopy(model.state_dict())
                 patience = args.patience
                 torch.save(model.state_dict(), args.model_path)
-                logger.info(
-                    f"Best validation: {best_loss}, Previous validation loss: {prev_best_loss}"
-                )
+                logger.info(f"Best validation: {best_loss}, Previous validation loss: {prev_best_loss}")
             else:
                 patience -= 1
-                logger.info(
-                    f"Validation loss did not decrease. Patience {patience} left."
-                )
+                logger.info(f"Validation loss did not decrease. Patience {patience} left.")
                 if patience == 0:
-                    logger.info(
-                        f"Patience over. Early stopping at epoch {epoch} with {best_loss} validation loss"
-                    )
+                    logger.info(f"Patience over. Early stopping at epoch {epoch} with {best_loss} validation loss")
                     break
 
             # Load the best model weights
