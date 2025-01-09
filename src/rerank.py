@@ -11,8 +11,15 @@ from rank import build_model
 def _main(cfg: DictConfig):
 
     # load dataset
-    X_train, y_train, X_test, y_test = train_test_split_stratify(
+    data = train_test_split_stratify(
         test_size=cfg.data.test_size, min_reviews=cfg.data.min_reviews, is_rank=True
+    )
+
+    X_train, y_train, X_test, y_test = (
+        data["X_train"],
+        data["y_train"],
+        data["X_val"],
+        data["y_val"],
     )
 
     # train model

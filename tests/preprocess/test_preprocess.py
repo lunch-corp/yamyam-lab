@@ -20,10 +20,10 @@ def test_train_test_split_stratify():
         stratify="reviewer_id",
     )
 
-    assert data["X_train"].shape[0] > 0
-    assert data["X_val"].shape[0] > 0
-    assert data["y_train"].shape[0] > 0
-    assert data["y_val"].shape[0] > 0
+    assert data["X_train"].shape[0] > 10000
+    assert data["X_val"].shape[0] > 10000
+    assert data["y_train"].shape[0] > 10000
+    assert data["y_val"].shape[0] > 10000
     assert data["num_diners"] > 0
     assert data["num_users"] > 0
     assert data["diner_mapping"] is not None

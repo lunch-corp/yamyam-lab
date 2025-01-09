@@ -9,8 +9,10 @@ y_columns:
     - reviewer_review_score
 features:
   - badge_level
+  - badge_grade
   - reviewer_review_cnt
   - diner_review_cnt_category
+  - reviewer_trust_score
   - min_price
   - max_price
   - mean_price
@@ -25,6 +27,7 @@ features:
 cat_features:
   - diner_review_cnt_category
   - badge_level
+  - badge_grade
 
 target: target
 size: 30

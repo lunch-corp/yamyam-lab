@@ -1,6 +1,6 @@
 import glob
 import os
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 import networkx as nx
 import numpy as np
@@ -125,7 +125,7 @@ def train_test_split_stratify(
     pg_model: bool = False,
     test: bool = False,
     is_rank: bool = False,
-) -> Union[Dict[str, Any], Tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]]:
+) -> Dict[str, Any]:
     """
     Split review data stratifying by `stratify` column.
     This function aims for using consistent train / validation dataset across coders
@@ -184,6 +184,12 @@ def train_test_split_stratify(
         stratify=review[stratify],
     )
 
+    # check whether reviewers from train is equivalent with reviewers from val
+    assert np.array_equal(
+        np.sort(train["reviewer_id"].unique()), np.sort(val["reviewer_id"].unique())
+    )
+    # TODO: check whether diners from train is equivalent with diners from val
+
     if is_rank:
         # label Encoder
         le = LabelEncoder()
@@ -214,16 +220,16 @@ def train_test_split_stratify(
         train = train.sort_values(by=[stratify])
         val = val.sort_values(by=[stratify])
 
-        X_train, y_train = train.drop(columns=["target"]), train["target"]
-        X_val, y_val = val.drop(columns=["target"]), val["target"]
-
-        return X_train, y_train, X_val, y_val
-
-    # check whether reviewers from train is equivalent with reviewers from val
-    assert np.array_equal(
-        np.sort(train["reviewer_id"].unique()), np.sort(val["reviewer_id"].unique())
-    )
-    # TODO: check whether diners from train is equivalent with diners from val
+        return {
+            "X_train": train.drop(columns=["target"]),
+            "y_train": train["target"],
+            "X_val": val.drop(columns=["target"]),
+            "y_val": val["target"],
+            "num_diners": num_diners,
+            "num_users": num_reviewers,
+            "diner_mapping": diner_mapping,
+            "user_mapping": reviewer_mapping,
+        }
 
     return {
         "X_train": torch.tensor(train[X_columns].values),

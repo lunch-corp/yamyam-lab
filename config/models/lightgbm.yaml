@@ -6,7 +6,7 @@ results: lgb_ranker
 params:
   objective: lambdarank
   boosting_type: gbdt
-  metric: ndcg
+  metric: map
   ndcg_at:
     - 10
     - 15
