@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "yamyam-lab"
+name = "src"
 version = "0.1.0"
 description = ""
 authors = ["yamyam-members"]

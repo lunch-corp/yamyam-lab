@@ -22,7 +22,7 @@ jobs:
       - name: Set up poetry
         uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: latest
+          poetry-version: "1.8.5"
 
       - uses: actions/cache@v3
         name: Define a cache for the virtual environment based on the dependencies lock file
