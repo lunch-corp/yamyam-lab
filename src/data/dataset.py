@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import torch
 from omegaconf import DictConfig
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 from preprocess.feature_store import extract_scores_array, extract_statistics
@@ -85,66 +84,6 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     )
 
     return review, diner
-
-
-def load_and_prepare_lightgbm_data(
-    cfg: DictConfig,
-) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
-    """
-    test_size: ratio of test dataset
-    min_reviews: minimum number of reviews for each reviewer
-    X_columns: column names for model feature
-    y_columns: column names for target value
-    use_columns: columns to use in review data
-    random_state: random seed for reproducibility
-    stratify: column to stratify review data
-    """
-    # load data
-    review, _ = load_dataset(cfg)
-
-    # target value 생성
-    review["target"] = np.where(
-        (review["real_good_review_percent"] > review["real_bad_review_percent"])
-        & (review["reviewer_review_score"] - review["reviewer_avg"] > 0.5),
-        1,
-        0,
-    )
-
-    # store unique number of diner and reviewer
-    diner_idxs = sorted(list(review["diner_idx"].unique()))
-    reviewer_ids = sorted(list(review["reviewer_id"].unique()))
-
-    # mapping diner_idx and reviewer_id
-    diner_mapping = {diner_idx: i for i, diner_idx in enumerate(diner_idxs)}
-    reviewer_mapping = {reviewer_id: i for i, reviewer_id in enumerate(reviewer_ids)}
-    review["diner_idx"] = review["diner_idx"].map(diner_mapping)
-    review["reviewer_id"] = review["reviewer_id"].map(reviewer_mapping)
-
-    # filter reviewer who wrote reviews more than min_reviews
-    reviewer2review_cnt = review["reviewer_id"].value_counts().to_dict()
-    reviewer_id_over = [
-        reviewer_id
-        for reviewer_id, cnt in reviewer2review_cnt.items()
-        if cnt >= cfg.data.min_reviews
-    ]
-    review_over = review[lambda x: x["reviewer_id"].isin(reviewer_id_over)]
-    review_over = review_over.drop_duplicates(subset=["reviewer_id", "diner_idx"])
-
-    # 사용자 ID를 train과 valid로 분리
-    user_ids = review_over["reviewer_id"].unique()
-    train_user_ids, valid_user_ids = train_test_split(
-        user_ids, test_size=cfg.data.test_size, random_state=cfg.data.random_state
-    )
-
-    train = review_over[lambda x: x["reviewer_id"].isin(train_user_ids)]
-    valid = review_over[lambda x: x["reviewer_id"].isin(valid_user_ids)]
-    train = train.sort_values(by=["reviewer_id"])
-    valid = valid.sort_values(by=["reviewer_id"])
-
-    X_train, y_train = train.drop(columns=[cfg.data.target]), train[cfg.data.target]
-    X_valid, y_valid = valid.drop(columns=[cfg.data.target]), valid[cfg.data.target]
-
-    return X_train, y_train, X_valid, y_valid
 
 
 def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:

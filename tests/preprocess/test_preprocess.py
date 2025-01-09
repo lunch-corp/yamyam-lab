@@ -1,0 +1,47 @@
+try:
+    import os
+    import sys
+
+    sys.path.append(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src")
+    )
+
+except ModuleNotFoundError:
+    raise Exception("No module found")
+
+from preprocess.preprocess import train_test_split_stratify
+
+
+def test_train_test_split_stratify():
+    data = train_test_split_stratify(
+        test_size=0.2,
+        min_reviews=10,
+        random_state=42,
+        stratify="reviewer_id",
+    )
+
+    assert data["X_train"].shape[0] > 0
+    assert data["X_val"].shape[0] > 0
+    assert data["y_train"].shape[0] > 0
+    assert data["y_val"].shape[0] > 0
+    assert data["num_diners"] > 0
+    assert data["num_users"] > 0
+    assert data["diner_mapping"] is not None
+    assert data["user_mapping"] is not None
+
+
+def test_train_test_split_stratify_rank():
+    X_train, y_train, X_val, y_val = train_test_split_stratify(
+        test_size=0.2,
+        min_reviews=10,
+        random_state=42,
+        stratify="reviewer_id",
+        is_rank=True,
+    )
+
+    assert len(X_train) > 10000
+    assert len(X_val) > 10000
+    assert len(y_train) > 10000
+    assert len(y_val) > 10000
+    assert len(X_train) == len(y_train)
+    assert len(X_val) == len(y_val)

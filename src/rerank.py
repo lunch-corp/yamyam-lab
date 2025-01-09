@@ -3,7 +3,7 @@ from __future__ import annotations
 import hydra
 from omegaconf import DictConfig
 
-from data import load_and_prepare_lightgbm_data
+from preprocess.preprocess import train_test_split_stratify
 from rank import build_model
 
 
@@ -11,7 +11,9 @@ from rank import build_model
 def _main(cfg: DictConfig):
 
     # load dataset
-    X_train, y_train, X_test, y_test = load_and_prepare_lightgbm_data(cfg)
+    X_train, y_train, X_test, y_test = train_test_split_stratify(
+        test_size=cfg.data.test_size, min_reviews=cfg.data.min_reviews, is_rank=True
+    )
 
     # train model
     trainer = build_model(cfg)
