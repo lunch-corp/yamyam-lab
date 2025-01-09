@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 from preprocess.feature_store import extract_scores_array, extract_statistics
+from src.tools.google_drive import ensure_data_files
 
 # Load data (same as your current implementation)
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
@@ -29,16 +30,18 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     Returns:
         tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]: train features, train target, valid features, valid target.
     """
+
+    # 필요한 데이터 다운로드 확인
+    data_paths = ensure_data_files()
+
     # load data
-    diner = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
+    diner = pd.read_csv(data_paths["diner"])
 
     # 범주를 정의
     bins = [-1, 0, 10, 50, 200, float("inf")]
 
     # pd.cut을 사용하여 정수형 범주 생성
-    diner["diner_review_cnt_category"] = pd.cut(
-        diner["all_review_cnt"], bins=bins, labels=False
-    )
+    diner["diner_review_cnt_category"] = pd.cut(diner["all_review_cnt"], bins=bins, labels=False)
     diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].fillna(0)
     diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].astype(int)
 
@@ -58,16 +61,24 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     diner[["taste", "kind", "mood", "chip", "parking"]] = scores
 
     # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
-    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = (
-        diner["diner_menu_price"].apply(lambda x: extract_statistics(eval(x)))
-    )
+    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = diner[
+        "diner_menu_price"
+    ].apply(lambda x: extract_statistics(eval(x)))
 
     for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
         diner[col] = diner[col].fillna(diner[col].median())
 
-    review = pd.concat(
-        [pd.read_csv(review_data_path) for review_data_path in review_data_paths]
-    )
+    review = pd.read_csv(data_paths["review"])
+    reviewer = pd.read_csv(data_paths["reviewer"])
+
+    # 필요한경우
+    # reviewer["badge_scaled"] = reviewer["badge_level"] * 0.01
+
+    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
+
+    # 필요한 경우
+    # review["score_diff"] = review["reviewer_review_score"] - review["reviewer_avg"]
+
     # review = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_5.csv"))
     review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
         lambda x: np.int32(str(x).replace(",", ""))

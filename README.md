@@ -48,6 +48,38 @@ Then, update `poetry.lock` to ensure that repository members share same environm
 $ poetry lock
 ```
 
+아래는 `README.md`에 추가할 설명글입니다. `google_drive.py`를 활용하여 데이터를 `diner`, `review` 데이터프레임으로 로드하는 방법을 명확히 안내합니다:
+
+---
+
+## Load Data using `google_drive.py`
+
+1. Ensure Google Drive Configuration:
+   - Confirm that the `config/data/google_drive.yaml` file is properly set up.
+   - This file should include the Google Drive `file_ids` and the corresponding `local_paths` for each dataset (e.g., `diner`, `review`, `reviewer`).
+
+2. Download and Load Data:
+   Use the following Python code to ensure the data files are available and load them into Pandas DataFrames:
+
+   ```python
+   from tools.google_drive import ensure_data_files
+   import pandas as pd
+
+   # Ensure required data files are available
+   data_paths = ensure_data_files()
+
+   # Load data into Pandas DataFrames
+   diner = pd.read_csv(data_paths["diner"])
+   review = pd.read_csv(data_paths["review"])
+   
+   # Merge review and reviewer data
+   review = pd.merge(review, pd.read_csv(data_paths["reviewer"]), on="reviewer_id", how="left")
+   ```
+
+3. Data Description:
+   For detailed descriptions of the data (e.g., column names, data types, and content), refer to the [data/README.md file](data/README.md). This file provides comprehensive information about each dataset included in the project.
+
+
 ## Experiment results
 
 ### CASE 1) Without candidates
@@ -57,10 +89,10 @@ Below are metric results without any candidate filtering.
 * Recommendations are generated at user's level.
 * This inference does not consider user's current location.
 
-|Algorithm|Task|mAP@3|mAP@7|mAP@10|mAP@20|NDCG@3|NDCG@7|NDCG@10|NDCG@20|
-|----------------|---------|------|------|------|-------|-------|-------|-------|-------|
-|SVD|Regression|TBD|TBD|TBD|TBD|TBD|TBD|TBD|TBD|
-|node2vec|Unsupervised|0.00803|0.00736|0.00743|0.00761|0.01253|0.01709|0.02082|0.02972
+| Algorithm | Task         | mAP@3   | mAP@7   | mAP@10  | mAP@20  | NDCG@3  | NDCG@7  | NDCG@10 | NDCG@20 |
+| --------- | ------------ | ------- | ------- | ------- | ------- | ------- | ------- | ------- | ------- |
+| SVD       | Regression   | TBD     | TBD     | TBD     | TBD     | TBD     | TBD     | TBD     | TBD     |
+| node2vec  | Unsupervised | 0.00803 | 0.00736 | 0.00743 | 0.00761 | 0.01253 | 0.01709 | 0.02082 | 0.02972 |
 
 ### CASE 2) With candidates filtering with near 1km diners.
 
@@ -69,24 +101,24 @@ Below are metric results with candidate filtering.
 * Recommendations are generated at each data level in validation dataset.
 * This inference regards diner's location as user's current location which actually cannot be obtained.
 
-|Algorithm|Task|ranked_prec@3|ranked_prec@7|ranked_prec@10|ranked_prec@20|
-|----------------|---------|------|------|------|-------|
-|SVD|Regression|TBD|TBD|TBD|TBD|
-|node2vec|Unsupervised|0.10109|0.14015|0.16174|0.21334|
+| Algorithm | Task         | ranked_prec@3 | ranked_prec@7 | ranked_prec@10 | ranked_prec@20 |
+| --------- | ------------ | ------------- | ------------- | -------------- | -------------- |
+| SVD       | Regression   | TBD           | TBD           | TBD            | TBD            |
+| node2vec  | Unsupervised | 0.10109       | 0.14015       | 0.16174        | 0.21334        |
 
 
 ### CASE 3) Candidates generation models
 
-|Algorithm|Task|recall@100|recall@300|recall@500|
-|----------------|---------|------|------|------|
-|node2vec|Unsupervised|0.50612|0.74211|0.8439|
+| Algorithm | Task         | recall@100 | recall@300 | recall@500 |
+| --------- | ------------ | ---------- | ---------- | ---------- |
+| node2vec  | Unsupervised | 0.50612    | 0.74211    | 0.8439     |
 
 
 ### CASE 4) With two-step recommendations
 
-|Candidate model|number of candidates|Reranking model|Task|ranked_prec@3|ranked_prec@7|ranked_prec@10|ranked_prec@20|
-|---------------|--------------------|---------------|----|-------------|-------------|--------------|--------------|
-|node2vec|TBD|lightgbm ranker|TBD|TBD|TBD|TBD|TBD|
+| Candidate model | number of candidates | Reranking model | Task | ranked_prec@3 | ranked_prec@7 | ranked_prec@10 | ranked_prec@20 |
+| --------------- | -------------------- | --------------- | ---- | ------------- | ------------- | -------------- | -------------- |
+| node2vec        | TBD                  | lightgbm ranker | TBD  | TBD           | TBD           | TBD            | TBD            |
 
 ## Commit 가이드
 - feat: 새로운 기능 추가
