@@ -68,8 +68,6 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
         diner[col] = diner[col].fillna(diner[col].median())
 
-    review = pd.concat([pd.read_csv(review_data_path) for review_data_path in review_data_paths])
-
     review = pd.read_csv(data_paths["review"])
     reviewer = pd.read_csv(data_paths["reviewer"])
 
