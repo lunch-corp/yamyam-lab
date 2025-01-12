@@ -1,7 +1,6 @@
 import glob
 import os
 
-import numpy as np
 import pandas as pd
 import torch
 from omegaconf import DictConfig
@@ -40,7 +39,9 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     bins = [-1, 0, 10, 50, 200, float("inf")]
 
     # pd.cut을 사용하여 정수형 범주 생성
-    diner["diner_review_cnt_category"] = pd.cut(diner["all_review_cnt"], bins=bins, labels=False)
+    diner["diner_review_cnt_category"] = pd.cut(
+        diner["all_review_cnt"], bins=bins, labels=False
+    )
     diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].fillna(0)
     diner["diner_review_cnt_category"] = diner["diner_review_cnt_category"].astype(int)
 
@@ -60,9 +61,9 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     diner[["taste", "kind", "mood", "chip", "parking"]] = scores
 
     # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
-    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = diner[
-        "diner_menu_price"
-    ].apply(lambda x: extract_statistics(eval(x)))
+    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = (
+        diner["diner_menu_price"].apply(lambda x: extract_statistics(eval(x)))
+    )
 
     for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
         diner[col] = diner[col].fillna(diner[col].median())
@@ -79,20 +80,12 @@ def load_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     # review["score_diff"] = review["reviewer_review_score"] - review["reviewer_avg"]
 
     # review = pd.read_csv(os.path.join(DATA_PATH, "review/review_df_20241219_part_5.csv"))
-    review["reviewer_review_cnt"] = review["reviewer_review_cnt"].apply(
-        lambda x: np.int32(str(x).replace(",", ""))
-    )
     review = pd.merge(review, diner, on="diner_idx", how="inner")
     review = review.drop_duplicates(subset=["reviewer_id", "diner_idx"])
 
     # label Encoder
     le = LabelEncoder()
     review["badge_grade"] = le.fit_transform(review["badge_grade"])
-
-    # 리뷰어
-    review["reviewer_trust_score"] = (
-        0.7 * review["reviewer_review_cnt"] + 0.3 * review["badge_level"]
-    )
 
     return review, diner
 
@@ -130,12 +123,10 @@ def load_test_dataset(cfg: DictConfig) -> tuple[pd.DataFrame, list[str]]:
         review[
             [
                 "reviewer_user_name",
+                "date_weight",
                 "reviewer_id",
                 "badge_grade",
-                "reviewer_trust_score",
                 "badge_level",
-                "reviewer_review_cnt",
-                "reviewer_collected_review_cnt",
             ]
         ],
         on="reviewer_id",

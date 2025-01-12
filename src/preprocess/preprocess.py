@@ -1,4 +1,3 @@
-import glob
 import os
 from typing import Any, Dict, List, Tuple
 
@@ -13,6 +12,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
 from preprocess.feature_store import extract_scores_array, extract_statistics
+from tools.google_drive import ensure_data_files
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
@@ -38,18 +38,21 @@ class TorchData(Dataset):
         return self.X[idx], self.y[idx]
 
 
-def load_dataset(
-    review_paths: List[str], diner_path: str, test: bool = False
-) -> pd.DataFrame:
+def load_dataset(test: bool = False) -> pd.DataFrame:
     """
     Load review and diner data, and optionally filter for pytest.
     """
-    review = pd.concat([pd.read_csv(path) for path in review_paths])
+    data_paths = ensure_data_files()
+
+    review = pd.read_csv(data_paths["review"])
+    reviewer = pd.read_csv(data_paths["reviewer"])
+
+    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
     if test:
         review = review.iloc[:5000, :]
 
-    diner = pd.read_csv(diner_path)
+    diner = pd.read_csv(data_paths["diner"])
     diner_idx_both_exist = set(review["diner_idx"].unique()) & set(
         diner["diner_idx"].unique()
     )
@@ -144,11 +147,7 @@ def train_test_split_stratify(
     Returns (Dict[str, Any]):
         Dataset, statistics, and mapping information which could be used when training model.
     """
-    # Load and preprocess data
-    review_paths = glob.glob(os.path.join(DATA_PATH, "review", "*.csv"))
-    diner_path = os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv")
-
-    review, diner = load_dataset(review_paths, diner_path, test)
+    review, diner = load_dataset(test)
     review = filter_reviewers(review, min_reviews)
 
     # store unique number of diner and reviewer
@@ -195,14 +194,6 @@ def train_test_split_stratify(
         le = LabelEncoder()
         train["badge_grade"] = le.fit_transform(train["badge_grade"])
         val["badge_grade"] = le.transform(val["badge_grade"])
-
-        # Calculate reviewer trust score
-        train["reviewer_trust_score"] = (
-            0.7 * train["reviewer_review_cnt"] + 0.3 * train["badge_level"]
-        )
-        val["reviewer_trust_score"] = (
-            0.7 * val["reviewer_review_cnt"] + 0.3 * val["badge_level"]
-        )
 
         # Preprocess and merge diner data
         diner = preprocess_diner_data(diner)

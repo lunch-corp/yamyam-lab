@@ -10,9 +10,8 @@ y_columns:
 features:
   - badge_level
   - badge_grade
-  - reviewer_review_cnt
+  - date_weight
   - diner_review_cnt_category
-  - reviewer_trust_score
   - min_price
   - max_price
   - mean_price

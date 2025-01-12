@@ -1,27 +1,28 @@
+import os
 from typing import Dict, List
 
 import numpy as np
-from numpy.typing import NDArray
-import os
-
 import pandas as pd
+from numpy.typing import NDArray
 from scipy.spatial import KDTree
 
+from tools.google_drive import ensure_data_files
 
-DATA_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "../../data"
-)
+DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
 
 class NearCandidateGenerator:
     def __init__(self):
-        diners = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
+        data_paths = ensure_data_files()
+        diners = pd.read_csv(data_paths["diner"])
+
         diner_ids = diners["diner_idx"].unique()
-        self.mapping_diner_idx = {i:id for i,id in enumerate(diner_ids)}
+        self.mapping_diner_idx = {i: id for i, id in enumerate(diner_ids)}
 
         # Convert latitude and longitude to radians for KDTree
-        self.diner_coords = np.radians([(r[1]["diner_lat"], r[1]["diner_lon"]) for r in diners.iterrows()])
+        self.diner_coords = np.radians(
+            [(r[1]["diner_lat"], r[1]["diner_lon"]) for r in diners.iterrows()]
+        )
 
         # get kd tree
         self.kd_tree = self.create_kd_tree()
@@ -35,10 +36,10 @@ class NearCandidateGenerator:
         return tree
 
     def get_near_candidate(
-            self,
-            coord: NDArray,
-            max_distance_km: float,
-            is_radians: bool = True,
+        self,
+        coord: NDArray,
+        max_distance_km: float,
+        is_radians: bool = True,
     ) -> NDArray:
         """
         Get near max_distance_km diners given user's coordinate.
@@ -58,8 +59,7 @@ class NearCandidateGenerator:
         return near_diner_ids
 
     def get_near_candidates_for_all_diners(
-            self,
-            max_distance_km: float
+        self, max_distance_km: float
     ) -> Dict[int, List[int]]:
         """
         Get near candidates for all of diners in dataset
@@ -99,6 +99,7 @@ class NearCandidateGenerator:
         max_distance_rad = max_distance_km / earth_radius_km
 
         return max_distance_rad
+
 
 if __name__ == "__main__":
     candidates = NearCandidateGenerator()
