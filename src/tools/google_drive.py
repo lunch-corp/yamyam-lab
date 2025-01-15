@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Dict
 
 import gdown
 import yaml
@@ -30,7 +31,7 @@ def load_drive_config():
         return yaml.safe_load(f)
 
 
-def download_from_drive(file_type: str):
+def download_from_drive(file_type: str) -> str:
     """
     Google Drive에서 파일을 다운로드합니다.
 
@@ -71,7 +72,7 @@ def download_from_drive(file_type: str):
         raise
 
 
-def ensure_data_files():
+def ensure_data_files() -> Dict[str, str]:
     """필요한 모든 데이터 파일이 존재하는지 확인하고 없으면 다운로드합니다."""
     files = ["diner", "review", "reviewer"]
     paths = {}
