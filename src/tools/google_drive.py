@@ -1,7 +1,26 @@
 import os
-import yaml
-import gdown
 from pathlib import Path
+
+import gdown
+import yaml
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+except ModuleNotFoundError:
+    raise ModuleNotFoundError("Please install python-dotenv")
+
+
+def get_env_var(var_name: str) -> str:
+    """환경 변수에서 값을 가져옵니다."""
+    value = os.getenv(var_name)
+
+    if not value:
+        raise ValueError(f"환경 변수 {var_name}가 설정되지 않았습니다.")
+
+    return value
 
 
 def load_drive_config():
@@ -18,10 +37,14 @@ def download_from_drive(file_type: str):
     Args:
         file_type: 'diner' 또는 'reviewer'
     """
-    config = load_drive_config()
+    # 환경 변수 이름 생성
+    file_id_var = f"{file_type.upper()}_FILE_ID"
 
-    file_id = config["file_ids"].get(file_type)
+    config = load_drive_config()
     local_path = config["local_paths"].get(file_type)
+
+    # 환경 변수에서 값 가져오기
+    file_id = get_env_var(file_id_var)
 
     if not file_id or not local_path:
         raise ValueError(f"Invalid file type: {file_type}")
@@ -42,6 +65,7 @@ def download_from_drive(file_type: str):
         gdown.download(url, local_path, quiet=False)
         print(f"{file_type} 파일 다운로드 완료: {local_path}")
         return local_path
+
     except Exception as e:
         print(f"다운로드 실패: {str(e)}")
         raise

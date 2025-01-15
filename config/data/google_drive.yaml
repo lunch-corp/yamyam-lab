@@ -1,9 +1,3 @@
-file_ids:
-  diner: "1-sMiojVncUyA7qCwuI3U_Lmkx0SjN3T6"
-  review: "1OVmMUM5b_He6QDyaD8iGMJbLK_QGHnZs"
-  reviewer: "1b986HsOhgCSjJUif5DDwXaOoYTbx-TdE"
-  category: "1gnURUQCgN4Nmw5_F82z2r2pWHNX8XlPd"
-
 local_paths:
   diner: "data/diner.csv"
   review: "data/review.csv"
