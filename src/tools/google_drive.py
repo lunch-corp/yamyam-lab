@@ -13,6 +13,8 @@ try:
 except ModuleNotFoundError:
     raise ModuleNotFoundError("Please install python-dotenv")
 
+ABS_PATH = os.path.join(os.path.dirname(__file__), "../..")
+
 
 def get_env_var(var_name: str) -> str:
     """환경 변수에서 값을 가져옵니다."""
@@ -26,7 +28,7 @@ def get_env_var(var_name: str) -> str:
 
 def load_drive_config():
     """Google Drive 설정을 로드합니다."""
-    config_path = Path("config/data/google_drive.yaml")
+    config_path = Path(os.path.join(ABS_PATH, "config/data/google_drive.yaml"))
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
@@ -42,7 +44,7 @@ def download_from_drive(file_type: str) -> str:
     file_id_var = f"{file_type.upper()}_FILE_ID"
 
     config = load_drive_config()
-    local_path = config["local_paths"].get(file_type)
+    local_path = os.path.join(ABS_PATH, config["local_paths"].get(file_type))
 
     # 환경 변수에서 값 가져오기
     file_id = get_env_var(file_id_var)

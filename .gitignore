@@ -9,7 +9,7 @@ __pycache__/
 .python-version
 
 res/models/*
-data/*
+data/*.csv
 !data/REAMDE.md
 src/result/*
 tests/result/*
