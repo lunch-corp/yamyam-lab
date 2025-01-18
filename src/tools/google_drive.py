@@ -14,6 +14,7 @@ except ModuleNotFoundError:
     raise ModuleNotFoundError("Please install python-dotenv")
 
 ABS_PATH = os.path.join(os.path.dirname(__file__), "../..")
+FILES = ["diner", "review", "reviewer", "category"]
 
 
 def get_env_var(var_name: str) -> str:
@@ -76,10 +77,9 @@ def download_from_drive(file_type: str) -> str:
 
 def ensure_data_files() -> Dict[str, str]:
     """필요한 모든 데이터 파일이 존재하는지 확인하고 없으면 다운로드합니다."""
-    files = ["diner", "review", "reviewer"]
     paths = {}
 
-    for file_type in files:
+    for file_type in FILES:
         paths[file_type] = download_from_drive(file_type)
 
     return paths
