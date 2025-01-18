@@ -11,9 +11,6 @@ __pycache__/
 res/models/*
 data/*.csv
 !data/REAMDE.md
+result/*
 src/result/*
 tests/result/*
-
-.coverage
-.coverage.*
-coverage.xml
