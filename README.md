@@ -137,20 +137,20 @@ Below are metric results with candidate filtering.
 | --------------- | -------------------- | --------------- | ---- | ------------- | ------------- | -------------- | -------------- |
 | node2vec        | TBD                  | lightgbm ranker | TBD  | TBD           | TBD           | TBD            | TBD            |
 
-## Commit 가이드
-- feat: 새로운 기능 추가
-- fix: 버그 수정
-- docs: 문서 수정
-- style: 코드 스타일 변경 (코드 포매팅, 세미콜론 누락 등)
-- design: 사용자 UI 디자인 변경 (CSS 등)
-- test: 테스트 코드, 리팩토링 (Test Code)
-- refactor: 리팩토링 (Production Code)
-- build: 빌드 파일 수정
-- ci: CI 설정 파일 수정
-- perf: 성능 개선
-- chore: 자잘한 수정이나 빌드 업데이트
-- rename: 파일 혹은 폴더명을 수정만 한 경우
-- remove: 파일을 삭제만 한 경우
+## Commit Guide
+- feat: Add a new feature
+- fix: Fix a bug
+- docs: Update documentation
+- style: Change code style (e.g., formatting, missing semicolons)
+- design: Modify user interface design (e.g., CSS changes)
+- test: Add or refactor test code
+- refactor: Refactor production code
+- build: Modify build files
+- ci: Update CI configuration files
+- perf: Improve performance
+- chore: Minor updates or build maintenance
+- rename: Rename files or folders only
+- remove: Delete files only
 
 ## How to run pytest
 
