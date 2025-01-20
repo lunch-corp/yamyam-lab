@@ -32,6 +32,7 @@ def parse_args_embedding():
     parser.add_argument("--num_negative_samples", type=int, default=1)
     parser.add_argument("--result_path", type=str, required=True)
     parser.add_argument("--weighted_edge", action="store_true")
+    parser.add_argument("--use_metadata", action="store_true")
     parser.add_argument("--test", action="store_true")
     return parser.parse_args()
 

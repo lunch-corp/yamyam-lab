@@ -200,9 +200,9 @@ def map_id_to_ascending_integer(
     # metadata preprocessing
     if is_graph_model:
         diner = preprocess_diner_data_for_candidate_generation(diner)
-        meta_ids = sorted(list(diner["diner_category_large_h3_index"].unique()))
+        meta_ids = sorted(list(diner["metadata_id"].unique()))
         meta_mapping = {meta_id: (i + num_diners + num_users) for i, meta_id in enumerate(meta_ids)}
-        diner["diner_category_large_h3_index"] = diner["diner_category_large_h3_index"].map(meta_mapping)
+        diner["metadata_id"] = diner["metadata_id"].map(meta_mapping)
     else:
         meta_mapping = None
 
@@ -228,7 +228,7 @@ def preprocess_diner_data_for_candidate_generation(diner: pd.DataFrame) -> pd.Da
         Diner dataset with metadata added.
     """
     diner["h3_index"] = diner.apply(lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], RESOLUTION), axis=1)
-    diner["diner_category_large_h3_index"] = diner.apply(lambda row: row["diner_category_large"] + "_" + row["h3_index"], axis=1)
+    diner["metadata_id"] = diner.apply(lambda row: row["diner_category_large"] + "_" + row["h3_index"], axis=1)
     return diner
 
 
@@ -426,6 +426,7 @@ def prepare_networkx_undirected_graph(
         y_train: Tensor,
         X_val: Tensor,
         y_val: Tensor,
+        diner: pd.DataFrame,
         weighted: bool = False,
         use_metadata: bool = False,
     ) -> Tuple[nx.Graph, nx.Graph]:
@@ -440,7 +441,7 @@ def prepare_networkx_undirected_graph(
         - Directed graph between diner and metadata.
             - Metadata could be based on a various data source. For example, it could be
             defined as {h3_cell_id}_{diner_middle_category}.
-            - Note that when traversing from diner node to metadata node, the path could be only one.
+            - Note that when traversing from diner node to metadata node, there is the only one path.
             However, when traversing reversely, there are lots of paths because multiple diners belong to one metadata.
 
     Args:
@@ -448,6 +449,7 @@ def prepare_networkx_undirected_graph(
         y_train (Tensor): target features, which is usually used for edged weight in training data.
         X_val (Tensor): input features used when validating model.
         y_val (Tensor): target features, which is usually used for edged weight in validation data.
+        diner (pd.DataFrame): diner dataset consisting of diner_id and metadata_id.
         weighted (bool): whether setting edge weight or not.
         use_metadata (bool): whether to use metadata or not.
 
@@ -457,6 +459,7 @@ def prepare_networkx_undirected_graph(
     train_graph = nx.Graph()
     val_graph = nx.Graph()
 
+    # add edge between user and diner
     for (diner_id, reviewer_id), rating in zip(X_train, y_train):
         if weighted is True:
             train_graph.add_edge(diner_id.item(), reviewer_id.item(), weight=rating.item())
@@ -468,5 +471,13 @@ def prepare_networkx_undirected_graph(
             val_graph.add_edge(diner_id.item(), reviewer_id.item(), weight=rating.item())
         else:
             val_graph.add_edge(diner_id.item(), reviewer_id.item())
+
+    # add edge between diner and metadata
+    if use_metadata is True:
+        for i, row in diner[["diner_idx", "metadata_id"]].iterrows():
+            diner_idx = row["diner_idx"]
+            metadata_id = row["metadata_id"]
+            train_graph.add_edge(diner_idx, metadata_id)
+            val_graph.add_edge(diner_idx, metadata_id)
 
     return train_graph, val_graph

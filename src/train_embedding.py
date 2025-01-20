@@ -52,7 +52,9 @@ def main(args: ArgumentParser.parse_args) -> None:
             y_train=data["y_train"],
             X_val=data["X_val"],
             y_val=data["y_val"],
+            diner=data["diner"],
             weighted=args.weighted_edge,
+            use_metadata=args.use_metadata,
         )
 
         # for qualitative eval
