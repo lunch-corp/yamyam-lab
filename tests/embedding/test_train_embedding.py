@@ -30,6 +30,8 @@ def run_model(model):
     args.result_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), f"../result/{args.model}"
     )
+    args.weighted_edge = True
+    args.use_metadata = False
     args.test = True
 
     main(args)

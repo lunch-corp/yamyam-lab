@@ -13,6 +13,8 @@ from torch_geometric.data import Data
 
 from preprocess.feature_store import extract_scores_array, extract_statistics
 from tools.google_drive import ensure_data_files
+from tools.h3 import get_h3_index
+from constant.lib.h3 import RESOLUTION
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
@@ -38,9 +40,16 @@ class TorchData(Dataset):
         return self.X[idx], self.y[idx]
 
 
-def load_dataset(test: bool = False) -> pd.DataFrame:
+def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Load review and diner data, and optionally filter for pytest.
+    Load review, diner, and diner with raw category data, and optionally filter for pytest.
+    In this function, no other preprocessing logic is done but only loading data will be run.
+
+    Args:
+        test (bool): When set true, subset of review data will be used.
+
+    Returns (Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]):
+        review, diner, diner with raw category in order.
     """
     data_paths = ensure_data_files()
 
@@ -53,22 +62,60 @@ def load_dataset(test: bool = False) -> pd.DataFrame:
         review = review.iloc[:5000, :]
 
     diner = pd.read_csv(data_paths["diner"])
+    diner_with_raw_category = pd.read_csv(data_paths["category"])
+    return review, diner, diner_with_raw_category
+
+
+def preprocess_common(
+        review: pd.DataFrame,
+        diner: pd.DataFrame,
+        diner_with_raw_category: pd.DataFrame,
+        min_reviews: int
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Common preprocessing identically applied to ranking and candidate generation.
+
+    Args:
+        review (pd.DataFrame): Review dataset.
+        diner (pd.DataFrame): Diner dataset.
+        diner_with_raw_category (pd.DataFrame): Diner dataset with raw category not preprocessed before.
+        min_reviews (int): Minimum number of reviews for each reviewers.
+
+    Returns (Tuple[pd.DataFrame, pd.DataFrame]):
+        Preprocessed review dataset and diner dataset.
+    """
+    # step 1: filter reviewers writing reviews greater than or equal to `min_reviews`
+    reviewer_counts = review["reviewer_id"].value_counts()
+    valid_reviewers = reviewer_counts[reviewer_counts >= min_reviews].index
+    review = review[review["reviewer_id"].isin(valid_reviewers)]
+
+    # step 2: use diner which has at least one review
     diner_idx_both_exist = set(review["diner_idx"].unique()) & set(
         diner["diner_idx"].unique()
     )
-
     review = review[review["diner_idx"].isin(diner_idx_both_exist)]
+    diner = diner[diner["diner_idx"].isin(diner_idx_both_exist)]
+
+    # step 3: replace diner_category with raw, unpreprocessed diner_category
+    # this is temporary preprocessing because preprocessed categories will be given
+    category_columns = [
+        "diner_category_large",
+        "diner_category_middle",
+        "diner_category_small",
+        "diner_category_detail"
+    ]
+    columns_exclude_category_columns = [col for col in diner.columns if col not in category_columns]
+    diner = pd.merge(
+        left=diner[columns_exclude_category_columns],
+        right=diner_with_raw_category,
+        how="left",
+        on="diner_idx"
+    )
+
+    # step 4: temporary na filling
+    diner["diner_category_large"] = diner["diner_category_large"].fillna("NA")
 
     return review, diner
-
-
-def filter_reviewers(review: pd.DataFrame, min_reviews: int) -> pd.DataFrame:
-    """
-    Filter reviewers who have written more than `min_reviews` reviews.
-    """
-    reviewer_counts = review["reviewer_id"].value_counts()
-    valid_reviewers = reviewer_counts[reviewer_counts >= min_reviews].index
-    return review[review["reviewer_id"].isin(valid_reviewers)]
 
 
 def preprocess_diner_data(diner: pd.DataFrame) -> pd.DataFrame:
@@ -105,6 +152,85 @@ def preprocess_diner_data(diner: pd.DataFrame) -> pd.DataFrame:
     return diner
 
 
+def map_id_to_ascending_integer(
+        review: pd.DataFrame,
+        diner: pd.DataFrame,
+        is_graph_model: bool = False,
+    ) -> Dict[str, Any]:
+    """
+    Map reviewer_id, diner_idx to integer in ascending order.
+    In raw data, reviewer_id and diner_idx are integer but their digit lengths are too long.
+    When training model, integer in ascending order is easier to handler and more efficient than current id format.
+
+    Args:
+        review (pd.DataFrame): Review dataset.
+        diner (pd.DataFrame): Diner dataset.
+        is_graph_model (bool): Indicator whether target model is graph based model or not.
+            When set true, all the mapped id should be unique.
+
+    Returns (Dict[str, Any]):
+        Mapped result.
+    """
+    # store unique number of diner and reviewer
+    diner_idxs = sorted(list(review["diner_idx"].unique()))
+    reviewer_ids = sorted(list(review["reviewer_id"].unique()))
+
+    num_diners = len(diner_idxs)
+    num_users = len(reviewer_ids)
+
+    # mapping diner_idx and reviewer_id
+    diner_mapping = {diner_idx: i for i, diner_idx in enumerate(diner_idxs)}
+
+    if is_graph_model:
+        # each node index in graph based model should be unique
+        reviewer_mapping = {
+            reviewer_id: (i + num_diners) for i, reviewer_id in enumerate(reviewer_ids)
+        }
+
+    else:
+        reviewer_mapping = {
+            reviewer_id: i for i, reviewer_id in enumerate(reviewer_ids)
+        }
+
+    review["diner_idx"] = review["diner_idx"].map(diner_mapping)
+    review["reviewer_id"] = review["reviewer_id"].map(reviewer_mapping)
+    diner["diner_idx"] = diner["diner_idx"].map(diner_mapping)
+
+    # metadata preprocessing
+    if is_graph_model:
+        diner = preprocess_diner_data_for_candidate_generation(diner)
+        meta_ids = sorted(list(diner["metadata_id"].unique()))
+        meta_mapping = {meta_id: (i + num_diners + num_users) for i, meta_id in enumerate(meta_ids)}
+        diner["metadata_id"] = diner["metadata_id"].map(meta_mapping)
+    else:
+        meta_mapping = None
+
+    return {
+        "review": review,
+        "diner": diner,
+        "num_diners": num_diners,
+        "num_users": num_users,
+        "diner_mapping": diner_mapping,
+        "user_mapping": reviewer_mapping,
+        "meta_mapping": meta_mapping,
+    }
+
+
+def preprocess_diner_data_for_candidate_generation(diner: pd.DataFrame) -> pd.DataFrame:
+    """
+    Additional preprocessing when metadata is integrated to graph based model.
+
+    Args:
+        diner (pd.DataFrame): Diner dataset
+
+    Returns (pd.DataFrame):
+        Diner dataset with metadata added.
+    """
+    diner["h3_index"] = diner.apply(lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], RESOLUTION), axis=1)
+    diner["metadata_id"] = diner.apply(lambda row: row["diner_category_large"] + "_" + row["h3_index"], axis=1)
+    return diner
+
+
 def create_target_column(review: pd.DataFrame) -> pd.DataFrame:
     """
     Create the target column for classification.
@@ -125,7 +251,7 @@ def train_test_split_stratify(
     y_columns: List[str] = ["reviewer_review_score"],
     random_state: int = 42,
     stratify: str = "reviewer_id",
-    pg_model: bool = False,
+    is_graph_model: bool = False,
     test: bool = False,
     is_rank: bool = False,
 ) -> Dict[str, Any]:
@@ -141,40 +267,29 @@ def train_test_split_stratify(
         y_columns (List[str]): column names for target value.
         random_state (int): random seed for reproducibility.
         stratify (str): reference column when stratifying review data.
-        pg_model (bool): indicator whether using torch_geometric model or not.
+        is_graph_model (bool): indicator whether using graph based model or not.
+            When set true, all the mapped index should be unique in ascending order.
         test (bool): indicator whether under pytest. when set true, use part of total dataset.
 
     Returns (Dict[str, Any]):
         Dataset, statistics, and mapping information which could be used when training model.
     """
-    review, diner = load_dataset(test)
-    review = filter_reviewers(review, min_reviews)
+    review, diner, diner_with_raw_category = load_dataset(test=test)
+    review, diner = preprocess_common(
+        review=review,
+        diner=diner,
+        diner_with_raw_category=diner_with_raw_category,
+        min_reviews=min_reviews,
+    )
+    mapped_res = map_id_to_ascending_integer(
+        review=review,
+        diner=diner,
+        is_graph_model=is_graph_model,
+    )
 
-    # store unique number of diner and reviewer
-    diner_idxs = sorted(list(review["diner_idx"].unique()))
-    reviewer_ids = sorted(list(review["reviewer_id"].unique()))
-
-    num_diners = len(diner_idxs)
-    num_reviewers = len(reviewer_ids)
-
-    # mapping diner_idx and reviewer_id
-    diner_mapping = {diner_idx: i for i, diner_idx in enumerate(diner_idxs)}
-
-    if pg_model:
-        # each node index in torch_geometric should be unique
-        reviewer_mapping = {
-            reviewer_id: (i + num_diners) for i, reviewer_id in enumerate(reviewer_ids)
-        }
-
-    else:
-        reviewer_mapping = {
-            reviewer_id: i for i, reviewer_id in enumerate(reviewer_ids)
-        }
-
-    review["diner_idx"] = review["diner_idx"].map(diner_mapping)
-    review["reviewer_id"] = review["reviewer_id"].map(reviewer_mapping)
-
-    diner["diner_idx"] = diner["diner_idx"].map(diner_mapping)
+    review = mapped_res.get("review")
+    diner = mapped_res.get("diner")
+    mapped_res = {k:v for k,v in mapped_res.items() if k not in ["review", "diner"]}
 
     train, val = train_test_split(
         review,
@@ -216,10 +331,7 @@ def train_test_split_stratify(
             "y_train": train["target"],
             "X_val": val.drop(columns=["target"]),
             "y_val": val["target"],
-            "num_diners": num_diners,
-            "num_users": num_reviewers,
-            "diner_mapping": diner_mapping,
-            "user_mapping": reviewer_mapping,
+            **mapped_res,
         }
 
     return {
@@ -227,10 +339,8 @@ def train_test_split_stratify(
         "y_train": torch.tensor(train[y_columns].values, dtype=torch.float32),
         "X_val": torch.tensor(val[X_columns].values),
         "y_val": torch.tensor(val[y_columns].values, dtype=torch.float32),
-        "num_diners": num_diners,
-        "num_users": num_reviewers,
-        "diner_mapping": diner_mapping,
-        "user_mapping": reviewer_mapping,
+        "diner": diner,
+        **mapped_res,
     }
 
 
@@ -299,13 +409,37 @@ def prepare_torch_geometric_data(
     return train, val
 
 
-def prepare_networkx_data(X_train: Tensor, X_val: Tensor) -> Tuple[nx.Graph, nx.Graph]:
+def prepare_networkx_undirected_graph(
+        X_train: Tensor,
+        y_train: Tensor,
+        X_val: Tensor,
+        y_val: Tensor,
+        diner: pd.DataFrame,
+        weighted: bool = False,
+        use_metadata: bool = False,
+    ) -> Tuple[nx.Graph, nx.Graph]:
     """
     Make train / validation dataset in nx.Graph object type.
+    Metadata could be integrated into nx.Graph depending on the argument.
+
+    There are two types of graphs when integrating metadata nodes to model.
+
+        - Directed graph between user and diner.
+            - When weighted equals true, rating that user gave to diner is set as weight.
+        - Directed graph between diner and metadata.
+            - Metadata could be based on a various data source. For example, it could be
+            defined as {h3_cell_id}_{diner_middle_category}.
+            - Note that when traversing from diner node to metadata node, there is the only one path.
+            However, when traversing reversely, there are lots of paths because multiple diners belong to one metadata.
 
     Args:
         X_train (Tensor): input features used when training model.
+        y_train (Tensor): target features, which is usually used for edged weight in training data.
         X_val (Tensor): input features used when validating model.
+        y_val (Tensor): target features, which is usually used for edged weight in validation data.
+        diner (pd.DataFrame): diner dataset consisting of diner_id and metadata_id.
+        weighted (bool): whether setting edge weight or not.
+        use_metadata (bool): whether to use metadata or not.
 
     Returns (Tuple[nx.Graph, nx.Graph]):
         Train / validation dataset in nx.Graph object type.
@@ -313,10 +447,25 @@ def prepare_networkx_data(X_train: Tensor, X_val: Tensor) -> Tuple[nx.Graph, nx.
     train_graph = nx.Graph()
     val_graph = nx.Graph()
 
-    for diner_id, reviewer_id in X_train:
-        train_graph.add_edge(diner_id.item(), reviewer_id.item())
+    # add edge between user and diner
+    for (diner_id, reviewer_id), rating in zip(X_train, y_train):
+        if weighted is True:
+            train_graph.add_edge(diner_id.item(), reviewer_id.item(), weight=rating.item())
+        else:
+            train_graph.add_edge(diner_id.item(), reviewer_id.item())
 
-    for diner_id, reviewer_id in X_val:
-        val_graph.add_edge(diner_id.item(), reviewer_id.item())
+    for (diner_id, reviewer_id), rating in zip(X_val, y_val):
+        if weighted is True:
+            val_graph.add_edge(diner_id.item(), reviewer_id.item(), weight=rating.item())
+        else:
+            val_graph.add_edge(diner_id.item(), reviewer_id.item())
+
+    # add edge between diner and metadata
+    if use_metadata is True:
+        for i, row in diner[["diner_idx", "metadata_id"]].iterrows():
+            diner_idx = row["diner_idx"]
+            metadata_id = row["metadata_id"]
+            train_graph.add_edge(diner_idx, metadata_id)
+            val_graph.add_edge(diner_idx, metadata_id)
 
     return train_graph, val_graph

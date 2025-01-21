@@ -6,7 +6,7 @@ import importlib
 
 import torch
 
-from preprocess.preprocess import train_test_split_stratify, prepare_networkx_data
+from preprocess.preprocess import train_test_split_stratify, prepare_networkx_undirected_graph
 from candidate.near import NearCandidateGenerator
 from tools.utils import get_num_workers
 from tools.plot import plot_metric_at_k
@@ -36,6 +36,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"p: {args.p}")
         logger.info(f"q: {args.q}")
         logger.info(f"result path: {args.result_path}")
+        logger.info(f"weighted edge: {args.weighted_edge}")
         logger.info(f"test: {args.test}")
 
         data = train_test_split_stratify(
@@ -43,12 +44,17 @@ def main(args: ArgumentParser.parse_args) -> None:
             min_reviews=MIN_REVIEWS,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
-            pg_model=True,
+            is_graph_model=True,
             test=args.test,
         )
-        train_graph, val_graph = prepare_networkx_data(
+        train_graph, val_graph = prepare_networkx_undirected_graph(
             X_train=data["X_train"],
+            y_train=data["y_train"],
             X_val=data["X_val"],
+            y_val=data["y_val"],
+            diner=data["diner"],
+            weighted=args.weighted_edge,
+            use_metadata=args.use_metadata,
         )
 
         # for qualitative eval
