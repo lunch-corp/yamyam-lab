@@ -10,3 +10,4 @@ class QualitativeReviewerId(Enum):
     PIG = 1035744287
     ICECREAM = 544594707  # cafe lover
     ALPHACA = 1074190142  # detail review text
+    WOOK = 3830746302
