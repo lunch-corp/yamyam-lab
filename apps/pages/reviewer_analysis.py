@@ -65,26 +65,34 @@ def reviewer_analysis_page():
         with tab1:
             middle_stats = get_category_stats(merged_df, "diner_category_middle")
             st.plotly_chart(
-                create_category_bar_chart(middle_stats, "중분류 카테고리별 방문 및 만족도"),
+                create_category_bar_chart(
+                    middle_stats, "중분류 카테고리별 방문 및 만족도"
+                ),
                 use_container_width=True,
             )
 
         with tab2:
             small_stats = get_category_stats(merged_df, "diner_category_small")
             st.plotly_chart(
-                create_category_bar_chart(small_stats, "소분류 카테고리별 방문 및 만족도"),
+                create_category_bar_chart(
+                    small_stats, "소분류 카테고리별 방문 및 만족도"
+                ),
                 use_container_width=True,
             )
 
         # 메뉴 분석
         st.subheader("🍽️ 메뉴 분석")
         menu_counts = analyze_menu_frequency(merged_df["diner_menu_name"]).head(10)
-        st.plotly_chart(create_menu_frequency_chart(menu_counts), use_container_width=True)
+        st.plotly_chart(
+            create_menu_frequency_chart(menu_counts), use_container_width=True
+        )
 
         # 평균 점수 비교
         st.subheader("⭐ 평균 점수 비교")
         scores = get_average_scores(merged_df)
-        st.plotly_chart(create_scores_comparison_chart(scores), use_container_width=True)
+        st.plotly_chart(
+            create_scores_comparison_chart(scores), use_container_width=True
+        )
 
         # 시간별 방문 패턴
         st.subheader("📅 시간별 방문 패턴")

@@ -8,17 +8,14 @@ import torch
 from torch import Tensor
 from numpy.typing import NDArray
 
-DATA_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "../../../data"
-)
+DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../data")
 
 
 class BaseQualitativeEvaluation(ABC):
     def __init__(
-            self,
-            user_mapping: Dict[int, int],
-            diner_mapping: Dict[int, int],
+        self,
+        user_mapping: Dict[int, int],
+        diner_mapping: Dict[int, int],
     ):
         """
         Base class for qualitative evaluation.
@@ -32,17 +29,19 @@ class BaseQualitativeEvaluation(ABC):
              user_mapping (Dict[int, int]): user mapping dictionary in preprocessing step.
              diner_mapping (Dict[int, int]): diner mapping dictionary in preprocessing step.
         """
-        self.diners = pd.read_csv(os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv"))
+        self.diners = pd.read_csv(
+            os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv")
+        )
         self.user_mapping = user_mapping
         # reverse mapping to original diner_id
-        self.diner_mapping = {v:k for k,v in diner_mapping.items()}
+        self.diner_mapping = {v: k for k, v in diner_mapping.items()}
 
     @abstractmethod
     def _recommend(
-            self,
-            user_id: Tensor,
-            tr_liked_diners: List[int],
-            top_k: int = 10,
+        self,
+        user_id: Tensor,
+        tr_liked_diners: List[int],
+        top_k: int = 10,
     ) -> Tuple[NDArray, NDArray]:
         """
         Abstract method for individual recommendation
@@ -50,11 +49,11 @@ class BaseQualitativeEvaluation(ABC):
         raise NotImplementedError
 
     def recommend(
-            self,
-            user_id: int,
-            tr_liked_diners: List[int],
-            val_liked_diners: List[int],
-            top_k: int = 10,
+        self,
+        user_id: int,
+        tr_liked_diners: List[int],
+        val_liked_diners: List[int],
+        top_k: int = 10,
     ) -> PrettyTable:
         """
         Recommend top_k ranked diners to user_id.
@@ -80,13 +79,7 @@ class BaseQualitativeEvaluation(ABC):
         pred_diner_id_mapping = [self.diner_mapping[diner] for diner in pred_diner_id]
 
         tb = PrettyTable(
-            field_names=[
-                "diner_name",
-                "diner_category_small",
-                "url",
-                "score",
-                "hitted"
-            ]
+            field_names=["diner_name", "diner_category_small", "url", "score", "hitted"]
         )
         for diner_idx, score in zip(pred_diner_id_mapping, pred_diner_score):
             info = self.diners[lambda x: x["diner_idx"] == diner_idx].iloc[0]
@@ -96,7 +89,7 @@ class BaseQualitativeEvaluation(ABC):
                     info["diner_category_small"],
                     info["diner_url"],
                     score,
-                    1 if diner_idx in val_liked_diners else 0
+                    1 if diner_idx in val_liked_diners else 0,
                 ]
             )
         return tb

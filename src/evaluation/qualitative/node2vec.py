@@ -15,15 +15,15 @@ from constant.evaluation.qualitative import QualitativeReviewerId
 
 class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):
     def __init__(
-            self,
-            model_path: str,
-            user_ids: Tensor,
-            diner_ids: Tensor,
-            graph: nx.Graph,
-            num_nodes: int,
-            embedding_dim: int,
-            user_mapping: Dict[int, int],
-            diner_mapping: Dict[int, int],
+        self,
+        model_path: str,
+        user_ids: Tensor,
+        diner_ids: Tensor,
+        graph: nx.Graph,
+        num_nodes: int,
+        embedding_dim: int,
+        user_mapping: Dict[int, int],
+        diner_mapping: Dict[int, int],
     ):
         """
         Evaluation class for trained node2vec model.
@@ -47,21 +47,21 @@ class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):
             user_ids=user_ids,
             diner_ids=diner_ids,
             graph=graph,
-            embedding_dim=embedding_dim, # trained model embedding dim
-            walk_length=20, # dummy value
+            embedding_dim=embedding_dim,  # trained model embedding dim
+            walk_length=20,  # dummy value
             num_nodes=num_nodes,
             inference=True,
-            top_k_values=[1] # dummy value
+            top_k_values=[1],  # dummy value
         )
 
         self.model.load_state_dict(torch.load(model_path, weights_only=True))
         self.model.eval()
 
     def _recommend(
-            self,
-            user_id: Tensor,
-            tr_liked_diners: List[int],
-            top_k: int = 10,
+        self,
+        user_id: Tensor,
+        tr_liked_diners: List[int],
+        top_k: int = 10,
     ) -> Tuple[NDArray, NDArray]:
         return self.model._recommend(
             user_id=user_id,
@@ -71,7 +71,6 @@ class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):
 
 
 if __name__ == "__main__":
-
     import traceback
     from tools.logger import setup_logger
 
@@ -90,7 +89,7 @@ if __name__ == "__main__":
             model_path=args.model_path,
             user_ids=torch.tensor(list(data["user_mapping"].values())),
             diner_ids=torch.tensor(list(data["diner_mapping"].values())),
-            graph=nx.Graph(), # dummy graph
+            graph=nx.Graph(),  # dummy graph
             num_nodes=num_nodes,
             embedding_dim=args.embedding_dim,
             user_mapping=data["user_mapping"],
@@ -102,7 +101,9 @@ if __name__ == "__main__":
             reviewer_name = enum.name
             reviewer_id_mapping = data["user_mapping"].get(reviewer_id)
             if reviewer_id_mapping is None:
-                logger.info(f"reviewer {reviewer_name} not existing in training dataset")
+                logger.info(
+                    f"reviewer {reviewer_name} not existing in training dataset"
+                )
                 continue
             tb = qualitative_eval.recommend(
                 user_id=reviewer_id,

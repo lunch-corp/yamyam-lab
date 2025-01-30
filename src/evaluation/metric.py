@@ -6,12 +6,9 @@ from constant.metric.metric import Metric
 from tools.utils import safe_divide
 
 
-def ranked_precision(
-        liked_item: int,
-        reco_items: NDArray
-) -> float:
+def ranked_precision(liked_item: int, reco_items: NDArray) -> float:
     K = len(reco_items)
-    for i,item in enumerate(reco_items):
+    for i, item in enumerate(reco_items):
         if liked_item == item:
             return (K - i) / K
     return 0
@@ -63,8 +60,8 @@ def ranking_metrics_at_k(
     K = len(reco_items)
 
     ap = 0
-    cg = (1.0 / np.log2(np.arange(2, K + 2)))
-    idcg = cg[:len(liked_items)].sum()
+    cg = 1.0 / np.log2(np.arange(2, K + 2))
+    idcg = cg[: len(liked_items)].sum()
     ndcg = 0
     hit = 0
 

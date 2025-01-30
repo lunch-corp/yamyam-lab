@@ -67,11 +67,11 @@ def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Dat
 
 
 def preprocess_common(
-        review: pd.DataFrame,
-        diner: pd.DataFrame,
-        diner_with_raw_category: pd.DataFrame,
-        min_reviews: int
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    review: pd.DataFrame,
+    diner: pd.DataFrame,
+    diner_with_raw_category: pd.DataFrame,
+    min_reviews: int,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Common preprocessing identically applied to ranking and candidate generation.
 
@@ -102,14 +102,16 @@ def preprocess_common(
         "diner_category_large",
         "diner_category_middle",
         "diner_category_small",
-        "diner_category_detail"
+        "diner_category_detail",
     ]
-    columns_exclude_category_columns = [col for col in diner.columns if col not in category_columns]
+    columns_exclude_category_columns = [
+        col for col in diner.columns if col not in category_columns
+    ]
     diner = pd.merge(
         left=diner[columns_exclude_category_columns],
         right=diner_with_raw_category,
         how="left",
-        on="diner_idx"
+        on="diner_idx",
     )
 
     # step 4: temporary na filling
@@ -153,10 +155,10 @@ def preprocess_diner_data(diner: pd.DataFrame) -> pd.DataFrame:
 
 
 def map_id_to_ascending_integer(
-        review: pd.DataFrame,
-        diner: pd.DataFrame,
-        is_graph_model: bool = False,
-    ) -> Dict[str, Any]:
+    review: pd.DataFrame,
+    diner: pd.DataFrame,
+    is_graph_model: bool = False,
+) -> Dict[str, Any]:
     """
     Map reviewer_id, diner_idx to integer in ascending order.
     In raw data, reviewer_id and diner_idx are integer but their digit lengths are too long.
@@ -200,7 +202,9 @@ def map_id_to_ascending_integer(
     if is_graph_model:
         diner = preprocess_diner_data_for_candidate_generation(diner)
         meta_ids = sorted(list(diner["metadata_id"].unique()))
-        meta_mapping = {meta_id: (i + num_diners + num_users) for i, meta_id in enumerate(meta_ids)}
+        meta_mapping = {
+            meta_id: (i + num_diners + num_users) for i, meta_id in enumerate(meta_ids)
+        }
         diner["metadata_id"] = diner["metadata_id"].map(meta_mapping)
     else:
         meta_mapping = None
@@ -226,8 +230,12 @@ def preprocess_diner_data_for_candidate_generation(diner: pd.DataFrame) -> pd.Da
     Returns (pd.DataFrame):
         Diner dataset with metadata added.
     """
-    diner["h3_index"] = diner.apply(lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], RESOLUTION), axis=1)
-    diner["metadata_id"] = diner.apply(lambda row: row["diner_category_large"] + "_" + row["h3_index"], axis=1)
+    diner["h3_index"] = diner.apply(
+        lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], RESOLUTION), axis=1
+    )
+    diner["metadata_id"] = diner.apply(
+        lambda row: row["diner_category_large"] + "_" + row["h3_index"], axis=1
+    )
     return diner
 
 
@@ -289,7 +297,7 @@ def train_test_split_stratify(
 
     review = mapped_res.get("review")
     diner = mapped_res.get("diner")
-    mapped_res = {k:v for k,v in mapped_res.items() if k not in ["review", "diner"]}
+    mapped_res = {k: v for k, v in mapped_res.items() if k not in ["review", "diner"]}
 
     train, val = train_test_split(
         review,
@@ -410,14 +418,14 @@ def prepare_torch_geometric_data(
 
 
 def prepare_networkx_undirected_graph(
-        X_train: Tensor,
-        y_train: Tensor,
-        X_val: Tensor,
-        y_val: Tensor,
-        diner: pd.DataFrame,
-        weighted: bool = False,
-        use_metadata: bool = False,
-    ) -> Tuple[nx.Graph, nx.Graph]:
+    X_train: Tensor,
+    y_train: Tensor,
+    X_val: Tensor,
+    y_val: Tensor,
+    diner: pd.DataFrame,
+    weighted: bool = False,
+    use_metadata: bool = False,
+) -> Tuple[nx.Graph, nx.Graph]:
     """
     Make train / validation dataset in nx.Graph object type.
     Metadata could be integrated into nx.Graph depending on the argument.
@@ -450,13 +458,17 @@ def prepare_networkx_undirected_graph(
     # add edge between user and diner
     for (diner_id, reviewer_id), rating in zip(X_train, y_train):
         if weighted is True:
-            train_graph.add_edge(diner_id.item(), reviewer_id.item(), weight=rating.item())
+            train_graph.add_edge(
+                diner_id.item(), reviewer_id.item(), weight=rating.item()
+            )
         else:
             train_graph.add_edge(diner_id.item(), reviewer_id.item())
 
     for (diner_id, reviewer_id), rating in zip(X_val, y_val):
         if weighted is True:
-            val_graph.add_edge(diner_id.item(), reviewer_id.item(), weight=rating.item())
+            val_graph.add_edge(
+                diner_id.item(), reviewer_id.item(), weight=rating.item()
+            )
         else:
             val_graph.add_edge(diner_id.item(), reviewer_id.item())
 

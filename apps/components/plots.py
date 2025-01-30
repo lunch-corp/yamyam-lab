@@ -65,7 +65,11 @@ def create_menu_frequency_chart(
     fig = px.bar(x=menu_counts.index, y=menu_counts.values, text=menu_counts.values)
 
     fig.update_layout(
-        title=title, xaxis_title="메뉴", yaxis_title="주문 횟수", height=400, showlegend=False
+        title=title,
+        xaxis_title="메뉴",
+        yaxis_title="주문 횟수",
+        height=400,
+        showlegend=False,
     )
 
     fig.update_traces(textposition="auto")
@@ -110,7 +114,9 @@ def create_scores_comparison_chart(
     return fig
 
 
-def create_time_series_chart(merged_df: pd.DataFrame, title: str = "시간별 방문 패턴") -> go.Figure:
+def create_time_series_chart(
+    merged_df: pd.DataFrame, title: str = "시간별 방문 패턴"
+) -> go.Figure:
     """
     시간에 따른 방문 패턴을 보여주는 선 그래프를 생성합니다.
 
@@ -122,8 +128,12 @@ def create_time_series_chart(merged_df: pd.DataFrame, title: str = "시간별 �
         plotly Figure 객체
     """
     # 날짜별 방문 횟수 계산
-    merged_df["reviewer_review_date"] = pd.to_datetime(merged_df["reviewer_review_date"])
-    daily_visits = merged_df.groupby("reviewer_review_date").size().reset_index(name="visits")
+    merged_df["reviewer_review_date"] = pd.to_datetime(
+        merged_df["reviewer_review_date"]
+    )
+    daily_visits = (
+        merged_df.groupby("reviewer_review_date").size().reset_index(name="visits")
+    )
 
     fig = go.Figure(
         data=go.Scatter(
@@ -136,7 +146,11 @@ def create_time_series_chart(merged_df: pd.DataFrame, title: str = "시간별 �
     )
 
     fig.update_layout(
-        title=title, xaxis_title="날짜", yaxis_title="방문 횟수", height=400, showlegend=False
+        title=title,
+        xaxis_title="날짜",
+        yaxis_title="방문 횟수",
+        height=400,
+        showlegend=False,
     )
 
     return fig

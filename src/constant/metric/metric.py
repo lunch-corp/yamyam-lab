@@ -5,6 +5,7 @@ class Metric(Enum):
     """
     Enum for metric when there are no candidates
     """
+
     AP = "ap"
     MAP = "map"
     NDCG = "ndcg"
@@ -16,6 +17,7 @@ class NearCandidateMetric(Enum):
     """
     Enum for metric when after near candidates filtering
     """
+
     RANKED_PREC = "ranked_prec"
     NEAR_RECALL = "near_recall"
     RANKED_PREC_COUNT = "ranked_prec_count"
