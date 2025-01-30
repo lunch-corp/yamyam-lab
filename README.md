@@ -152,10 +152,21 @@ Below are metric results with candidate filtering.
 - rename: Rename files or folders only
 - remove: Delete files only
 
+
+## Project code lint
+
+We use ruff lint for project code consistency. Run following command if ruff lint check passes.
+
+```shell
+$ make lint
+```
+
+You should update code corresponding to ruff's guide, otherwise ci test won't pass.
+
 ## How to run pytest
 
 After building environment setting correctly, just run the following command.
 
 ```shell
-$ pytest
+$ make test
 ```
