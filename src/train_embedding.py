@@ -197,7 +197,9 @@ def main(args: ArgumentParser.parse_args) -> None:
                 candidate_recalls.append(str(near_candidate_recall))
                 recalls.append(str(recall))
 
-            logger.info("top k results for candidate generation @100, @300, @500, @1000, @2000")
+            logger.info(
+                "top k results for candidate generation @100, @300, @500, @1000, @2000"
+            )
             logger.info(f"recall: {'|'.join(recalls)}")
             logger.info(f"candidate_recall: {'|'.join(candidate_recalls)}")
 
