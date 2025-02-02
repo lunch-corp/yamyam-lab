@@ -146,7 +146,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                 # no candidate metric
                 map = round(model.metric_at_k[k][Metric.MAP.value], 5)
                 ndcg = round(model.metric_at_k[k][Metric.NDCG.value], 5)
-                recall = round(model.metric_at_k[k][Metric.RECALL.value], 5)
+
                 ranked_prec = round(
                     model.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value], 5
                 )
@@ -162,24 +162,25 @@ def main(args: ArgumentParser.parse_args) -> None:
                     f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users"
                 )
                 logger.info(
-                    f"recall@{k}: {recall} with {count} users out of all {model.num_users} users"
-                )
-                logger.info(
                     f"ranked_prec@{k}: {ranked_prec} out of all {prec_count} validation dataset"
                 )
 
                 maps.append(str(map))
                 ndcgs.append(str(ndcg))
-                recalls.append(str(recall))
                 ranked_precs.append(str(ranked_prec))
 
             logger.info("top k results for direct prediction @3, @7, @10, @20 in order")
             logger.info(f"map result: {'|'.join(maps)}")
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
-            logger.info(f"recall: {'|'.join(recalls)}")
             logger.info(f"ranked_prec: {'|'.join(ranked_precs)}")
 
             for k in TOP_K_VALUES_FOR_CANDIDATE:
+                recall = round(model.metric_at_k[k][Metric.RECALL.value], 5)
+                count = model.metric_at_k[k][Metric.COUNT.value]
+                logger.info(
+                    f"recall@{k}: {recall} with {count} users out of all {model.num_users} users"
+                )
+
                 # near candidate metric
                 prec_count = model.metric_at_k[k][
                     NearCandidateMetric.RANKED_PREC_COUNT.value
@@ -194,8 +195,10 @@ def main(args: ArgumentParser.parse_args) -> None:
                     f"near_candidate_recall@{k}: {near_candidate_recall} with {recall_count} count out of all {prec_count} validation dataset"
                 )
                 candidate_recalls.append(str(near_candidate_recall))
+                recalls.append(str(recall))
 
-            logger.info("top k results for candidate generation @100, @300, @500")
+            logger.info("top k results for candidate generation @100, @300, @500, @1000, @2000")
+            logger.info(f"recall: {'|'.join(recalls)}")
             logger.info(f"candidate_recall: {'|'.join(candidate_recalls)}")
 
             torch.save(
