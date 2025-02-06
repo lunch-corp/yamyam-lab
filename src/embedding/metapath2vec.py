@@ -1,5 +1,5 @@
-from typing import List, Tuple, Union
 from collections import defaultdict
+from typing import List, Tuple, Union
 
 import networkx as nx
 import numpy as np
@@ -7,11 +7,11 @@ import torch
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
-from tools.tensor import unpad_by_mask
 from tools.generate_walks import (
     generate_walks_metapath,
     precompute_probabilities_metapath,
 )
+from tools.tensor import unpad_by_mask
 
 
 class Model(BaseEmbedding):
