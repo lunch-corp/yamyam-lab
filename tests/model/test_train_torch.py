@@ -18,7 +18,7 @@ from train_torch import main
 @pytest.mark.parametrize(
     "setup_config",
     [
-        ("svd_bias"),
+        ("svd_bias", False),
     ],
     indirect=["setup_config"]
 )

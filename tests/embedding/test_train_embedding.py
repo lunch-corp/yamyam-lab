@@ -17,8 +17,8 @@ from train_embedding import main
 @pytest.mark.parametrize(
     "setup_config",
     [
-        ("node2vec"),
-        ("metapath2vec"),
+        ("node2vec", False),
+        ("metapath2vec", True),
     ],
     indirect=["setup_config"]
 )

@@ -6,7 +6,7 @@ import pytest
 
 @pytest.fixture(scope="function")
 def setup_config(request):
-    model = request.param
+    model, use_metadata = request.param
     args = argparse.ArgumentParser()
     args.model = model
     args.batch_size = 128
@@ -23,7 +23,7 @@ def setup_config(request):
         os.path.dirname(os.path.abspath(__file__)), f"../result/{args.model}"
     )
     args.weighted_edge = True
-    args.use_metadata = False
+    args.use_metadata = use_metadata
     args.meta_path = [
         ["user", "diner", "user", "diner", "user", "diner"],
         ["user", "diner", "category", "diner", "user"]
