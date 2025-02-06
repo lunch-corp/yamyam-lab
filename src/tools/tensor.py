@@ -1,10 +1,8 @@
 import torch
 from torch import Tensor
 
-def unpad_by_mask(
-        padded_tensor: Tensor,
-        padding_value: int
-) -> Tensor:
+
+def unpad_by_mask(padded_tensor: Tensor, padding_value: int) -> Tensor:
     """
     Remove padding values from given tensor and stck them.
 

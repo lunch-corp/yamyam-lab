@@ -20,7 +20,7 @@ from train_embedding import main
         ("node2vec", False),
         ("metapath2vec", True),
     ],
-    indirect=["setup_config"]
+    indirect=["setup_config"],
 )
 def test_run_node2vec(setup_config):
     main(setup_config)

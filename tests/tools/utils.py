@@ -1,13 +1,13 @@
 import os
 import sys
 
-sys.path.append(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src")
-)
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src"))
 
 import networkx as nx
 
-from tools.generate_walks import precompute_probabilities_metapath, generate_walks_metapath
+from tools.generate_walks import (
+    precompute_probabilities_metapath,
+)
 
 
 def test_precompute_probabilities_metapath():
@@ -19,7 +19,7 @@ def test_precompute_probabilities_metapath():
     graph = nx.Graph()
     graph.add_edge(0, 1)
     graph.add_edge(0, 2)
-    graph.add_edge(2,3)
+    graph.add_edge(2, 3)
     graph.add_edge(2, 5)
     graph.add_edge(4, 5)
     node_metadata = {
@@ -31,10 +31,7 @@ def test_precompute_probabilities_metapath():
         5: {"meta": "category"},
     }
     nx.set_node_attributes(graph, node_metadata)
-    d_graph = precompute_probabilities_metapath(
-        graph=graph,
-        meta_field="meta"
-    )
+    d_graph = precompute_probabilities_metapath(graph=graph, meta_field="meta")
     assert set(d_graph[0]["diner"]["neighbors"]) == set([1, 2])
     assert set(d_graph[0]["diner"]["prob"]) == set([0.5, 0.5])
     assert set(d_graph[1]["user"]["neighbors"]) == set([0])
@@ -49,13 +46,3 @@ def test_precompute_probabilities_metapath():
     assert set(d_graph[4]["category"]["prob"]) == set([1])
     assert set(d_graph[5]["diner"]["neighbors"]) == set([2, 4])
     assert set(d_graph[5]["diner"]["prob"]) == set([0.5, 0.5])
-
-
-    walks = generate_walks_metapath(
-        node_ids=[0],
-        graph=graph,
-        d_graph=d_graph,
-        meta_path=[["user","diner","category"], ["user","diner"]],
-        meta_field="meta",
-        walks_per_node=5,
-    )

@@ -23,7 +23,6 @@ from preprocess.preprocess import (
 from tools.logger import setup_logger
 from tools.parse_args import parse_args_embedding
 from tools.plot import plot_metric_at_k
-from tools.utils import get_num_workers
 
 
 def main(args: ArgumentParser.parse_args) -> None:

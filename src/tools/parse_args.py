@@ -1,14 +1,14 @@
-from typing import List
-
 import argparse
+from typing import List
 
 
 def parse_nested_list(value: str) -> List[str]:
     # Split the outer list by semicolon and inner lists by comma
     try:
-        return [inner_list.split(',') for inner_list in value.split(';')]
+        return [inner_list.split(",") for inner_list in value.split(";")]
     except Exception as e:
         raise argparse.ArgumentTypeError(f"Invalid format for nested list: {e}")
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -29,7 +29,9 @@ def parse_args():
 def parse_args_embedding():
     parser = argparse.ArgumentParser()
     # common parameter
-    parser.add_argument("--model", type=str, required=True, choices=["node2vec", "metapath2vec"])
+    parser.add_argument(
+        "--model", type=str, required=True, choices=["node2vec", "metapath2vec"]
+    )
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--epochs", type=int, default=10)

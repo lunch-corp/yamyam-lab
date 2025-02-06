@@ -1,14 +1,12 @@
 from abc import abstractmethod
 from typing import Dict, List, Tuple, Union
 
+import networkx as nx
 import numpy as np
 import torch
 import torch.nn as nn
 from numpy.typing import NDArray
-import networkx as nx
-
 from torch import Tensor
-import torch.nn as nn
 from torch.nn import Embedding
 from torch.utils.data import DataLoader
 

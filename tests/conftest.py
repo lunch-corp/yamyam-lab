@@ -26,7 +26,7 @@ def setup_config(request):
     args.use_metadata = use_metadata
     args.meta_path = [
         ["user", "diner", "user", "diner", "user", "diner"],
-        ["user", "diner", "category", "diner", "user"]
+        ["user", "diner", "category", "diner", "user"],
     ]
     args.meta_field = "meta"
     args.test = True

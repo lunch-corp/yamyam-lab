@@ -1,11 +1,11 @@
 import random
 from collections import defaultdict
-from typing import Dict, Any, List, Union, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 import networkx as nx
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
@@ -145,8 +145,8 @@ def precompute_probabilities(
 
 
 def precompute_probabilities_metapath(
-        graph: nx.Graph,
-        meta_field: str,
+    graph: nx.Graph,
+    meta_field: str,
 ) -> Dict[int, Dict[str, Dict[str, List[int]]]]:
     """
     Precomputes probability when using metapath.
@@ -185,19 +185,16 @@ def precompute_probabilities_metapath(
         Note that uniform probabilities are set.
     """
     nodes_without_meta = [
-        node for node in graph.nodes()
-        if meta_field not in graph.nodes[node]
+        node for node in graph.nodes() if meta_field not in graph.nodes[node]
     ]
     assert len(nodes_without_meta) == 0
 
-    node_meta = set(
-        [graph.nodes[node][meta_field] for node in graph.nodes()]
-    )
+    node_meta = set([graph.nodes[node][meta_field] for node in graph.nodes()])
 
     d_graph = defaultdict(dict)
     for node in graph.nodes():
         for meta in node_meta:
-            d_graph[node][meta] = {"neighbors":[], "prob":[]}
+            d_graph[node][meta] = {"neighbors": [], "prob": []}
 
     for node in tqdm(graph.nodes(), desc="Computing transition probabilities"):
         for neighbor in graph.neighbors(node):
@@ -207,17 +204,19 @@ def precompute_probabilities_metapath(
             if len(d_graph[node][meta]["neighbors"]) != 0:
                 neighbors_meta = d_graph[node][meta]["neighbors"]
                 # uniform distribution
-                d_graph[node][meta]["prob"] = [1/len(neighbors_meta) for _ in range(len(neighbors_meta))]
+                d_graph[node][meta]["prob"] = [
+                    1 / len(neighbors_meta) for _ in range(len(neighbors_meta))
+                ]
     return d_graph
 
 
 def generate_walks_metapath(
-        node_ids: Union[List[int], NDArray],
-        graph: nx.Graph,
-        d_graph: Dict[int, Dict[str, Dict[str, List[int]]]],
-        meta_path: List[List[str]],
-        meta_field: str,
-        walks_per_node: int,
+    node_ids: Union[List[int], NDArray],
+    graph: nx.Graph,
+    d_graph: Dict[int, Dict[str, Dict[str, List[int]]]],
+    meta_path: List[List[str]],
+    meta_field: str,
+    walks_per_node: int,
 ) -> Tuple[Tensor, List[Tuple[Tuple[str, str], int]]]:
     """
     Generate walks given meta_path.
@@ -261,6 +260,6 @@ def generate_walks_metapath(
                 if len(walk) == len(path):
                     walks.append(torch.tensor(walk))
                     cnt += 1
-        meta_path_count.append( (tuple(path), cnt) )
+        meta_path_count.append((tuple(path), cnt))
     walks_padded = pad_sequence(walks, batch_first=True, padding_value=-1)
     return walks_padded, meta_path_count

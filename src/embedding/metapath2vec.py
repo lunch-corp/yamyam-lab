@@ -1,31 +1,34 @@
-from typing import List, Union, Tuple
+from typing import List, Tuple, Union
 from collections import defaultdict
 
+import networkx as nx
+import numpy as np
 import torch
 from torch import Tensor
-import numpy as np
-import networkx as nx
 
 from embedding.base_embedding import BaseEmbedding
-from tools.generate_walks import precompute_probabilities_metapath, generate_walks_metapath
 from tools.tensor import unpad_by_mask
+from tools.generate_walks import (
+    generate_walks_metapath,
+    precompute_probabilities_metapath,
+)
 
 
 class Model(BaseEmbedding):
     def __init__(
-            self,
-            user_ids: Tensor,
-            diner_ids: Tensor,
-            top_k_values: List[int],
-            graph: nx.Graph,
-            embedding_dim: int,
-            num_nodes: int,
-            meta_path: List[List[str]],
-            meta_field: str,
-            walks_per_node: int = 1,
-            num_negative_samples: int = 1,
-            inference: bool = False,
-            **kwargs
+        self,
+        user_ids: Tensor,
+        diner_ids: Tensor,
+        top_k_values: List[int],
+        graph: nx.Graph,
+        embedding_dim: int,
+        num_nodes: int,
+        meta_path: List[List[str]],
+        meta_field: str,
+        walks_per_node: int = 1,
+        num_negative_samples: int = 1,
+        inference: bool = False,
+        **kwargs,
     ):
         super().__init__(
             user_ids=user_ids,
@@ -44,9 +47,7 @@ class Model(BaseEmbedding):
         for path in meta_path:
             given_meta.extend(path)
         given_meta = set(given_meta)
-        node_meta = set(
-            [graph.nodes[node][meta_field] for node in graph.nodes()]
-        )
+        node_meta = set([graph.nodes[node][meta_field] for node in graph.nodes()])
         for meta in given_meta:
             assert meta in node_meta
 
@@ -127,7 +128,7 @@ class Model(BaseEmbedding):
         if not isinstance(batch, Tensor):
             batch = torch.tensor(batch)
         pos_rw = self.pos_sample(batch)
-        pos_rw_start_node = pos_rw[:,0]
+        pos_rw_start_node = pos_rw[:, 0]
         neg_rw = self.neg_sample(pos_rw_start_node)
         return pos_rw, neg_rw
 
@@ -146,8 +147,8 @@ class Model(BaseEmbedding):
             Calculated loss.
         """
         start_idx = 0
-        loss = torch.tensor(0., requires_grad=True)
-        for (meta_path, count) in self.meta_path_count:
+        loss = torch.tensor(0.0, requires_grad=True)
+        for meta_path, count in self.meta_path_count:
             # Positive loss.
             pos_rw_padded = pos_rw[start_idx:count, :]
             pos_rw_unpadded = unpad_by_mask(
@@ -156,7 +157,9 @@ class Model(BaseEmbedding):
             )
             start, rest = pos_rw_unpadded[:, 0], pos_rw_unpadded[:, 1:].contiguous()
 
-            h_start = self.embedding(start).view(pos_rw_unpadded.size(0), 1, self.embedding_dim)
+            h_start = self.embedding(start).view(
+                pos_rw_unpadded.size(0), 1, self.embedding_dim
+            )
             h_rest = self.embedding(rest.view(-1)).view(
                 pos_rw_unpadded.size(0), -1, self.embedding_dim
             )
@@ -169,7 +172,9 @@ class Model(BaseEmbedding):
             neg_rw_sliced = neg_rw[start_idx:count, :]
             start, rest = neg_rw_sliced[:, 0], neg_rw_sliced[:, 1:].contiguous()
 
-            h_start = self.embedding(start).view(neg_rw_sliced.size(0), 1, self.embedding_dim)
+            h_start = self.embedding(start).view(
+                neg_rw_sliced.size(0), 1, self.embedding_dim
+            )
             h_rest = self.embedding(rest.view(-1)).view(
                 neg_rw_sliced.size(0), -1, self.embedding_dim
             )
