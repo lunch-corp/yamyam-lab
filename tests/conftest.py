@@ -31,6 +31,6 @@ def setup_config(request):
         ["user", "diner", "user", "diner", "user", "diner"],
         ["user", "diner", "category", "diner", "user"],
     ]
-    args.meta_field = "meta"
+    args.category_column_for_meta = "diner_category_large"
     args.test = True
     return args

@@ -158,6 +158,7 @@ def map_id_to_ascending_integer(
     review: pd.DataFrame,
     diner: pd.DataFrame,
     is_graph_model: bool = False,
+    category_column_for_meta: str = "diner_category_large",
 ) -> Dict[str, Any]:
     """
     Map reviewer_id, diner_idx to integer in ascending order.
@@ -200,7 +201,10 @@ def map_id_to_ascending_integer(
 
     # metadata preprocessing
     if is_graph_model:
-        diner = preprocess_diner_data_for_candidate_generation(diner)
+        diner = preprocess_diner_data_for_candidate_generation(
+            diner=diner,
+            category_column_for_meta=category_column_for_meta,
+        )
         meta_ids = list(diner["metadata_id"].unique())
         for meta in diner["metadata_id_neighbors"]:
             meta_ids.extend(meta)
@@ -228,7 +232,10 @@ def map_id_to_ascending_integer(
     }
 
 
-def preprocess_diner_data_for_candidate_generation(diner: pd.DataFrame) -> pd.DataFrame:
+def preprocess_diner_data_for_candidate_generation(
+        diner: pd.DataFrame,
+        category_column_for_meta: str = None,
+) -> pd.DataFrame:
     """
     Additional preprocessing when metadata is integrated to graph based model.
 
@@ -245,14 +252,14 @@ def preprocess_diner_data_for_candidate_generation(diner: pd.DataFrame) -> pd.Da
     # get h3_index neighboring with diner's h3_index and concat with meta field
     diner["metadata_id_neighbors"] = diner.apply(
         lambda row: [
-            row["diner_category_large"] + "_" + h3_index
+            row[category_column_for_meta] + "_" + h3_index
             for h3_index in get_hexagon_neighbors(row["h3_index"], k=1)
         ],
         axis=1,
     )
     # get current h3_index and concat with meta field
     diner["metadata_id"] = diner.apply(
-        lambda row: row["diner_category_large"] + "_" + row["h3_index"], axis=1
+        lambda row: row[category_column_for_meta] + "_" + row["h3_index"], axis=1
     )
     return diner
 
@@ -278,6 +285,7 @@ def train_test_split_stratify(
     random_state: int = 42,
     stratify: str = "reviewer_id",
     is_graph_model: bool = False,
+    category_column_for_meta: str = "diner_category_large",
     test: bool = False,
     is_rank: bool = False,
 ) -> Dict[str, Any]:
@@ -301,6 +309,7 @@ def train_test_split_stratify(
         Dataset, statistics, and mapping information which could be used when training model.
     """
     review, diner, diner_with_raw_category = load_dataset(test=test)
+    assert category_column_for_meta in diner.columns
     review, diner = preprocess_common(
         review=review,
         diner=diner,
@@ -311,6 +320,7 @@ def train_test_split_stratify(
         review=review,
         diner=diner,
         is_graph_model=is_graph_model,
+        category_column_for_meta=category_column_for_meta,
     )
 
     review = mapped_res.get("review")

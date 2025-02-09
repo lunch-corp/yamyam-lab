@@ -11,6 +11,7 @@ from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
 from constant.embedding.node2vec import TransitionKey
+from constant.embedding.metapath2vec import TransitionKeyMetaPath
 
 """
 source: https://github.com/eliorc/node2vec/blob/master/node2vec/parallel.py
@@ -194,17 +195,17 @@ def precompute_probabilities_metapath(
     d_graph = defaultdict(dict)
     for node in graph.nodes():
         for meta in node_meta:
-            d_graph[node][meta] = {"neighbors": [], "prob": []}
+            d_graph[node][meta] = {TransitionKeyMetaPath.NEIGHBORS.value: [], TransitionKeyMetaPath.PROB.value: []}
 
     for node in tqdm(graph.nodes(), desc="Computing transition probabilities"):
         for neighbor in graph.neighbors(node):
             neighbor_meta = graph.nodes[neighbor].get(meta_field)
-            d_graph[node][neighbor_meta]["neighbors"].append(neighbor)
+            d_graph[node][neighbor_meta][TransitionKeyMetaPath.NEIGHBORS.value].append(neighbor)
         for meta in node_meta:
-            if len(d_graph[node][meta]["neighbors"]) != 0:
-                neighbors_meta = d_graph[node][meta]["neighbors"]
+            if len(d_graph[node][meta][TransitionKeyMetaPath.NEIGHBORS.value]) != 0:
+                neighbors_meta = d_graph[node][meta][TransitionKeyMetaPath.NEIGHBORS.value]
                 # uniform distribution
-                d_graph[node][meta]["prob"] = [
+                d_graph[node][meta][TransitionKeyMetaPath.PROB.value] = [
                     1 / len(neighbors_meta) for _ in range(len(neighbors_meta))
                 ]
     return d_graph
@@ -249,8 +250,8 @@ def generate_walks_metapath(
                 walk = [node]
                 current_node = node
                 for meta in path[1:]:
-                    neighbors = d_graph[current_node][meta]["neighbors"]
-                    prob = d_graph[current_node][meta]["prob"]
+                    neighbors = d_graph[current_node][meta][TransitionKeyMetaPath.NEIGHBORS.value]
+                    prob = d_graph[current_node][meta][TransitionKeyMetaPath.PROB.value]
                     if len(neighbors) == 0:
                         break
                     next_node = random.choices(neighbors, weights=prob)[0]

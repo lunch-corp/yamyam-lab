@@ -24,7 +24,7 @@ class Model(BaseEmbedding):
         embedding_dim: int,
         num_nodes: int,
         meta_path: List[List[str]],
-        meta_field: str,
+        meta_field: str = "meta",
         walks_per_node: int = 1,
         num_negative_samples: int = 1,
         inference: bool = False,

@@ -35,13 +35,17 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"learning rate: {args.lr}")
         logger.info(f"epochs: {args.epochs}")
         logger.info(f"embedding dimension: {args.embedding_dim}")
-        logger.info(f"walk length: {args.walk_length}")
         logger.info(f"walks per node: {args.walks_per_node}")
         logger.info(f"num neg samples: {args.num_negative_samples}")
-        logger.info(f"p: {args.p}")
-        logger.info(f"q: {args.q}")
-        logger.info(f"result path: {args.result_path}")
         logger.info(f"weighted edge: {args.weighted_edge}")
+        if args.model == "node2vec":
+            logger.info(f"walk length: {args.walk_length}")
+            logger.info(f"p: {args.p}")
+            logger.info(f"q: {args.q}")
+        elif args.model == "metapath2vec":
+            logger.info(f"defined meta_path: {args.meta_path}")
+            logger.info(f"category column for node meta: {args.category_column_for_meta}")
+        logger.info(f"result path: {args.result_path}")
         logger.info(f"test: {args.test}")
 
         data = train_test_split_stratify(
@@ -50,6 +54,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             is_graph_model=True,
+            category_column_for_meta=args.category_column_for_meta,
             test=args.test,
         )
         train_graph, val_graph = prepare_networkx_undirected_graph(
@@ -89,7 +94,6 @@ def main(args: ArgumentParser.parse_args) -> None:
             p=args.p,
             top_k_values=top_k_values,
             meta_path=args.meta_path,
-            meta_field=args.meta_field,
         ).to(DEVICE)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
