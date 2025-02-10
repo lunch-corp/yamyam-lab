@@ -80,6 +80,8 @@ class Model(BaseEmbedding):
         for node in graph.nodes():
             node_meta = graph.nodes[node][meta_field]
             self.meta2node_id[node_meta].append(node)
+        for meta, node_ids in self.meta2node_id.items():
+            self.meta2node_id[meta] = np.array(node_ids)
 
         if inference is False:
             self.d_graph = precompute_probabilities_metapath(
@@ -127,16 +129,41 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Negative samples for each of node ids.
         """
-        neg_rw = []
-        for start_node in batch:
-            start_node_meta = self.graph.nodes[start_node.item()][self.meta_field]
-            heterogeneous_neg_rw = np.random.choice(
-                a=self.meta2node_id[start_node_meta],
-                size=self.num_negative_samples,
-                replace=False,
+        # Convert batch to numpy for getting meta values
+        batch_np = batch.numpy()
+
+        # Get meta values for all nodes in batch at once
+        meta_values = np.array([self.graph.nodes[node][self.meta_field] for node in batch_np])
+
+        # Pre-allocate result tensor
+        result = torch.empty((len(batch), self.num_negative_samples), dtype=torch.long)
+
+        # Get unique meta values and their counts
+        unique_meta, meta_counts = np.unique(meta_values, return_counts=True)
+
+        # Process each meta value in batch
+        for meta_val, count in zip(unique_meta, meta_counts):
+            # Get indices where this meta value appears
+            meta_mask = meta_values == meta_val
+
+            # Get the pool of nodes for this meta value
+            pool = self.meta2node_id[meta_val]
+            pool_size = len(pool)
+
+            # Generate random indices for all instances of this meta value at once
+            sample_indices = np.random.randint(
+                0, pool_size,
+                size=(count, self.num_negative_samples),
+                dtype=np.int64
             )
-            neg_rw.append(torch.tensor(heterogeneous_neg_rw))
-        return torch.stack(neg_rw)
+
+            # Convert pool indices to node IDs
+            sampled_nodes = pool[sample_indices]
+
+            # Assign to result tensor
+            result[meta_mask] = torch.tensor(sampled_nodes)
+
+        return result
 
     @torch.jit.export
     def sample(self, batch: Union[List[int], Tensor]) -> Tuple[Tensor, Tensor]:
