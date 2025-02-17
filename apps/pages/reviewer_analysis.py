@@ -1,19 +1,12 @@
-import streamlit as st
 import pandas as pd
-from components.utils import (
-    load_data,
-    get_reviewer_info,
-    calculate_menu_price_avg,
-    analyze_menu_frequency,
-    get_category_stats,
-    get_average_scores,
-)
-from components.plots import (
-    create_category_bar_chart,
-    create_menu_frequency_chart,
-    create_scores_comparison_chart,
-    create_time_series_chart,
-)
+import streamlit as st
+from components.plots import (create_category_bar_chart,
+                              create_menu_frequency_chart,
+                              create_scores_comparison_chart,
+                              create_time_series_chart)
+from components.utils import (analyze_menu_frequency, calculate_menu_price_avg,
+                              get_average_scores, get_category_stats,
+                              get_reviewer_info, load_data)
 
 
 def reviewer_analysis_page():
@@ -21,7 +14,7 @@ def reviewer_analysis_page():
 
     # 데이터 로드
     with st.spinner("데이터를 불러오는 중..."):
-        review_df, diner_df = load_data()
+        review_df, diner_df, category_kakao_df = load_data()
 
     # 사이드바에 리뷰어 ID 입력
     with st.sidebar:

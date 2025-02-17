@@ -1,10 +1,10 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-from typing import Tuple, List, Dict, Optional
-
 import sys
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import streamlit as st
 
 # 프로젝트 루트 디렉토리를 Python path에 추가
 root_dir = Path(__file__).parent.parent.parent
@@ -119,7 +119,11 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     # 리뷰 데이터에 리뷰어 정보 병합
     review = pd.merge(review, reviewer, on="reviewer_id", how="left")
     review["score_diff"] = review["reviewer_review_score"] - review["reviewer_avg"]
-    return review, diner
+    
+    category_kakao = pd.read_csv(data_paths['category'])
+    
+    category_frequency = pd.read_csv('/Users/seongrok.kim/Github/yamyam-lab/data/category_frequency.csv')
+    return review, diner, category_kakao, category_frequency
 
 
 def get_reviewer_info(review_df: pd.DataFrame, reviewer_id: int) -> Tuple[pd.DataFrame, str]:

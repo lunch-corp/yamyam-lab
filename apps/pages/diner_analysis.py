@@ -1,8 +1,9 @@
-import streamlit as st
-import pandas as pd
 import numpy as np
-from components.utils import load_data, analyze_menu_frequency
-from components.plots import create_scores_comparison_chart, create_menu_frequency_chart
+import pandas as pd
+import streamlit as st
+from components.plots import (create_menu_frequency_chart,
+                              create_scores_comparison_chart)
+from components.utils import analyze_menu_frequency, load_data
 
 
 def diner_analysis_page():
@@ -10,7 +11,7 @@ def diner_analysis_page():
 
     # 데이터 로드
     with st.spinner("데이터를 불러오는 중..."):
-        review_df, diner_df = load_data()
+        review_df, diner_df, category_kakao_df = load_data()
 
     search_button = False
 
