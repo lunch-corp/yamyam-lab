@@ -5,14 +5,13 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
+from preprocess.feature_store import extract_scores_array, extract_statistics
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+from tools.google_drive import ensure_data_files
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
-
-from preprocess.feature_store import extract_scores_array, extract_statistics
-from tools.google_drive import ensure_data_files
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
@@ -44,15 +43,15 @@ def load_dataset(test: bool = False) -> pd.DataFrame:
     """
     data_paths = ensure_data_files()
 
-    review = pd.read_csv(data_paths["review"])
-    reviewer = pd.read_csv(data_paths["reviewer"])
+    review = pd.read_csv(data_paths["review"]["file_path"])
+    reviewer = pd.read_csv(data_paths["reviewer"]["file_path"])
 
     review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
     if test:
         review = review.iloc[:5000, :]
 
-    diner = pd.read_csv(data_paths["diner"])
+    diner = pd.read_csv(data_paths["diner"]["file_path"])
     diner_idx_both_exist = set(review["diner_idx"].unique()) & set(
         diner["diner_idx"].unique()
     )

@@ -1,7 +1,6 @@
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-
 from preprocess.preprocess import preprocess_diner_data
+from sklearn.preprocessing import LabelEncoder
 from tools.google_drive import ensure_data_files
 
 
@@ -19,9 +18,9 @@ def load_test_dataset(reviewer_id: int) -> tuple[pd.DataFrame, list[str]]:
     data_paths = ensure_data_files()
 
     # load data
-    diner = pd.read_csv(data_paths["diner"])
-    review = pd.read_csv(data_paths["review"])
-    reviewer = pd.read_csv(data_paths["reviewer"])
+    diner = pd.read_csv(data_paths["diner"]["file_path"])
+    review = pd.read_csv(data_paths["review"]["file_path"]) 
+    reviewer = pd.read_csv(data_paths["reviewer"]["file_path"])
     review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
     # label Encoder
@@ -35,6 +34,7 @@ def load_test_dataset(reviewer_id: int) -> tuple[pd.DataFrame, list[str]]:
     user_2_diner_map = dict(zip(user_2_diner_df.index, user_2_diner_df["diner_idx"]))
 
     # 레스토랑 후보군 리스트
+    
     candidate_pool = diner["diner_idx"].unique().tolist()
 
     reviewed_diners = list(set(user_2_diner_map.get(reviewer_id, [])))

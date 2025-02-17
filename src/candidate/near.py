@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
-
 from tools.google_drive import ensure_data_files
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
@@ -14,7 +13,7 @@ DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data
 class NearCandidateGenerator:
     def __init__(self):
         data_paths = ensure_data_files()
-        diners = pd.read_csv(data_paths["diner"])
+        diners = pd.read_csv(data_paths["diner"]["file_path"])
 
         diner_ids = diners["diner_idx"].unique()
         self.mapping_diner_idx = {i: id for i, id in enumerate(diner_ids)}

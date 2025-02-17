@@ -58,22 +58,8 @@ $ poetry lock
    - Environment Variables (.env File)
       Create a .env file in the root directory of the project. This file stores Google Drive file IDs and their respective local file paths. Add the following content to the .env file:
       ```dotenv
-      DINER_FILE_ID=1-sMiojVncUyA7qCwuI3U_Lmkx0SjN3T6
-      REVIEW_FILE_ID=1OVmMUM5b_He6QDyaD8iGMJbLK_QGHnZs
-      REVIEWER_FILE_ID=1b986HsOhgCSjJUif5DDwXaOoYTbx-TdE
-      CATEGORY_FILE_ID=1gnURUQCgN4Nmw5_F82z2r2pWHNX8XlPd
+      DATA_FOLDER_ID = **************
       ```
-
-   - YAML Configuration File
-      Ensure the config/data/google_drive.yaml file is properly set up. Example content:
-      ```yaml
-      local_paths:
-         diner: "data/diner.csv"
-         review: "data/review.csv"
-         reviewer: "data/reviewer.csv"
-         category: "data/diner_raw_category.csv"
-      ```
-   - The key values in the ``.env`` file will be removed from the README when shared publicly.
 
 2. Download and Load Data:
    Use the following Python code to ensure the data files are available and load them into Pandas DataFrames:
