@@ -1,8 +1,7 @@
-import streamlit as st
 import pandas as pd
-import numpy as np
-from components.utils import load_data, analyze_menu_frequency
-from components.plots import create_scores_comparison_chart, create_menu_frequency_chart
+import streamlit as st
+
+from apps.components.utils import load_data
 
 
 def diner_analysis_page():
@@ -42,7 +41,9 @@ def diner_analysis_page():
                 "소분류": "diner_category_small",
             }
 
-            selected_category_type = st.selectbox("카테고리 단계 선택:", list(categories.keys()))
+            selected_category_type = st.selectbox(
+                "카테고리 단계 선택:", list(categories.keys())
+            )
 
             category_col = categories[selected_category_type]
             available_categories = diner_df[category_col].unique()
@@ -143,7 +144,9 @@ def diner_analysis_page():
         st.subheader("📍 위치 정보")
         if pd.notna(diner_info["diner_lat"]) and pd.notna(diner_info["diner_lon"]):
             st.map(
-                pd.DataFrame({"lat": [diner_info["diner_lat"]], "lon": [diner_info["diner_lon"]]})
+                pd.DataFrame(
+                    {"lat": [diner_info["diner_lat"]], "lon": [diner_info["diner_lon"]]}
+                )
             )
         st.write(diner_info["diner_address"])
 

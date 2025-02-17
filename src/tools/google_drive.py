@@ -15,8 +15,10 @@ try:
 except ModuleNotFoundError:
     raise ModuleNotFoundError("Please install python-dotenv")
 
+
 ABS_PATH = Path(__file__).resolve().parents[2]
 data_dir = os.path.join(ABS_PATH, "data")
+
 
 def get_env_var(var_name: str) -> str:
     """환경 변수에서 값을 가져옵니다."""

@@ -11,10 +11,10 @@ num_items = 10
 # make user x item binary matrix
 data = []
 for i in range(num_items):
-    likes = [0]*num_items
+    likes = [0] * num_items
     likes[i] += 1
     if i != 0:
-        likes[i-1] += 1
+        likes[i - 1] += 1
     data.append(likes)
 user_item = csr_matrix(data)
 
@@ -26,15 +26,20 @@ G = nx.Graph()
 
 # add node
 for i in range(num_users):
-    G.add_node(f"user_{i}", )
+    G.add_node(
+        f"user_{i}",
+    )
     G.add_node(f"item_{i}")
 
 # add edge
-for u in range(len(user_item.indptr)-1):
-    for i in user_item.indices[ user_item.indptr[u] : user_item.indptr[u+1] ]:
-        G.add_edge(f"user_{u}", f"item_{i}", )
+for u in range(len(user_item.indptr) - 1):
+    for i in user_item.indices[user_item.indptr[u] : user_item.indptr[u + 1]]:
+        G.add_edge(
+            f"user_{u}",
+            f"item_{i}",
+        )
 
-plt.figure(figsize=(20,10))
+plt.figure(figsize=(20, 10))
 nx.draw_networkx(G)
 plt.show()
 
@@ -68,12 +73,7 @@ for res in model.wv.most_similar("user_5", topn=20):
 """
 
 # train als!
-params = {
-        'factors':64,
-        'iterations':100,
-        'regularization':0.01,
-        'random_state':42
-}
+params = {"factors": 64, "iterations": 100, "regularization": 0.01, "random_state": 42}
 als = implicit.als.AlternatingLeastSquares(**params)
 als.fit(user_item)
 
