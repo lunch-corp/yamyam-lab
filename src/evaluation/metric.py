@@ -1,16 +1,15 @@
 from typing import Dict
+
 import numpy as np
 from numpy.typing import NDArray
 
 from constant.metric.metric import Metric
+from tools.utils import safe_divide
 
 
-def ranked_precision(
-        liked_item: int,
-        reco_items: NDArray
-) -> float:
+def ranked_precision(liked_item: int, reco_items: NDArray) -> float:
     K = len(reco_items)
-    for i,item in enumerate(reco_items):
+    for i, item in enumerate(reco_items):
         if liked_item == item:
             return (K - i) / K
     return 0
@@ -19,57 +18,63 @@ def ranked_precision(
 def ranking_metrics_at_k(
     liked_items: NDArray,
     reco_items: NDArray,
-    liked_items_score: NDArray = None
 ) -> Dict[str, float]:
     """
-    Calculates ndcg, average precision (aP), hit, and recall for `one user`.
+    References
+    - https://sdsawtelle.github.io/blog/output/mean-average-precision-MAP-for-recommender-systems.html
+    - https://gist.github.com/bwhite/3726239
+
+    Calculates ndcg, average precision (aP), hit, and recall for `one user` **in binary setting**.
     If you want to derive ndcg, map for n users, you should average them over n.
 
-    liked_items:
-        item ids selected by one user in test dataset.
-    reco_items:
-        item ids recommended for one user.
-    liked_items_score:
-        `relevance` associated with liked_items. Could be ratings or indicator values depending on target y.
-        Default value is None when binary classification. If target y is ratings, scores would be np.array([3,5,4.5]).
-        This score is used when calculating ndcg.
-    """
-    # when target y is rating
-    if isinstance(liked_items_score, np.ndarray):
-        assert liked_items.shape == liked_items_score.shape
-    # when target y is binary
-    else:
-        liked_items_score = np.array([1] * len(liked_items))
+    For average precision, we use following definition.
 
+    AP = \dfrac{1}{m} \sum_{i=1}^{K} P(i) r(i)
+    where m is number of items user liked and K is number of recommended items,
+    P(i) is precision at i and r(i) is indicator variable 1 if ith item is hitted else 0.
+    Here, precision@i = # of hitted items until ith ranked item / K
+
+    Note that for some variations of AP, \dfrac{1}{ min(m, K) } is used instead of \dfrac{1}{m} to prevent deviding
+    large value when K < m for some special case. If defined denominator as min(m, K), map may not increase as K is
+    getting larger.
+
+    For normalized discounted cumulative gain, we use following definition.
+
+    NDCG = \dfrac{DCG}{IDCG}
+    where DCG = \sum_{i=1}^{K} \dfrac{1}{\log2{i+1}} * r(i) and
+    IDCG = \sum_{i=1}^{M} \dfrac{1}{\log2{i+1}}.
+    Here, r(i) is indicator variable 1 if ith item is hitted else 0,
+    K is number of recommended items, and M is number of items that users liked.
+
+    Maximum value of NDCG is IDCG by their definitions, therefore, 0 <= NDCG <= 1.
+
+    Note that NDCG does NOT gurantee increasing value as K is getting larger.
+
+    Args:
+        liked_items (NDArray): Item ids selected by one user in test dataset.
+        reco_items (NDArray): Item ids recommended for one user.
+
+    Returns (Dict[str, float]):
+        Calculated metric for one user which is recall, map and ndcg.
+    """
     # number of recommended items
     K = len(reco_items)
-    # in case user liked items less than K
-    K = min(len(liked_items), K)
-    reco_items = reco_items[:K]
-
-    # sort liked_items by descending order
-    idx = np.argsort(liked_items_score)[::-1]
-    liked_items_score = liked_items_score[idx]
-    liked_items = liked_items[idx]
-
-    liked_items2score = {}
-    for item_id, score in zip(liked_items, liked_items_score):
-        liked_items2score[item_id] = score
 
     ap = 0
-    idcg = (liked_items_score[:K] / np.log2(np.arange(2, K + 2))).sum()
+    cg = 1.0 / np.log2(np.arange(2, K + 2))
+    idcg = cg[: len(liked_items)].sum()
     ndcg = 0
     hit = 0
 
     for i in range(K):
-        score = liked_items2score.get(reco_items[i])
-        if score is not None:
+        # reco_item that is not in liked_items will not contribute to metric
+        if reco_items[i] in liked_items:
             hit += 1
             ap += hit / (i + 1)
-            ndcg += (score / np.log2(i + 2)) / idcg
-    ap /= K
+            ndcg += cg[i] / idcg
+    ap = safe_divide(ap, len(liked_items))
 
     # Calculate recall
-    recall = hit / len(liked_items)
+    recall = safe_divide(hit, len(liked_items))
 
     return {Metric.AP.value: ap, Metric.NDCG.value: ndcg, Metric.RECALL.value: recall}

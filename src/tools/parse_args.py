@@ -1,4 +1,13 @@
 import argparse
+from typing import List
+
+
+def parse_nested_list(value: str) -> List[str]:
+    # Split the outer list by semicolon and inner lists by comma
+    try:
+        return [inner_list.split(",") for inner_list in value.split(";")]
+    except Exception as e:
+        raise argparse.ArgumentTypeError(f"Invalid format for nested list: {e}")
 
 
 def parse_args():
@@ -19,19 +28,33 @@ def parse_args():
 
 def parse_args_embedding():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, required=True, choices=["node2vec"])
+    # common parameter
+    parser.add_argument(
+        "--model", type=str, required=True, choices=["node2vec", "metapath2vec"]
+    )
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--test_ratio", type=float, default=0.3)
     parser.add_argument("--embedding_dim", type=int, default=128)
-    parser.add_argument("--walk_length", type=int, default=20)
     parser.add_argument("--walks_per_node", type=int, default=10)
-    parser.add_argument("--p", type=int, default=1)
-    parser.add_argument("--q", type=float, default=1)
     parser.add_argument("--num_negative_samples", type=int, default=1)
     parser.add_argument("--result_path", type=str, required=True)
+    parser.add_argument("--weighted_edge", action="store_true")
+    parser.add_argument("--use_metadata", action="store_true")
     parser.add_argument("--test", action="store_true")
+
+    # node2vec parameter
+    parser.add_argument("--walk_length", type=int, default=20)
+    parser.add_argument("--p", type=int, default=1)
+    parser.add_argument("--q", type=float, default=1)
+
+    # metapath2vec parameter
+    parser.add_argument("--meta_path", type=parse_nested_list, default=[])
+    parser.add_argument(
+        "--category_column_for_meta", type=str, default="diner_category_large"
+    )
+
     return parser.parse_args()
 
 

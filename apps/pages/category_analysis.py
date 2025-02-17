@@ -1,14 +1,15 @@
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import streamlit as st
 from components.utils import load_data
 
 
 def create_category_treemap(diner_df: pd.DataFrame) -> go.Figure:
     """카테고리 트리맵을 생성합니다."""
     category_counts = (
-        diner_df.groupby(["diner_category_large", "diner_category_middle", "diner_category_small"])
+        diner_df.groupby(
+            ["diner_category_large", "diner_category_middle", "diner_category_small"]
+        )
         .size()
         .reset_index(name="count")
     )
@@ -75,7 +76,9 @@ def category_analysis_page():
         'bayesian_score', 'rank']],
         category_kakao_df, on='diner_idx', how='left')
     # 탭 생성
-    tab1, tab2, tab3 = st.tabs(["카테고리 개요", "카테고리별 통계", "카테고리 상세 분석"])
+    tab1, tab2, tab3 = st.tabs(
+        ["카테고리 개요", "카테고리별 통계", "카테고리 상세 분석"]
+    )
 
     with tab1:
         st.subheader("카테고리 분포")
@@ -106,7 +109,9 @@ def category_analysis_page():
     with tab2:
         st.subheader("카테고리별 통계")
         category_level = st.selectbox(
-            "카테고리 레벨 선택:", ["middle", "small", "detail"], key="stats_category_level"
+            "카테고리 레벨 선택:",
+            ["middle", "small", "detail"],
+            key="stats_category_level",
         )
 
         category_col = f"diner_category_{category_level}"
@@ -114,13 +119,16 @@ def category_analysis_page():
 
         # 데이터 표시
         st.dataframe(
-            metrics_df.style.background_gradient(subset=["식당 수", "평균 평점", "베이지안 평균"]),
+            metrics_df.style.background_gradient(
+                subset=["식당 수", "평균 평점", "베이지안 평균"]
+            ),
             use_container_width=True,
         )
 
         # 시각화
         metric_to_plot = st.selectbox(
-            "시각화할 지표 선택:", ["식당 수", "평균 평점", "베이지안 평균", "평균 리뷰 수"]
+            "시각화할 지표 선택:",
+            ["식당 수", "평균 평점", "베이지안 평균", "평균 리뷰 수"],
         )
 
         fig = px.bar(
@@ -191,9 +199,14 @@ def category_analysis_page():
 
         # 리뷰 점수 분포
         st.subheader("⭐ 리뷰 점수 분포")
-        category_reviews = review_df[review_df["diner_idx"].isin(filtered_df["diner_idx"])]
+        category_reviews = review_df[
+            review_df["diner_idx"].isin(filtered_df["diner_idx"])
+        ]
         fig = px.histogram(
-            category_reviews, x="reviewer_review_score", nbins=10, title="리뷰 점수 분포"
+            category_reviews,
+            x="reviewer_review_score",
+            nbins=10,
+            title="리뷰 점수 분포",
         )
         st.plotly_chart(fig, use_container_width=True)
 

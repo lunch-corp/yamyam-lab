@@ -43,7 +43,9 @@ def diner_analysis_page():
                 "소분류": "diner_category_small",
             }
 
-            selected_category_type = st.selectbox("카테고리 단계 선택:", list(categories.keys()))
+            selected_category_type = st.selectbox(
+                "카테고리 단계 선택:", list(categories.keys())
+            )
 
             category_col = categories[selected_category_type]
             available_categories = diner_df[category_col].unique()
@@ -144,7 +146,9 @@ def diner_analysis_page():
         st.subheader("📍 위치 정보")
         if pd.notna(diner_info["diner_lat"]) and pd.notna(diner_info["diner_lon"]):
             st.map(
-                pd.DataFrame({"lat": [diner_info["diner_lat"]], "lon": [diner_info["diner_lon"]]})
+                pd.DataFrame(
+                    {"lat": [diner_info["diner_lat"]], "lon": [diner_info["diner_lon"]]}
+                )
             )
         st.write(diner_info["diner_address"])
 

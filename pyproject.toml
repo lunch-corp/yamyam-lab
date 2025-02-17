@@ -35,42 +35,73 @@ pyyaml = ">=6.0.1"
 catboost = "^1.2.7"
 python-dotenv = "^1.0.1"
 pytest-dotenv = "^0.5.2"
+h3 = "4.1.2"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.9.3"
+
+[tool.ruff]
+# Refer https://github.com/astral-sh/ruff?tab=readme-ov-file#configuration
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "notebook"
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.11
+target-version = "py311"
+
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+lint.select = ["E4", "E7", "E9", "F", "I"]
+lint.ignore = ["E722", "F403", "F405", "E501"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+lint.fixable = ["ALL"]
+lint.unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Like Black, use double quotes for strings.
+format.quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+format.indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+format.skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+format.line-ending = "auto"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-line_length = 88
-
-[tool.black]
-line-length = 88
-target-version = ['py36', 'py37', 'py38']
-exclude = '''
-    \.git
-  | \.mypy_cache
-  | \.tox
-  | venv
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | ^.*\b(migrations)\b.*$
-'''
-
-[tool.flake8]
-max-line-length = 88
-ignore = "E203, W503, E501"
-exclude =  '''
-    .git,
-    .gitignore,
-    */migrations/*,
-    __pycache__,
-'''

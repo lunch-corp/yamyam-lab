@@ -1,13 +1,12 @@
-from typing import Union, List, Dict
 import os
 from collections import defaultdict
+from typing import Dict, List, Union
 
 from torch import Tensor
 
 
 def convert_tensor(
-        ts: Tensor,
-        structure: Union[dict, list]
+    ts: Tensor, structure: Union[dict, list]
 ) -> Dict[int, Union[List[int], Dict[int, int]]]:
     """
     Convert 2 dimensional tensor to dict or list.
@@ -27,10 +26,10 @@ def convert_tensor(
     assert ts.shape[1] == 2
     assert structure in [dict, list]
     res = defaultdict(structure)
-    for (diner_id, reviewer_id) in ts:
+    for diner_id, reviewer_id in ts:
         reviewer_id = reviewer_id.item()
         diner_id = diner_id.item()
-        if structure == dict:
+        if structure is dict:
             res[reviewer_id][diner_id] = 1
         else:
             res[reviewer_id].append(diner_id)
@@ -49,6 +48,7 @@ def get_num_workers() -> int:
     """
     num_cores = os.cpu_count()
     return min(4, num_cores // 2)
+
 
 def safe_divide(numerator, denominator):
     try:

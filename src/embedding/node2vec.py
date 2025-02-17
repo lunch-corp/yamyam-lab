@@ -1,10 +1,8 @@
 from typing import List, Tuple, Union
-import networkx as nx
 
+import networkx as nx
 import torch
 from torch import Tensor
-from torch.nn import Embedding
-from torch.utils.data import DataLoader
 
 from embedding.base_embedding import BaseEmbedding
 from tools.generate_walks import generate_walks, precompute_probabilities
@@ -45,6 +43,7 @@ class Model(BaseEmbedding):
         num_negative_samples (int, optional): The number of negative samples to
             use for each positive sample. (default: :obj:`1`)
     """
+
     def __init__(
         self,
         user_ids: Tensor,
@@ -59,23 +58,21 @@ class Model(BaseEmbedding):
         q: float = 1.0,
         num_negative_samples: int = 1,
         inference: bool = False,
+        **kwargs,
     ):
         super().__init__(
             user_ids=user_ids,
             diner_ids=diner_ids,
             top_k_values=top_k_values,
+            graph=graph,
+            embedding_dim=embedding_dim,
+            walks_per_node=walks_per_node,
+            num_negative_samples=num_negative_samples,
+            num_nodes=num_nodes,
         )
-        self.graph = graph
-        self.embedding_dim = embedding_dim
         self.walk_length = walk_length
-        self.walks_per_node = walks_per_node
         self.p = p
         self.q = q
-        self.num_negative_samples = num_negative_samples
-        self.EPS = 1e-15
-        self.num_nodes = num_nodes
-
-        self.embedding = Embedding(self.num_nodes, embedding_dim)
 
         if inference is False:
             self.d_graph = precompute_probabilities(
@@ -83,29 +80,6 @@ class Model(BaseEmbedding):
                 p=p,
                 q=q,
             )
-
-    def forward(self, batch: Tensor) -> Tensor:
-        """
-        Dummy forward pass which actually does not do anything.
-
-        Args:
-            batch (Tensor): A batch of node ids.
-
-        Returns (Tensor):
-            A batch of node embeddings.
-        """
-        emb = self.embedding.weight
-        return emb if batch is None else emb[batch]
-
-    def loader(self, **kwargs) -> DataLoader:
-        """
-        Node id generator in pytorch dataloader type.
-
-        Returns (DataLoader):
-            DataLoader used when training model.
-        """
-        return DataLoader(torch.tensor([node for node in self.graph.nodes()]), collate_fn=self.sample,
-                          **kwargs)
 
     @torch.jit.export
     def pos_sample(self, batch: Tensor) -> Tensor:
@@ -144,8 +118,12 @@ class Model(BaseEmbedding):
         """
         batch = batch.repeat(self.walks_per_node)
 
-        rw = torch.randint(self.num_nodes, (batch.size(0), self.num_negative_samples),
-                           dtype=batch.dtype, device=batch.device)
+        rw = torch.randint(
+            self.num_nodes,
+            (batch.size(0), self.num_negative_samples),
+            dtype=batch.dtype,
+            device=batch.device,
+        )
         rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
 
         return rw
@@ -167,11 +145,7 @@ class Model(BaseEmbedding):
         return self.pos_sample(batch), self.neg_sample(batch)
 
     @torch.jit.export
-    def loss(
-            self,
-            pos_rw: Tensor,
-            neg_rw: Tensor
-        ) -> Tensor:
+    def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
         """
         Computes word2vec skip-gram based loss.
 
@@ -185,10 +159,10 @@ class Model(BaseEmbedding):
         # Positive loss.
         start, rest = pos_rw[:, 0], pos_rw[:, 1:].contiguous()
 
-        h_start = self.embedding(start).view(pos_rw.size(0), 1,
-                                             self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(pos_rw.size(0), -1,
-                                                    self.embedding_dim)
+        h_start = self.embedding(start).view(pos_rw.size(0), 1, self.embedding_dim)
+        h_rest = self.embedding(rest.view(-1)).view(
+            pos_rw.size(0), -1, self.embedding_dim
+        )
 
         out = (h_start * h_rest).sum(dim=-1).view(-1)
         pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
@@ -196,10 +170,10 @@ class Model(BaseEmbedding):
         # Negative loss.
         start, rest = neg_rw[:, 0], neg_rw[:, 1:].contiguous()
 
-        h_start = self.embedding(start).view(neg_rw.size(0), 1,
-                                             self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(neg_rw.size(0), -1,
-                                                    self.embedding_dim)
+        h_start = self.embedding(start).view(neg_rw.size(0), 1, self.embedding_dim)
+        h_rest = self.embedding(rest.view(-1)).view(
+            neg_rw.size(0), -1, self.embedding_dim
+        )
 
         out = (h_start * h_rest).sum(dim=-1).view(-1)
         neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()

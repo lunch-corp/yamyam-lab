@@ -1,18 +1,18 @@
 import torch
-from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 
 def svd_loss(
-        pred: Tensor,
-        true: Tensor,
-        params: nn.Parameter,
-        regularization: float,
-        user_idx: Tensor,
-        diner_idx: Tensor,
-        num_users: int,
-        num_diners: int
+    pred: Tensor,
+    true: Tensor,
+    params: nn.Parameter,
+    regularization: float,
+    user_idx: Tensor,
+    diner_idx: Tensor,
+    num_users: int,
+    num_diners: int,
 ) -> float:
     """
     Calculates svd loss using bias together.
@@ -31,8 +31,8 @@ def svd_loss(
         Calculated svd loss.
     """
     true = true.squeeze()
-    mse = F.mse_loss(pred, true, reduction='mean')
-    penalty = torch.tensor(0., requires_grad=True)
+    mse = F.mse_loss(pred, true, reduction="mean")
+    penalty = torch.tensor(0.0, requires_grad=True)
     for param in params:
         if param.shape[0] == num_users:
             param = param[user_idx]

@@ -1,23 +1,28 @@
-import traceback
-import pickle
-import os
-from argparse import ArgumentParser
 import importlib
+import os
+import pickle
+import traceback
+from argparse import ArgumentParser
 
 import torch
 
-from preprocess.preprocess import train_test_split_stratify, prepare_networkx_data
 from candidate.near import NearCandidateGenerator
-from tools.utils import get_num_workers
-from tools.plot import plot_metric_at_k
-from tools.parse_args import parse_args_embedding
-from tools.logger import setup_logger
-from constant.preprocess.preprocess import MIN_REVIEWS
 from constant.candidate.near import MAX_DISTANCE_KM
 from constant.device.device import DEVICE
+from constant.evaluation.recommend import (
+    TOP_K_VALUES_FOR_CANDIDATE,
+    TOP_K_VALUES_FOR_PRED,
+)
 from constant.metric.metric import Metric, NearCandidateMetric
-from constant.evaluation.recommend import TOP_K_VALUES_FOR_PRED,TOP_K_VALUES_FOR_CANDIDATE
+from constant.preprocess.preprocess import MIN_REVIEWS
 from constant.save.file_name import FileName
+from preprocess.preprocess import (
+    prepare_networkx_undirected_graph,
+    train_test_split_stratify,
+)
+from tools.logger import setup_logger
+from tools.parse_args import parse_args_embedding
+from tools.plot import plot_metric_at_k
 
 
 def main(args: ArgumentParser.parse_args) -> None:
@@ -30,11 +35,18 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"learning rate: {args.lr}")
         logger.info(f"epochs: {args.epochs}")
         logger.info(f"embedding dimension: {args.embedding_dim}")
-        logger.info(f"walk length: {args.walk_length}")
         logger.info(f"walks per node: {args.walks_per_node}")
         logger.info(f"num neg samples: {args.num_negative_samples}")
-        logger.info(f"p: {args.p}")
-        logger.info(f"q: {args.q}")
+        logger.info(f"weighted edge: {args.weighted_edge}")
+        if args.model == "node2vec":
+            logger.info(f"walk length: {args.walk_length}")
+            logger.info(f"p: {args.p}")
+            logger.info(f"q: {args.q}")
+        elif args.model == "metapath2vec":
+            logger.info(f"defined meta_path: {args.meta_path}")
+            logger.info(
+                f"category column for node meta: {args.category_column_for_meta}"
+            )
         logger.info(f"result path: {args.result_path}")
         logger.info(f"test: {args.test}")
 
@@ -43,18 +55,29 @@ def main(args: ArgumentParser.parse_args) -> None:
             min_reviews=MIN_REVIEWS,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
-            pg_model=True,
+            is_graph_model=True,
+            category_column_for_meta=args.category_column_for_meta,
             test=args.test,
         )
-        train_graph, val_graph = prepare_networkx_data(
+        train_graph, val_graph = prepare_networkx_undirected_graph(
             X_train=data["X_train"],
+            y_train=data["y_train"],
             X_val=data["X_val"],
+            y_val=data["y_val"],
+            diner=data["diner"],
+            user_mapping=data["user_mapping"],
+            diner_mapping=data["diner_mapping"],
+            meta_mapping=data["meta_mapping"],
+            weighted=args.weighted_edge,
+            use_metadata=args.use_metadata,
         )
 
         # for qualitative eval
-        pickle.dump(data, open(os.path.join(args.result_path, FileName.DATA_OBJECT.value), "wb"))
+        pickle.dump(
+            data, open(os.path.join(args.result_path, FileName.DATA_OBJECT.value), "wb")
+        )
 
-        num_nodes = data["num_users"] + data["num_diners"]
+        num_nodes = data["num_users"] + data["num_diners"] + data["num_metas"]
         top_k_values = TOP_K_VALUES_FOR_PRED + TOP_K_VALUES_FOR_CANDIDATE
 
         # import embedding module
@@ -72,12 +95,15 @@ def main(args: ArgumentParser.parse_args) -> None:
             q=args.q,
             p=args.p,
             top_k_values=top_k_values,
+            meta_path=args.meta_path,
         ).to(DEVICE)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
         # get near 1km diner_ids
         candidate_generator = NearCandidateGenerator()
-        near_diners = candidate_generator.get_near_candidates_for_all_diners(max_distance_km=MAX_DISTANCE_KM)
+        near_diners = candidate_generator.get_near_candidates_for_all_diners(
+            max_distance_km=MAX_DISTANCE_KM
+        )
 
         # convert diner_ids
         diner_mapping = data["diner_mapping"]
@@ -86,13 +112,16 @@ def main(args: ArgumentParser.parse_args) -> None:
             # only get diner appeared in train/val dataset
             if diner_mapping.get(ref_id) is None:
                 continue
-            nearby_id_mapping = [diner_mapping.get(diner_id) for diner_id in nearby_id if diner_mapping.get(diner_id) != None]
+            nearby_id_mapping = [
+                diner_mapping.get(diner_id)
+                for diner_id in nearby_id
+                if diner_mapping.get(diner_id) is not None
+            ]
             nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
 
         loader = model.loader(
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=get_num_workers(),
         )
         for epoch in range(args.epochs):
             logger.info(f"################## epoch {epoch} ##################")
@@ -113,7 +142,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                 X_val=data["X_val"],
                 top_k_values=top_k_values,
                 nearby_candidates=nearby_candidates_mapping,
-                filter_already_liked=True
+                filter_already_liked=True,
             )
 
             maps = []
@@ -126,50 +155,76 @@ def main(args: ArgumentParser.parse_args) -> None:
                 # no candidate metric
                 map = round(model.metric_at_k[k][Metric.MAP.value], 5)
                 ndcg = round(model.metric_at_k[k][Metric.NDCG.value], 5)
-                recall = round(model.metric_at_k[k][Metric.RECALL.value], 5)
-                ranked_prec = round(model.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value], 5)
-                count = model.metric_at_k[k][Metric.COUNT.value]
-                prec_count = model.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT.value]
 
-                logger.info(f"maP@{k}: {map} with {count} users out of all {model.num_users} users")
-                logger.info(f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users")
-                logger.info(f"recall@{k}: {recall} with {count} users out of all {model.num_users} users")
-                logger.info(f"ranked_prec@{k}: {ranked_prec} out of all {prec_count} validation dataset")
+                ranked_prec = round(
+                    model.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value], 5
+                )
+                count = model.metric_at_k[k][Metric.COUNT.value]
+                prec_count = model.metric_at_k[k][
+                    NearCandidateMetric.RANKED_PREC_COUNT.value
+                ]
+
+                logger.info(
+                    f"maP@{k}: {map} with {count} users out of all {model.num_users} users"
+                )
+                logger.info(
+                    f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users"
+                )
+                logger.info(
+                    f"ranked_prec@{k}: {ranked_prec} out of all {prec_count} validation dataset"
+                )
 
                 maps.append(str(map))
                 ndcgs.append(str(ndcg))
-                recalls.append(str(recall))
                 ranked_precs.append(str(ranked_prec))
 
-            logger.info(f"top k results for direct prediction @3, @7, @10, @20 in order")
+            logger.info("top k results for direct prediction @3, @7, @10, @20 in order")
             logger.info(f"map result: {'|'.join(maps)}")
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
-            logger.info(f"recall: {'|'.join(recalls)}")
             logger.info(f"ranked_prec: {'|'.join(ranked_precs)}")
 
             for k in TOP_K_VALUES_FOR_CANDIDATE:
-                # near candidate metric
-                prec_count = model.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT.value]
-                near_candidate_recall = round(model.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value], 5)
-                recall_count = model.metric_at_k[k][NearCandidateMetric.RECALL_COUNT.value]
-                logger.info(f"near_candidate_recall@{k}: {near_candidate_recall} with {recall_count} count out of all {prec_count} validation dataset")
-                candidate_recalls.append(str(near_candidate_recall))
+                recall = round(model.metric_at_k[k][Metric.RECALL.value], 5)
+                count = model.metric_at_k[k][Metric.COUNT.value]
+                logger.info(
+                    f"recall@{k}: {recall} with {count} users out of all {model.num_users} users"
+                )
 
-            logger.info(f"top k results for candidate generation @100, @300, @500")
+                # near candidate metric
+                prec_count = model.metric_at_k[k][
+                    NearCandidateMetric.RANKED_PREC_COUNT.value
+                ]
+                near_candidate_recall = round(
+                    model.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value], 5
+                )
+                recall_count = model.metric_at_k[k][
+                    NearCandidateMetric.RECALL_COUNT.value
+                ]
+                logger.info(
+                    f"near_candidate_recall@{k}: {near_candidate_recall} with {recall_count} count out of all {prec_count} validation dataset"
+                )
+                candidate_recalls.append(str(near_candidate_recall))
+                recalls.append(str(recall))
+
+            logger.info(
+                "top k results for candidate generation @100, @300, @500, @1000, @2000"
+            )
+            logger.info(f"recall: {'|'.join(recalls)}")
             logger.info(f"candidate_recall: {'|'.join(candidate_recalls)}")
 
-            torch.save(model.state_dict(), str(os.path.join(args.result_path, FileName.WEIGHT.value)))
+            torch.save(
+                model.state_dict(),
+                str(os.path.join(args.result_path, FileName.WEIGHT.value)),
+            )
             pickle.dump(
                 model.tr_loss,
                 open(
                     os.path.join(args.result_path, FileName.TRAINING_LOSS.value), "wb"
-                )
+                ),
             )
             pickle.dump(
                 model.metric_at_k_total_epochs,
-                open(
-                    os.path.join(args.result_path, FileName.METRIC.value), "wb"
-                )
+                open(os.path.join(args.result_path, FileName.METRIC.value), "wb"),
             )
             logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
 
