@@ -312,7 +312,7 @@ def train_test_split_stratify(
         Dataset, statistics, and mapping information which could be used when training model.
     """
     review, diner, diner_with_raw_category = load_dataset(test=test)
-    assert category_column_for_meta in diner.columns
+    assert category_column_for_meta in diner_with_raw_category.columns
     review, diner = preprocess_common(
         review=review,
         diner=diner,
