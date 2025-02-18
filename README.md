@@ -48,11 +48,11 @@ Then, update `poetry.lock` to ensure that repository members share same environm
 $ poetry lock
 ```
 
-아래는 `README.md`에 추가할 설명글입니다. `google_drive.py`를 활용하여 데이터를 `diner`, `review` 데이터프레임으로 로드하는 방법을 명확히 안내합니다:
-
 ---
 
 ## Load Data using `google_drive.py`
+
+To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`, follow below guideline.
 
 1. File config:
    - Environment Variables (.env File)
@@ -96,46 +96,59 @@ $ poetry lock
 3. Data Description:
    For detailed descriptions of the data (e.g., column names, data types, and content), refer to the [data/README.md file](data/README.md). This file provides comprehensive information about each dataset included in the project.
 
+---
+
+## Implemented models
+
+| Type                 | Algorithm       |
+|----------------------|-----------------|
+| Candidate generation | node2vec        |
+| Candidate generation | metapath2vec    |
+| Reranker             | lightgbm ranker |
+| Reranker             | xgboost ranker  |
+
+We plan to generate candidate diners of each user using `candidate generation model` and rerank them using `reranker model`.
+
+
+---
 
 ## Experiment results
 
-### CASE 1) Without candidates
+We evaluate model results in two aspects. 
 
-Below are metric results without any candidate filtering.
+* First of all, we measure performance of candidate generation model using `recall` metric.
+  * For candidate generation model, it is important to achieve high hit ratio, i.e., recall.
+  * After achieving high recall, detail ranking will be done via reranker model.
+* Next, we measure performance of ranking using `map` and `ndcg` metric.
+  * With `map` and `ndcg`, we evaluate ranking ability of models whether liked items by users are ranked with higher rank or not.
+* Note that for comparison, candidate generation models are also evaluated with ranking metric.
 
-* Recommendations are generated at user's level.
-* This inference does not consider user's current location.
+For detail description of each metric, please refer to [discussion](https://github.com/LearningnRunning/yamyam-lab/discussions/74).
 
-| Algorithm | Task         | mAP@3   | mAP@7   | mAP@10  | mAP@20  | NDCG@3  | NDCG@7  | NDCG@10 | NDCG@20 |
-| --------- | ------------ | ------- | ------- | ------- | ------- | ------- | ------- | ------- | ------- |
-| SVD       | Regression   | TBD     | TBD     | TBD     | TBD     | TBD     | TBD     | TBD     | TBD     |
-| node2vec  | Unsupervised | 0.00803 | 0.00736 | 0.00743 | 0.00761 | 0.01253 | 0.01709 | 0.02082 | 0.02972 |
+### Candidate generation performance results
 
-### CASE 2) With candidates filtering with near 1km diners.
+| Algorithm    | Task                   | recall@100 | recall@300 | recall@500 | recall@1000 | recall@2000 |
+|--------------|------------------------|------------|------------|------------|-------------|-------------|
+| node2vec     | Unsupervised  learning | 0.05969    | 0.10067    | 0.1265     | 0.16951     | 0.22588     |
+| metapath2vec | Unsupervised  learning | 0.00418    | 0.0125     | 0.02078    | 0.03984     | 0.07553     |
 
-Below are metric results with candidate filtering.
+### Ranking performance results with single step
 
-* Recommendations are generated at each data level in validation dataset.
-* This inference regards diner's location as user's current location which actually cannot be obtained.
-
-| Algorithm | Task         | ranked_prec@3 | ranked_prec@7 | ranked_prec@10 | ranked_prec@20 |
-| --------- | ------------ | ------------- | ------------- | -------------- | -------------- |
-| SVD       | Regression   | TBD           | TBD           | TBD            | TBD            |
-| node2vec  | Unsupervised | 0.10109       | 0.14015       | 0.16174        | 0.21334        |
-
-
-### CASE 3) Candidates generation models
-
-| Algorithm | Task         | recall@100 | recall@300 | recall@500 |
-| --------- | ------------ | ---------- | ---------- | ---------- |
-| node2vec  | Unsupervised | 0.50612    | 0.74211    | 0.8439     |
+| Algorithm       | Task                  | mAP@3     | mAP@7     | mAP@10    | mAP@20     | NDCG@3  | NDCG@7  | NDCG@10 | NDCG@20   |
+|-----------------|-----------------------|-----------|-----------|-----------|------------|---------|---------|---------|-----------|
+| SVD             | Regression            | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
+| node2vec        | Unsupervised learning | 0.00515   | 0.00624   | 0.00666   | 0.0073     | 0.00791 | 0.00969 | 0.0108  | 0.01319   |
+| metapath2vec    | Unsupervised learning | 0.0001    | 0.00013   | 0.00014   | 0.00017    | 0.00016 | 0.00022 | 0.00027 | 0.00039   |
+| lightgbm ranker | Supervised learning | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
 
 
-### CASE 4) With two-step recommendations
+### Ranking performance results with two step
 
-| Candidate model | number of candidates | Reranking model | Task | ranked_prec@3 | ranked_prec@7 | ranked_prec@10 | ranked_prec@20 |
-| --------------- | -------------------- | --------------- | ---- | ------------- | ------------- | -------------- | -------------- |
-| node2vec        | TBD                  | lightgbm ranker | TBD  | TBD           | TBD           | TBD            | TBD            |
+| Candidate model | number of candidates | Reranking model | Task | mAP@3        | mAP@7   | mAP@10     | mAP@20     | NDCG@3      | NDCG@7 | NDCG@10         | NDCG@20  |
+| --------------- | -------------------- | --------------- | ---- |--------------|---------|------------|------------|-------------|--------|-----------------|----------|
+| node2vec        | TBD                  | lightgbm ranker | TBD  | TBD          | TBD     | TBD        | TBD        | TBD         | TBD    | TBD             | TBD      |
+
+---
 
 ## Commit Guide
 - feat: Add a new feature
@@ -152,6 +165,7 @@ Below are metric results with candidate filtering.
 - rename: Rename files or folders only
 - remove: Delete files only
 
+---
 
 ## Project code lint
 
@@ -162,6 +176,8 @@ $ make lint
 ```
 
 You should update code corresponding to ruff's guide, otherwise ci test won't pass.
+
+---
 
 ## How to run pytest
 
