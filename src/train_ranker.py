@@ -3,8 +3,8 @@ from __future__ import annotations
 import hydra
 from omegaconf import DictConfig
 
+from model.rank import build_model
 from preprocess.preprocess import train_test_split_stratify
-from rank import build_model
 
 
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")
