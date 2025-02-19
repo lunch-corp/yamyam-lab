@@ -1,0 +1,61 @@
+# yamyam-lab/config/data/category_mappings.yaml
+
+lowering_large_categories:
+  기타:
+    - 퓨전요리
+    - 뷔페 
+    - 푸드코트
+    - 구내식당
+  일식:
+    - 철판요리
+  양식:
+    - 치킨
+    - 샐러드
+    - 패밀리레스토랑
+  한식:
+    - 도시락
+    - 샤브샤브
+    - 기사식당
+    - 야식
+    - 분식
+
+partly_lowering_large_categories:
+  양식:
+    lowering_large_categories: 
+      - 패스트푸드
+    partly_lowering_large_category: 패스트푸드
+    partly_lowering_middle_categories:
+      - 샌드위치
+    changing_middle_categorie: 햄버거
+
+chicken_category:
+  구이:
+    - 계림원
+    - 구운치킨
+    - 굽네치킨
+    - 굽자나
+    - 기영이숯불두마리치킨
+    - 꾸브라꼬숯불두마리치킨
+    - 누구나홀딱반한닭
+    - 돈치킨
+    - 동근이숯불두마리치킨
+    - 두리아치킨
+    - 땅땅치킨
+    - 땡큐맘치킨
+    - 맛닭꼬
+    - 바비큐보스
+    - 부어치킨
+    - 불로만숯불바베큐
+    - 오븐마루치킨
+    - 오븐에꾸운닭
+    - 오븐에빠진닭
+    - 이춘봉인생치킨
+    - 지코바
+    - 코리안바베큐
+    - 푸라닭치킨
+    - 핫썬치킨
+    - 호치킨
+    - 화락바베큐치킨
+    - 화신바베큐치킨
+    - 훌랄라
+  프라이드: []
