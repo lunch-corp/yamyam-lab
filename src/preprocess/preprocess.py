@@ -11,12 +11,11 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
-# from constant.lib.h3 import RESOLUTION
+from constant.lib.h3 import RESOLUTION
 from preprocess.diner_transform import CategoryProcessor
 from preprocess.feature_store import extract_scores_array, extract_statistics
 from tools.google_drive import ensure_data_files
-
-# from tools.h3 import get_h3_index, get_hexagon_neighbors
+from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 

@@ -1,5 +1,0 @@
-local_paths:
-  diner: "data/diner.csv"
-  review: "data/review.csv"
-  reviewer: "data/reviewer.csv"
-  category: "data/diner_raw_category.csv"
