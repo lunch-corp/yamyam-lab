@@ -81,7 +81,7 @@ def download_from_drive() -> Dict[str, str]:
 
             # 이동된 파일들의 경로를 data_dir 기준으로 갱신
             for key, info in google_files.items():
-                file_name = os.path.basename(info["file_path"])
+                file_name = os.path.basename(info.get("file_path", "")) # 현재 info에 file_path가 없는 경우가 있음. 그럴 경우 현재 위치를 path로 반환
                 new_path = os.path.abspath(os.path.join(data_dir, file_name))
                 google_files[key]["file_path"] = new_path
 
