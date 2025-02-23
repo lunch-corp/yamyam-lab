@@ -1,60 +1,47 @@
 import pandera as pa
-from pandera import Column, DataFrameSchema
+from pandera.typing import Series
+from datetime import datetime
 
-# 데이터 스키마 정의
-reviewer_schema = DataFrameSchema(
-    {
-        "reviewer_id": Column(int, nullable=False, unique=True),
-        "reviewer_user_name": Column(str, nullable=True),
-        "reviewer_avg": Column(float, nullable=True),
-        "badge_grade": Column(str, nullable=True),
-        "badge_level": Column(int, nullable=True),
-    }
-)
+class ReviewerSchema(pa.DataFrameModel):
+    reviewer_id: Series[int] = pa.Field(nullable=False, unique=True)
+    reviewer_user_name: Series[str] = pa.Field(nullable=True)
+    reviewer_avg: Series[float] = pa.Field(nullable=True)
+    badge_grade: Series[str] = pa.Field(nullable=True)
+    badge_level: Series[int] = pa.Field(nullable=True)
 
-category_schema = DataFrameSchema(
-    {
-        "diner_idx": Column(int, nullable=False, unique=True),
-        "industry_category": Column(str, nullable=True),
-        "diner_category_large": Column(str, nullable=True),
-        "diner_category_middle": Column(str, nullable=True),
-        "diner_category_small": Column(str, nullable=True),
-    }
-)
+class CategorySchema(pa.DataFrameModel):
+    diner_idx: Series[int] = pa.Field(nullable=False, unique=True)
+    industry_category: Series[str] = pa.Field(nullable=True)
+    diner_category_large: Series[str] = pa.Field(nullable=True)
+    diner_category_middle: Series[str] = pa.Field(nullable=True)
+    diner_category_small: Series[str] = pa.Field(nullable=True)
 
-review_schema = DataFrameSchema(
-    {
-        "diner_idx": Column(int, nullable=False, unique=False),
-        "reviewer_id": Column(int, nullable=False, unique=False),
-        "review_id": Column(int, nullable=False, unique=True),
-        "reviewer_review": Column(str, nullable=True),
-        "reviewer_review_date": Column(pa.DateTime, nullable=True),
-        "reviewer_review_score": Column(float, nullable=True),
-    }
-)
+class ReviewSchema(pa.DataFrameModel):
+    diner_idx: Series[int] = pa.Field(nullable=False)
+    reviewer_id: Series[int] = pa.Field(nullable=False)
+    review_id: Series[int] = pa.Field(nullable=False, unique=True)
+    reviewer_review: Series[str] = pa.Field(nullable=True)
+    reviewer_review_date: Series[datetime] = pa.Field(nullable=True)
+    reviewer_review_score: Series[float] = pa.Field(nullable=True)
 
-
-diner_schema = DataFrameSchema(
-    {
-        "diner_idx": Column(int, nullable=False, unique=True),
-        "diner_name": Column(str, nullable=True),
-        "diner_tag": Column(str, nullable=True),
-        "diner_menu_name": Column(str, nullable=True),
-        "diner_menu_price": Column(str, nullable=True),
-        "diner_review_cnt": Column(int, nullable=True),
-        "diner_review_avg": Column(float, nullable=True),
-        "diner_blog_review_cnt": Column(float, nullable=True),
-        "diner_review_tags": Column(str, nullable=True),
-        "diner_road_address": Column(str, nullable=True),
-        "diner_num_address": Column(str, nullable=True),
-        "diner_phone": Column(str, nullable=True),
-        "diner_lat": Column(float, nullable=True),
-        "diner_lon": Column(float, nullable=True),
-        "diner_open_time": Column(str, nullable=True),
-        "diner_open_time_titles": Column(str, nullable=True),
-        "diner_open_time_hours": Column(str, nullable=True),
-        "diner_open_time_off_days_title": Column(str, nullable=True),
-        "diner_open_time_off_days_hours": Column(str, nullable=True),
-        "bayesian_score": Column(str, nullable=True),
-    }
-)
+class DinerSchema(pa.DataFrameModel):
+    diner_idx: Series[int] = pa.Field(nullable=False, unique=True)
+    diner_name: Series[str] = pa.Field(nullable=True)
+    diner_tag: Series[str] = pa.Field(nullable=True)
+    diner_menu_name: Series[str] = pa.Field(nullable=True)
+    diner_menu_price: Series[str] = pa.Field(nullable=True)
+    diner_review_cnt: Series[int] = pa.Field(nullable=True)
+    diner_review_avg: Series[float] = pa.Field(nullable=True)
+    diner_blog_review_cnt: Series[float] = pa.Field(nullable=True)
+    diner_review_tags: Series[str] = pa.Field(nullable=True)
+    diner_road_address: Series[str] = pa.Field(nullable=True)
+    diner_num_address: Series[str] = pa.Field(nullable=True)
+    diner_phone: Series[str] = pa.Field(nullable=True)
+    diner_lat: Series[float] = pa.Field(nullable=True)
+    diner_lon: Series[float] = pa.Field(nullable=True)
+    diner_open_time: Series[str] = pa.Field(nullable=True)
+    diner_open_time_titles: Series[str] = pa.Field(nullable=True)
+    diner_open_time_hours: Series[str] = pa.Field(nullable=True)
+    diner_open_time_off_days_title: Series[str] = pa.Field(nullable=True)
+    diner_open_time_off_days_hours: Series[str] = pa.Field(nullable=True)
+    bayesian_score: Series[str] = pa.Field(nullable=True)

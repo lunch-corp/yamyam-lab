@@ -7,10 +7,10 @@ from . import schemas
 
 class DataValidator:
     def __init__(self):
-        self.reviewer_schema = schemas.reviewer_schema
-        self.category_schema = schemas.category_schema
-        self.review_schema = schemas.review_schema
-        self.diner_schema = schemas.diner_schema
+        self.reviewer_schema = schemas.ReviewerSchema
+        self.category_schema = schemas.CategorySchema
+        self.review_schema = schemas.ReviewerSchema
+        self.diner_schema = schemas.DinerSchema
 
     def validate(
         self,
