@@ -80,10 +80,10 @@ def download_from_drive() -> Dict[str, str]:
             move_files_to_data(google_save_dir, data_dir)
 
             # 이동된 파일들의 경로를 data_dir 기준으로 갱신
-            for key, info in google_files.items():
-                file_name = os.path.basename(info["file_path"])
+            for data_name, file_path in google_files.items():
+                file_name = os.path.basename(file_path)
                 new_path = os.path.abspath(os.path.join(data_dir, file_name))
-                google_files[key]["file_path"] = new_path
+                google_files[data_name] = new_path
 
             # google_save_dir 삭제
             shutil.rmtree(google_save_dir)
@@ -149,7 +149,7 @@ def move_files_to_data(source_dir: str, target_dir: str):
         print(f"파일 이동 완료: {file_name} -> {new_name}")
 
 
-def get_file_paths(directory_path: str) -> Dict[str, Dict[str, str]]:
+def get_file_paths(directory_path: str) -> Dict[str, str]:
     """
     data 디렉토리의 CSV 파일들의 정보를 반환합니다.
 
