@@ -58,11 +58,13 @@ def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Dat
 
     review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
-    if test:
-        review = review.iloc[:5000, :]
-
     diner = pd.read_csv(data_paths["diner"])
     diner_with_raw_category = pd.read_csv(data_paths["category"])
+
+    if test:
+        yongsan_diners = diner[lambda x: x["diner_road_address"].str.startswith("서울 용산구", na=False)]["diner_idx"].unique()[:100]
+        review = review[lambda x: x["diner_idx"].isin(yongsan_diners)] # about 5000 rows
+
     return review, diner, diner_with_raw_category
 
 
