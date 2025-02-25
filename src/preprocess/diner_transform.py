@@ -42,6 +42,10 @@ class CategoryProcessor:
         """
         self.df: pd.DataFrame = df.copy()
         self.mappings: Dict[str, Any] = self._load_category_mappings()
+        self.category_depth: List[List[str]] = [
+            ["detail", "small"],
+            ["small", "middle"],
+        ]
 
     def _load_category_mappings(self) -> Dict[str, Any]:
         """
@@ -166,30 +170,30 @@ class CategoryProcessor:
 
         return self
 
-    def _shift_categories_down(self, target_rows: pd.Series, target_category) -> None:
+    def _shift_categories_down(
+        self, target_rows: pd.Series, target_category: str = "diner_category_large"
+    ) -> None:
         """
         대상 행에 대해 카테고리를 한 단계 아래로 이동시킵니다.
-        기존 중분류 값은 소분류로, 상위 대분류 값은 중분류로 이동합니다.
+        변경되는 대상 카테고리에 따라 이동 패턴이 달라집니다:
+        - diner_category_large일 경우: 'middle→small', 'small→detail' 이동
+        - diner_category_middle일 경우: 'small→detail' 이동만 수행
 
         Args:
             target_rows (pd.Series): 이동할 행을 나타내는 불리언 시리즈.
+            target_category (str): 이동 대상 카테고리 (기본값: "diner_category_large")
         """
-        target_depth = {
-            "diner_category_large": [
-                "diner_category_detail",
-                "diner_category_small",
-                "diner_category_middle",
-            ],
-            "diner_category_middle": ["diner_category_detail", "diner_category_small"],
-        }
 
-        category_list = target_depth[target_category]
-        self.df.loc[target_rows, "diner_category_detail"] = self.df.loc[
-            target_rows, "diner_category_small"
-        ]
-        self.df.loc[target_rows, "diner_category_small"] = self.df.loc[
-            target_rows, "diner_category_middle"
-        ]
+        if target_category == "diner_category_middle":
+            # 중분류 변경 시 소분류→상세분류 이동만 수행
+            category_depth = self.category_depth[:1]
+        else:
+            category_depth = self.category_depth
+
+        for cat in category_depth:
+            self.df.loc[target_rows, f"diner_category_{cat[0]}"] = self.df.loc[
+                target_rows, f"diner_category_{cat[1]}"
+            ]
 
 
 @dataclass
