@@ -26,7 +26,7 @@ partly_lowering_large_categories:
     partly_lowering_large_category: 패스트푸드
     partly_lowering_middle_categories:
       - 샌드위치
-    changing_middle_categorie: 햄버거
+    changing_middle_category: 햄버거
 
 chicken_category:
   구이:
