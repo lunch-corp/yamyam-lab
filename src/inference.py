@@ -48,7 +48,7 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def _main(cfg: DictConfig):
     test, already_reviewed = load_test_dataset(
         reviewer_id=cfg.user_name,
-        diner_engineered_feature_names=cfg.diner_engineered_feature_names
+        diner_engineered_feature_names=cfg.diner_engineered_feature_names,
     )
     test["user_lat"] = cfg.user_lat
     test["user_lon"] = cfg.user_lon

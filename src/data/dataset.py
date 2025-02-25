@@ -9,8 +9,7 @@ from tools.google_drive import ensure_data_files
 
 
 def load_test_dataset(
-        reviewer_id: int,
-        diner_engineered_feature_names: List[str]
+    reviewer_id: int, diner_engineered_feature_names: List[str]
 ) -> tuple[pd.DataFrame, list[str]]:
     """
     Load test dataset for inference

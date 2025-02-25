@@ -12,7 +12,11 @@ from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
 from constant.lib.h3 import RESOLUTION
-from preprocess.feature_store import extract_scores_array, extract_statistics, DinerFeatureStore
+from preprocess.feature_store import (
+    DinerFeatureStore,
+    extract_scores_array,
+    extract_statistics,
+)
 from tools.google_drive import ensure_data_files
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 

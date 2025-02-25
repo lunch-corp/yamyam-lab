@@ -39,16 +39,14 @@ def extract_scores_array(reviews: str, categories: list[tuple[str, str]]) -> np.
 
 class DinerFeatureStore:
     def __init__(
-            self,
-            review: pd.DataFrame,
-            diner: pd.DataFrame,
-            features: List[str],
+        self,
+        review: pd.DataFrame,
+        diner: pd.DataFrame,
+        features: List[str],
     ):
         self.review = review
         self.diner = diner
-        self.feature_methods = {
-            "all_review_cnt": self.calculate_all_review_cnt
-        }
+        self.feature_methods = {"all_review_cnt": self.calculate_all_review_cnt}
         for feature in features:
             if feature not in self.feature_methods.keys():
                 raise ValueError(f"{feature} not matched with implemented method")
