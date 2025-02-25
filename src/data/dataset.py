@@ -1,11 +1,17 @@
+from typing import List
+
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
+from preprocess.feature_store import DinerFeatureStore
 from preprocess.preprocess import preprocess_diner_data
 from tools.google_drive import ensure_data_files
 
 
-def load_test_dataset(reviewer_id: int) -> tuple[pd.DataFrame, list[str]]:
+def load_test_dataset(
+        reviewer_id: int,
+        diner_engineered_feature_names: List[str]
+) -> tuple[pd.DataFrame, list[str]]:
     """
     Load test dataset for inference
     params:
@@ -27,6 +33,15 @@ def load_test_dataset(reviewer_id: int) -> tuple[pd.DataFrame, list[str]]:
     # label Encoder
     le = LabelEncoder()
     review["badge_grade"] = le.fit_transform(review["badge_grade"])
+
+    # feature engineering
+    diner_fs = DinerFeatureStore(
+        review=review,
+        diner=diner,
+        features=diner_engineered_feature_names,
+    )
+    diner_fs.make_features()
+    diner = diner_fs.diner
 
     diner = preprocess_diner_data(diner)
 
