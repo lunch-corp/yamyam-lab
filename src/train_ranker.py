@@ -11,7 +11,10 @@ from preprocess.preprocess import train_test_split_stratify
 def main(cfg: DictConfig):
     # load dataset
     data = train_test_split_stratify(
-        test_size=cfg.data.test_size, min_reviews=cfg.data.min_reviews, is_rank=True
+        test_size=cfg.data.test_size,
+        min_reviews=cfg.data.min_reviews,
+        is_rank=True,
+        diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
     )
 
     X_train, y_train, X_test, y_test = (
