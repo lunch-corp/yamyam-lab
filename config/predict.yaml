@@ -22,6 +22,9 @@ defaults:
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
+diner_engineered_feature_names:
+  - all_review_cnt
+
 model_path: res/models/
 results: lightgbm_ranker
 user_name: 3830746302

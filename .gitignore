@@ -17,3 +17,7 @@ tests/result/*
 
 # line profile analysis file
 *.lprof
+
+
+data/.DS_Store
+data/dataset.zip

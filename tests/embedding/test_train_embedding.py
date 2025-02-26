@@ -22,5 +22,5 @@ from train_embedding import main
     ],
     indirect=["setup_config"],
 )
-def test_run_node2vec(setup_config):
+def test_run_embedding(setup_config):
     main(setup_config)

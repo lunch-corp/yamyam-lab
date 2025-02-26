@@ -17,7 +17,9 @@ from data.dataset import load_test_dataset
 
 def test_load_test_dataset():
     reviewer_id = QualitativeReviewerId.ROCKY.value
-    test, already_reviewed = load_test_dataset(reviewer_id)
+    test, already_reviewed = load_test_dataset(
+        reviewer_id=reviewer_id, diner_engineered_feature_names=["all_review_cnt"]
+    )
     assert test is not None
     assert already_reviewed is not None
     assert len(test) > 0
