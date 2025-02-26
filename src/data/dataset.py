@@ -28,6 +28,15 @@ def load_test_dataset(
     review = pd.read_csv(data_paths["review"])
     reviewer = pd.read_csv(data_paths["reviewer"])
     review = pd.merge(review, reviewer, on="reviewer_id", how="left")
+    diner_with_raw_category = pd.read_csv(data_paths["category"])
+
+    # merge category column
+    diner = pd.merge(
+        left=diner,
+        right=diner_with_raw_category,
+        how="left",
+        on="diner_idx",
+    )
 
     # label Encoder
     le = LabelEncoder()
