@@ -44,6 +44,16 @@ class DinerFeatureStore:
         diner: pd.DataFrame,
         features: List[str],
     ):
+        """
+        Feature engineering on diner data.
+        This class gets `features` indicating which features to make.
+        Unimplemented feature name will raise error with `self.feature_methods`.
+
+        Args:
+            review (pd.DataFrame): Review data.
+            diner (pd.DataFrame): Diner data.
+            features (List[str]): List of features to make.
+        """
         self.review = review
         self.diner = diner
         self.feature_methods = {"all_review_cnt": self.calculate_all_review_cnt}
@@ -53,10 +63,16 @@ class DinerFeatureStore:
         self.features = features
 
     def make_features(self) -> None:
+        """
+        Feature engineer using `self.features`.
+        """
         for feature in self.features:
             featuren_eng_func = self.feature_methods[feature]
             featuren_eng_func()
 
     def calculate_all_review_cnt(self) -> None:
+        """
+        Calculate number of review counts for each diner.
+        """
         diner_idx2review_cnt = self.review["diner_idx"].value_counts().to_dict()
         self.diner["all_review_cnt"] = self.diner["diner_idx"].map(diner_idx2review_cnt)
