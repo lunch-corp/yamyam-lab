@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Self
 
@@ -79,6 +80,9 @@ class LightGBMTrainer(BaseModel):
         return self.model.predict(X_test)
 
     def save_model(self: Self) -> None:
+        if not os.path.exists(self.cfg.models.model_path):
+            os.makedirs(self.cfg.models.model_path)
+
         self.model.save_model(
             Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.model"
         )
@@ -147,6 +151,9 @@ class XGBoostTrainer(BaseModel):
         return self.model.predict(xgb.DMatrix(X_test))
 
     def save_model(self: Self) -> None:
+        if not os.path.exists(self.cfg.models.model_path):
+            os.makedirs(self.cfg.models.model_path)
+
         self.model.save_model(
             Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.json"
         )
@@ -226,6 +233,9 @@ class CatBoostTrainer(BaseModel):
         return self.model.predict(X_test)
 
     def save_model(self: Self) -> None:
+        if not os.path.exists(self.cfg.models.model_path):
+            os.makedirs(self.cfg.models.model_path)
+
         self.model.save_model(
             Path(self.cfg.models.model_path) / f"{self.cfg.models.results}.cbm"
         )
