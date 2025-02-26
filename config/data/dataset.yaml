@@ -1,4 +1,4 @@
-test_size: 0.2
+test_size: 0.3
 min_reviews: 3
 random_state: 42
 path: data/
@@ -10,8 +10,6 @@ y_columns:
 features:
   - badge_level
   - badge_grade
-  - date_scaled
-  - date_weight
   - diner_review_cnt_category
   - min_price
   - max_price
@@ -23,6 +21,8 @@ features:
   - mood
   - chip
   - parking
+diner_engineered_feature_names:
+  - all_review_cnt
 
 cat_features:
   - diner_review_cnt_category
