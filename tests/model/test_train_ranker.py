@@ -18,7 +18,17 @@ from train_ranker import main
 @pytest.mark.parametrize(
     "setup_ranker_config",
     [
-        ("lightgbm", False),
+        (
+            "lightgbm",
+            {
+                "objective": "lambdarank",
+                "boosting_type": "gbdt",
+                "metric": "ndcg",
+                "num_leaves": 16,
+                "learning_rate": 0.1,
+            },
+            1,
+        ),
     ],
     indirect=["setup_ranker_config"],
 )

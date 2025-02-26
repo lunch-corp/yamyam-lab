@@ -69,7 +69,8 @@ def setup_config(request):
 
 @pytest.fixture(scope="function")
 def setup_ranker_config(request) -> TestConfig:
-    model, verbose = request.param
+    model, params, epoch = request.param
+
     test_config = TestConfig(
         data=DataConfig(
             test_size=0.2,
@@ -96,17 +97,9 @@ def setup_ranker_config(request) -> TestConfig:
             model_path="res/models/",
             results="ranker",
             name=model,
-            params=OmegaConf.create(
-                {
-                    "objective": "lambdarank",
-                    "boosting_type": "gbdt",
-                    "metric": "ndcg",
-                    "num_leaves": 16,
-                    "learning_rate": 0.1,
-                }
-            ),
-            num_boost_round=1,
-            verbose_eval=verbose,
+            params=OmegaConf.create(params),
+            num_boost_round=epoch,
+            verbose_eval=epoch,
             early_stopping_rounds=1,
             seed=42,
         ),
