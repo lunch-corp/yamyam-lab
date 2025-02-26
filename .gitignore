@@ -21,3 +21,4 @@ tests/result/*
 
 data/.DS_Store
 data/dataset.zip
+!res/models/.gitkeep
