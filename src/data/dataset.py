@@ -24,7 +24,7 @@ def load_test_dataset(
     data_paths = ensure_data_files()
 
     # load data
-    diner = pd.read_csv(data_paths["diner"])
+    diner = pd.read_csv(data_paths["diner"], low_memory=False)
     review = pd.read_csv(data_paths["review"])
     reviewer = pd.read_csv(data_paths["reviewer"])
     review = pd.merge(review, reviewer, on="reviewer_id", how="left")

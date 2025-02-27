@@ -62,7 +62,7 @@ def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Dat
 
     review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
-    diner = pd.read_csv(data_paths["diner"])
+    diner = pd.read_csv(data_paths["diner"], low_memory=False)
     diner_with_raw_category = pd.read_csv(data_paths["category"])
 
     if test:
