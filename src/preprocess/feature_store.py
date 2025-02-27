@@ -1,13 +1,53 @@
 import ast
-from typing import List, Self
+from typing import List
 
 import numpy as np
 import pandas as pd
 
 
+# NaN 또는 빈 리스트를 처리할 수 있도록 정의
+def extract_statistics(prices: list[int, float]) -> pd.Series:
+    if not prices or pd.isna(prices):  # 빈 리스트라면 NaN 반환
+        return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
+
+    prices = ast.literal_eval(prices)
+    # when prices do not include pure float, such as `변동가격`,
+    # float(price) raises error
+    # todo: preprocess null value
+
+    prices = [float(price) for price in prices if price not in ["변동가격"]]
+
+    if not prices:  # 변동가격만 존재하는 경우
+        return pd.Series([np.nan, np.nan, np.nan, np.nan, 0])
+
+    return pd.Series(
+        [min(prices), max(prices), np.nanmean(prices), np.median(prices), len(prices)]
+    )
+
+
+# numpy 기반으로 점수 추출 최적화
+def extract_scores_array(reviews: str, categories: list[tuple[str, str]]) -> np.ndarray:
+    # 리뷰 데이터를 파싱하여 배열로 변환
+    parsed = [[] if pd.isna(review) else eval(review) for review in reviews]
+    # 카테고리별 점수 초기화 (rows x categories)
+    scores = np.zeros((len(reviews), len(categories)), dtype=int)
+
+    # 각 리뷰에서 카테고리 점수 추출
+    category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
+    for row_idx, review in enumerate(parsed):
+        for cat, score in review:
+            if cat in category_map:  # 해당 카테고리가 정의된 경우
+                scores[row_idx, category_map[cat]] = score
+
+    return scores
+
+
 class DinerFeatureStore:
     def __init__(
-        self: Self, review: pd.DataFrame, diner: pd.DataFrame, features: List[str]
+        self,
+        review: pd.DataFrame,
+        diner: pd.DataFrame,
+        features: List[str],
     ):
         """
         Feature engineering on diner data.
@@ -21,17 +61,13 @@ class DinerFeatureStore:
         """
         self.review = review
         self.diner = diner
-        self.feature_methods = {
-            "all_review_cnt": self.calculate_all_review_cnt,
-            "diner_review_tags": self.calculate_diner_score,
-            "diner_menu_price": self.calculate_diner_price,
-        }
+        self.feature_methods = {"all_review_cnt": self.calculate_all_review_cnt}
         for feature in features:
             if feature not in self.feature_methods.keys():
                 raise ValueError(f"{feature} not matched with implemented method")
         self.features = features
 
-    def make_features(self: Self) -> None:
+    def make_features(self) -> None:
         """
         Feature engineer using `self.features`.
         """
@@ -39,97 +75,9 @@ class DinerFeatureStore:
             featuren_eng_func = self.feature_methods[feature]
             featuren_eng_func()
 
-    def calculate_all_review_cnt(self: Self) -> None:
+    def calculate_all_review_cnt(self) -> None:
         """
         Calculate number of review counts for each diner.
         """
         diner_idx2review_cnt = self.review["diner_idx"].value_counts().to_dict()
         self.diner["all_review_cnt"] = self.diner["diner_idx"].map(diner_idx2review_cnt)
-
-    # NaN 또는 빈 리스트를 처리할 수 있도록 정의
-    def extract_statistics(self: Self, prices: list[int, float]) -> pd.Series:
-        if not prices or pd.isna(prices):  # 빈 리스트라면 NaN 반환
-            return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
-
-        prices = ast.literal_eval(prices)
-        # when prices do not include pure float, such as `변동가격`,
-        # float(price) raises error
-        # todo: preprocess null value
-
-        prices = [float(price) for price in prices if price not in ["변동가격"]]
-
-        if not prices:  # 변동가격만 존재하는 경우
-            return pd.Series([np.nan, np.nan, np.nan, np.nan, 0])
-
-        return pd.Series(
-            [
-                min(prices),
-                max(prices),
-                np.nanmean(prices),
-                np.median(prices),
-                len(prices),
-            ]
-        )
-
-    # numpy 기반으로 점수 추출 최적화
-    def extract_scores_array(
-        self: Self, reviews: str, categories: list[tuple[str, str]]
-    ) -> np.ndarray:
-        # 리뷰 데이터를 파싱하여 배열로 변환
-        parsed = [[] if pd.isna(review) else eval(review) for review in reviews]
-        # 카테고리별 점수 초기화 (rows x categories)
-        scores = np.zeros((len(reviews), len(categories)), dtype=int)
-
-        # 각 리뷰에서 카테고리 점수 추출
-        category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
-        for row_idx, review in enumerate(parsed):
-            for cat, score in review:
-                if cat in category_map:  # 해당 카테고리가 정의된 경우
-                    scores[row_idx, category_map[cat]] = score
-
-        return scores
-
-    def calculate_diner_score(self: Self) -> None:
-        """
-        Add categorical and statistical features to the diner dataset.
-        """
-        bins = [-1, 0, 10, 50, 200, float("inf")]
-        self.diner["diner_review_cnt_category"] = (
-            pd.cut(self.diner["all_review_cnt"], bins=bins, labels=False)
-            .fillna(0)
-            .astype(int)
-        )
-
-        # Categories for extracting scores
-        tag_categories = [
-            ("맛", "taste"),
-            ("친절", "kind"),
-            ("분위기", "mood"),
-            ("가성비", "chip"),
-            ("주차", "parking"),
-        ]
-
-        scores = self.extract_scores_array(
-            self.diner["diner_review_tags"], tag_categories
-        )
-
-        # 결과를 DataFrame으로 변환 및 병합
-        self.diner[["taste", "kind", "mood", "chip", "parking"]] = scores
-
-    def calculate_diner_price(self: Self) -> None:
-        """
-        Add statistical features to the diner dataset.
-        """
-        # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
-        self.diner[
-            ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
-        ] = self.diner["diner_menu_price"].apply(lambda x: self.extract_statistics(x))
-
-        for col in [
-            "min_price",
-            "max_price",
-            "mean_price",
-            "median_price",
-            "menu_count",
-        ]:
-            self.diner[col] = self.diner[col].fillna(self.diner[col].median())

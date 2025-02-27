@@ -76,11 +76,7 @@ def _main(cfg: DictConfig):
 
     for _, row in test.iterrows():
         table.add_row(
-            [
-                row["diner_name"],
-                row["diner_category_small"],
-                row["prediction"],
-            ]
+            [row["diner_name"], row["diner_category_small"], row["prediction"]]
         )
 
     logging.info(
