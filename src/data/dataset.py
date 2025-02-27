@@ -4,7 +4,6 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
 from preprocess.feature_store import DinerFeatureStore
-from preprocess.preprocess import preprocess_diner_data
 from tools.google_drive import ensure_data_files
 
 
@@ -50,8 +49,6 @@ def load_test_dataset(
     )
     diner_fs.make_features()
     diner = diner_fs.diner
-
-    diner = preprocess_diner_data(diner)
 
     # 사용자별 리뷰한 레스토랑 ID 목록 생성
     user_2_diner_df = review.groupby("reviewer_id").agg({"diner_idx": list})
