@@ -12,11 +12,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
 from constant.lib.h3 import RESOLUTION
-from preprocess.feature_store import (
-    DinerFeatureStore,
-    extract_scores_array,
-    extract_statistics,
-)
+from preprocess.feature_store import DinerFeatureStore
 from tools.google_drive import ensure_data_files
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 
@@ -128,40 +124,6 @@ def preprocess_common(
     diner["diner_category_large"] = diner["diner_category_large"].fillna("NA")
 
     return review, diner
-
-
-def preprocess_diner_data(diner: pd.DataFrame) -> pd.DataFrame:
-    """
-    Add categorical and statistical features to the diner dataset.
-    """
-    bins = [-1, 0, 10, 50, 200, float("inf")]
-    diner["diner_review_cnt_category"] = (
-        pd.cut(diner["all_review_cnt"], bins=bins, labels=False).fillna(0).astype(int)
-    )
-
-    # Categories for extracting scores
-    tag_categories = [
-        ("맛", "taste"),
-        ("친절", "kind"),
-        ("분위기", "mood"),
-        ("가성비", "chip"),
-        ("주차", "parking"),
-    ]
-
-    scores = extract_scores_array(diner["diner_review_tags"], tag_categories)
-
-    # 결과를 DataFrame으로 변환 및 병합
-    diner[["taste", "kind", "mood", "chip", "parking"]] = scores
-
-    # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
-    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = (
-        diner["diner_menu_price"].apply(lambda x: extract_statistics(x))
-    )
-
-    for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
-        diner[col] = diner[col].fillna(diner[col].median())
-
-    return diner
 
 
 def map_id_to_ascending_integer(
@@ -371,8 +333,7 @@ def train_test_split_stratify(
         train["badge_grade"] = le.fit_transform(train["badge_grade"])
         val["badge_grade"] = le.transform(val["badge_grade"])
 
-        # Preprocess and merge diner data
-        diner = preprocess_diner_data(diner)
+        # merge diner data
         train = train.merge(diner, on="diner_idx", how="inner").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )

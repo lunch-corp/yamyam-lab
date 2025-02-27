@@ -23,6 +23,8 @@ features:
   - parking
 diner_engineered_feature_names:
   - all_review_cnt
+  - diner_review_tags
+  - diner_menu_price
 
 cat_features:
   - diner_review_cnt_category
