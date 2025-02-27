@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from prettytable import PrettyTable
 
 from data import load_test_dataset
-from rank import build_model
+from model.rank import build_model
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

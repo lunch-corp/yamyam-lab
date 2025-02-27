@@ -1,3 +1,4 @@
+import ast
 from typing import List
 
 import numpy as np
@@ -8,15 +9,19 @@ import pandas as pd
 def extract_statistics(prices: list[int, float]) -> pd.Series:
     if not prices or pd.isna(prices):  # 빈 리스트라면 NaN 반환
         return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
+
+    prices = ast.literal_eval(prices)
     # when prices do not include pure float, such as `변동가격`,
     # float(price) raises error
     # todo: preprocess null value
-    try:
-        prices = [float(price) for price in prices]
-    except:
-        return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
+
+    prices = [float(price) for price in prices if price not in ["변동가격"]]
+
+    if not prices:  # 변동가격만 존재하는 경우
+        return pd.Series([np.nan, np.nan, np.nan, np.nan, 0])
+
     return pd.Series(
-        [min(prices), max(prices), np.mean(prices), np.median(prices), len(prices)]
+        [min(prices), max(prices), np.nanmean(prices), np.median(prices), len(prices)]
     )
 
 
