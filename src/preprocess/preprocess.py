@@ -12,8 +12,8 @@ from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
 from constant.lib.h3 import RESOLUTION
+from data.dataset import load_dataset
 from preprocess.feature_store import DinerFeatureStore
-from tools.google_drive import ensure_data_files
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
@@ -38,38 +38,6 @@ class TorchData(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
-
-
-def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Load review, diner, and diner with raw category data, and optionally filter for pytest.
-    In this function, no other preprocessing logic is done but only loading data will be run.
-
-    Args:
-        test (bool): When set true, subset of review data will be used.
-
-    Returns (Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]):
-        review, diner, diner with raw category in order.
-    """
-    data_paths = ensure_data_files()
-
-    review = pd.read_csv(data_paths["review"])
-    reviewer = pd.read_csv(data_paths["reviewer"])
-
-    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
-
-    diner = pd.read_csv(data_paths["diner"], low_memory=False)
-    diner_with_raw_category = pd.read_csv(data_paths["category"])
-
-    if test:
-        yongsan_diners = diner[
-            lambda x: x["diner_road_address"].str.startswith("서울 용산구", na=False)
-        ]["diner_idx"].unique()[:100]
-        review = review[
-            lambda x: x["diner_idx"].isin(yongsan_diners)
-        ]  # about 5000 rows
-
-    return review, diner, diner_with_raw_category
 
 
 def preprocess_common(
