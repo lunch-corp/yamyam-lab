@@ -47,10 +47,12 @@ class DinerFeatureStore:
         self.diner["all_review_cnt"] = self.diner["diner_idx"].map(diner_idx2review_cnt)
 
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
-    def _extract_statistics(self: Self, prices: list[int, float]) -> pd.Series:
+    def _extract_statistics(self: Self, prices: str) -> pd.Series:
         if not prices or pd.isna(prices):  # 빈 리스트라면 NaN 반환
             return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
 
+        # 문자열을 리스트로 변환, 이 부분은 데이터 검증 과정에서 처리할 필요가 있어보입니다.
+        # 추후에 데이터 검증 코드 완성되면 이 부분은 수정이 필요할 것 같습니다.
         prices = ast.literal_eval(prices)
         # when prices do not include pure float, such as `변동가격`,
         # float(price) raises error
