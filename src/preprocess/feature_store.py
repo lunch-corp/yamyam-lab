@@ -47,7 +47,7 @@ class DinerFeatureStore:
         self.diner["all_review_cnt"] = self.diner["diner_idx"].map(diner_idx2review_cnt)
 
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
-    def extract_statistics(self: Self, prices: list[int, float]) -> pd.Series:
+    def _extract_statistics(self: Self, prices: list[int, float]) -> pd.Series:
         if not prices or pd.isna(prices):  # 빈 리스트라면 NaN 반환
             return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
 
@@ -72,7 +72,7 @@ class DinerFeatureStore:
         )
 
     # numpy 기반으로 점수 추출 최적화
-    def extract_scores_array(
+    def _extract_scores_array(
         self: Self, reviews: str, categories: list[tuple[str, str]]
     ) -> np.ndarray:
         # 리뷰 데이터를 파싱하여 배열로 변환
@@ -109,7 +109,7 @@ class DinerFeatureStore:
             ("주차", "parking"),
         ]
 
-        scores = self.extract_scores_array(
+        scores = self._extract_scores_array(
             self.diner["diner_review_tags"], tag_categories
         )
 
@@ -123,7 +123,7 @@ class DinerFeatureStore:
         # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
         self.diner[
             ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
-        ] = self.diner["diner_menu_price"].apply(lambda x: self.extract_statistics(x))
+        ] = self.diner["diner_menu_price"].apply(lambda x: self._extract_statistics(x))
 
         for col in [
             "min_price",
