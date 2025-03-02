@@ -58,10 +58,7 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
    - Environment Variables (.env File)
       Create a .env file in the root directory of the project. This file stores Google Drive file IDs and their respective local file paths. Add the following content to the .env file:
       ```dotenv
-      DINER_FILE_ID=1-sMiojVncUyA7qCwuI3U_Lmkx0SjN3T6
-      REVIEW_FILE_ID=1OVmMUM5b_He6QDyaD8iGMJbLK_QGHnZs
-      REVIEWER_FILE_ID=1b986HsOhgCSjJUif5DDwXaOoYTbx-TdE
-      CATEGORY_FILE_ID=1gnURUQCgN4Nmw5_F82z2r2pWHNX8XlPd
+      DATA_FOLDER_ID=${DATA_FOLDER_ID}
       ```
 
    - YAML Configuration File
