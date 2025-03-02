@@ -12,7 +12,7 @@ except ModuleNotFoundError:
 import pandas as pd
 
 from constant.evaluation.qualitative import QualitativeReviewerId
-from data.dataset import load_test_dataset
+from data import load_test_dataset
 
 
 def test_load_test_dataset():
