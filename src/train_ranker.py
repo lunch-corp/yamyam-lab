@@ -3,15 +3,18 @@ from __future__ import annotations
 import hydra
 from omegaconf import DictConfig
 
+from model.rank import build_model
 from preprocess.preprocess import train_test_split_stratify
-from rank import build_model
 
 
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")
-def _main(cfg: DictConfig):
+def main(cfg: DictConfig):
     # load dataset
     data = train_test_split_stratify(
-        test_size=cfg.data.test_size, min_reviews=cfg.data.min_reviews, is_rank=True
+        test_size=cfg.data.test_size,
+        min_reviews=cfg.data.min_reviews,
+        is_rank=True,
+        diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
     )
 
     X_train, y_train, X_test, y_test = (
@@ -35,4 +38,4 @@ def _main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    _main()
+    main()

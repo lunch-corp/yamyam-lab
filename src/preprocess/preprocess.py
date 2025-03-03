@@ -12,9 +12,9 @@ from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
 from constant.lib.h3 import RESOLUTION
+from data.dataset import load_dataset
 from preprocess.diner_transform import CategoryProcessor
-from preprocess.feature_store import extract_scores_array, extract_statistics
-from tools.google_drive import ensure_data_files
+from preprocess.feature_store import DinerFeatureStore
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
@@ -39,32 +39,6 @@ class TorchData(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
-
-
-def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Load review, diner, and diner with raw category data, and optionally filter for pytest.
-    In this function, no other preprocessing logic is done but only loading data will be run.
-
-    Args:
-        test (bool): When set true, subset of review data will be used.
-
-    Returns (Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]):
-        review, diner, diner with raw category in order.
-    """
-    data_paths = ensure_data_files()
-
-    review = pd.read_csv(data_paths["review"])
-    reviewer = pd.read_csv(data_paths["reviewer"])
-
-    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
-
-    if test:
-        review = review.iloc[:5000, :]
-
-    diner = pd.read_csv(data_paths["diner"])
-    diner_with_raw_category = pd.read_csv(data_paths["category"])
-    return review, diner, diner_with_raw_category
 
 
 def preprocess_common(
@@ -128,40 +102,6 @@ def preprocess_common(
     diner["diner_category_large"] = diner["diner_category_large"].fillna("NA")
 
     return review, diner
-
-
-def preprocess_diner_data(diner: pd.DataFrame) -> pd.DataFrame:
-    """
-    Add categorical and statistical features to the diner dataset.
-    """
-    bins = [-1, 0, 10, 50, 200, float("inf")]
-    diner["diner_review_cnt_category"] = (
-        pd.cut(diner["all_review_cnt"], bins=bins, labels=False).fillna(0).astype(int)
-    )
-
-    # Categories for extracting scores
-    tag_categories = [
-        ("맛", "taste"),
-        ("친절", "kind"),
-        ("분위기", "mood"),
-        ("가성비", "chip"),
-        ("주차", "parking"),
-    ]
-
-    scores = extract_scores_array(diner["diner_review_tags"], tag_categories)
-
-    # 결과를 DataFrame으로 변환 및 병합
-    diner[["taste", "kind", "mood", "chip", "parking"]] = scores
-
-    # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
-    diner[["min_price", "max_price", "mean_price", "median_price", "menu_count"]] = (
-        diner["diner_menu_price"].apply(lambda x: extract_statistics(eval(x)))
-    )
-
-    for col in ["min_price", "max_price", "mean_price", "median_price", "menu_count"]:
-        diner[col] = diner[col].fillna(diner[col].median())
-
-    return diner
 
 
 def map_id_to_ascending_integer(
@@ -281,8 +221,7 @@ def create_target_column(review: pd.DataFrame) -> pd.DataFrame:
     Create the target column for classification.
     """
     review["target"] = np.where(
-        (review["real_good_review_percent"] > review["real_bad_review_percent"])
-        & (review["reviewer_review_score"] - review["reviewer_avg"] > 0.5),
+        (review["reviewer_review_score"] - review["reviewer_avg"] > 0.5),
         1,
         0,
     )
@@ -292,6 +231,7 @@ def create_target_column(review: pd.DataFrame) -> pd.DataFrame:
 def train_test_split_stratify(
     test_size: float,
     min_reviews: int,
+    diner_engineered_feature_names: List[str] = [],
     X_columns: List[str] = ["diner_idx", "reviewer_id"],
     y_columns: List[str] = ["reviewer_review_score"],
     random_state: int = 42,
@@ -309,6 +249,7 @@ def train_test_split_stratify(
     Args:
         test_size (float): ratio of test dataset.
         min_reviews (int): minimum number of reviews for each reviewer.
+        diner_engineered_feature_names (List[str]):
         X_columns (List[str]): column names for model feature.
         y_columns (List[str]): column names for target value.
         random_state (int): random seed for reproducibility.
@@ -321,7 +262,18 @@ def train_test_split_stratify(
     Returns (Dict[str, Any]):
         Dataset, statistics, and mapping information which could be used when training model.
     """
+    # load data
     review, diner, diner_with_raw_category = load_dataset(test=test)
+
+    # feature engineering
+    diner_fs = DinerFeatureStore(
+        review=review,
+        diner=diner,
+        features=diner_engineered_feature_names,
+    )
+    diner_fs.make_features()
+    diner = diner_fs.diner
+
     assert category_column_for_meta in diner_with_raw_category.columns
     review, diner = preprocess_common(
         review=review,
@@ -359,8 +311,7 @@ def train_test_split_stratify(
         train["badge_grade"] = le.fit_transform(train["badge_grade"])
         val["badge_grade"] = le.transform(val["badge_grade"])
 
-        # Preprocess and merge diner data
-        diner = preprocess_diner_data(diner)
+        # merge diner data
         train = train.merge(diner, on="diner_idx", how="inner").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )

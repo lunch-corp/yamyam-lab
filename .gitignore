@@ -8,7 +8,6 @@ __pycache__/
 .ipynb_checkpoints/
 .python-version
 
-res/models/*
 data/*.csv
 !data/REAMDE.md
 result/*
@@ -17,3 +16,7 @@ tests/result/*
 
 # line profile analysis file
 *.lprof
+
+
+data/.DS_Store
+data/dataset.zip

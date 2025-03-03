@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from prettytable import PrettyTable
 
 from data import load_test_dataset
-from rank import build_model
+from model.rank import build_model
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -46,7 +46,10 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
-    test, already_reviewed = load_test_dataset(cfg.user_name)
+    test, already_reviewed = load_test_dataset(
+        reviewer_id=cfg.user_name,
+        diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
+    )
     test["user_lat"] = cfg.user_lat
     test["user_lon"] = cfg.user_lon
 
@@ -69,16 +72,11 @@ def _main(cfg: DictConfig):
     test = test.head(cfg.top_n)
 
     table = PrettyTable()
-    table.field_names = ["diner_name", "diner_category_small", "url", "prediction"]
+    table.field_names = ["diner_name", "diner_category_small", "prediction"]
 
     for _, row in test.iterrows():
         table.add_row(
-            [
-                row["diner_name"],
-                row["diner_category_small"],
-                row["diner_url"],
-                row["prediction"],
-            ]
+            [row["diner_name"], row["diner_category_small"], row["prediction"]]
         )
 
     logging.info(
