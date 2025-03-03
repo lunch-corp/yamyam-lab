@@ -13,6 +13,7 @@ from torch_geometric.data import Data
 
 from constant.lib.h3 import RESOLUTION
 from data.dataset import load_dataset
+from preprocess.diner_transform import CategoryProcessor
 from preprocess.feature_store import DinerFeatureStore
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 
@@ -78,17 +79,26 @@ def preprocess_common(
         "diner_category_small",
         "diner_category_detail",
     ]
-    columns_exclude_category_columns = [
-        col for col in diner.columns if col not in category_columns
-    ]
+
+    if all(col in diner.columns for col in category_columns):
+        # `category_columns`을 제외한 컬럼 목록 생성 (집합 연산으로 최적화)
+        columns_exclude_category_columns = list(
+            set(diner.columns) - set(category_columns)
+        )
+        diner = diner[columns_exclude_category_columns]
+
+    # step 4: Logic for modifying restaurant categories
+    processor = CategoryProcessor(diner_with_raw_category)
+    diner_with_processd_category = processor.process_all().df
+
     diner = pd.merge(
-        left=diner[columns_exclude_category_columns],
-        right=diner_with_raw_category,
+        left=diner,
+        right=diner_with_processd_category,
         how="left",
         on="diner_idx",
     )
 
-    # step 4: temporary na filling
+    # step 5: temporary na filling
     diner["diner_category_large"] = diner["diner_category_large"].fillna("NA")
 
     return review, diner
