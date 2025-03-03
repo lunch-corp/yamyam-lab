@@ -60,6 +60,10 @@ def preprocess_common(
         Preprocessed review dataset and diner dataset.
     """
     # step 1: filter reviewers writing reviews greater than or equal to `min_reviews`
+    diner_counts = review["diner_idx"].value_counts()
+    valid_diners = diner_counts[diner_counts >= 3].index
+    review = review[review["diner_idx"].isin(valid_diners)]
+
     reviewer_counts = review["reviewer_id"].value_counts()
     valid_reviewers = reviewer_counts[reviewer_counts >= min_reviews].index
     review = review[review["reviewer_id"].isin(valid_reviewers)]
@@ -181,6 +185,13 @@ def map_id_to_ascending_integer(
         "user_mapping": reviewer_mapping,
         "meta_mapping": meta_mapping,
     }
+
+
+def make_feature(review: pd.DataFrame, diner: pd.DataFrame):
+    user_feature = make_user_feature(review=review)
+    diner_feature = make_diner_feature(review=review, diner=diner)
+    return user_feature, diner_feature
+
 
 
 def preprocess_diner_data_for_candidate_generation(
@@ -334,12 +345,23 @@ def train_test_split_stratify(
             **mapped_res,
         }
 
+    train = pd.merge(
+        left=train,
+        right=diner[["diner_idx", "diner_category_large", "diner_address_constituency"]],
+        how="left",
+        on="diner_idx"
+    )
+
+    user_feature, diner_feature = make_feature(review=train, diner=diner)
+
     return {
         "X_train": torch.tensor(train[X_columns].values),
         "y_train": torch.tensor(train[y_columns].values, dtype=torch.float32),
         "X_val": torch.tensor(val[X_columns].values),
         "y_val": torch.tensor(val[y_columns].values, dtype=torch.float32),
         "diner": diner,
+        "user_feature": user_feature,
+        "diner_feature": diner_feature,
         **mapped_res,
     }
 

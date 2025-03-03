@@ -30,7 +30,7 @@ def parse_args_embedding():
     parser = argparse.ArgumentParser()
     # common parameter
     parser.add_argument(
-        "--model", type=str, required=True, choices=["node2vec", "metapath2vec"]
+        "--model", type=str, required=True, choices=["node2vec", "metapath2vec", "graphsage"]
     )
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-2)
@@ -54,6 +54,9 @@ def parse_args_embedding():
     parser.add_argument(
         "--category_column_for_meta", type=str, default="diner_category_large"
     )
+
+    # graphsage parameter
+    parser.add_argument("--num_sage_layers", type=int, default=2)
 
     return parser.parse_args()
 

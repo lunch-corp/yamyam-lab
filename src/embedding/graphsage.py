@@ -1,9 +1,11 @@
 from typing import List, Tuple, Union
 
 import networkx as nx
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from networkx.classes import neighbors
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
@@ -14,11 +16,14 @@ class SageLayer(nn.Module):
         super().__init__()
         self.input_size = input_size
         self.output_size = output_size
-        self.weight = nn.Parameter(torch.FloatTensor(output_size, input_size * 2))
+        self.linear = nn.Linear(
+            in_features=input_size*2,
+            out_features=output_size,
+        )
 
-        self.init_params()
+        # self._init_params()
 
-    def init_params(self):
+    def _init_params(self):
         for param in self.parameters():
             nn.init.xavier_uniform_(param)
 
@@ -26,11 +31,11 @@ class SageLayer(nn.Module):
         concat_feat = torch.concat([self_feat, agg_feat], dim=0).unsqueeze(
             -1
         )  # (1, input_size*2)
-        out = F.relu(torch.mm(self.weight, concat_feat))  # (output_size, 1)
+        out = F.relu(self.linear(concat_feat))  # (output_size, 1)
         return out
 
 
-class GraphSage(BaseEmbedding):
+class Model(BaseEmbedding):
     def __init__(
         self,
         user_ids: Tensor,
@@ -40,10 +45,8 @@ class GraphSage(BaseEmbedding):
         embedding_dim: int,
         num_nodes: int,
         num_layers: int,
-        input_size: int,
-        out_size: int,
-        raw_features: torch.Tensor,
-        adj_lists,
+        user_raw_features: torch.Tensor,
+        diner_raw_features: torch.Tensor,
         agg_func: str = "MEAN",
         walks_per_node: int = 1,
         num_negative_samples: int = 1,
@@ -60,15 +63,37 @@ class GraphSage(BaseEmbedding):
             num_nodes=num_nodes,
         )
         self.num_layers = num_layers
-        self.input_size = input_size
-        self.output_size = out_size
-        self.raw_features = raw_features
-        self.adj_lists = adj_lists
+        self.user_raw_features = user_raw_features
+        self.diner_raw_features = diner_raw_features
         self.agg_func = agg_func
 
+        _, user_feature_input_size = user_raw_features.shape
+        _, diner_feature_input_size = diner_raw_features.shape
+
+        self.user_feature_layer = nn.Linear(embedding_dim, user_feature_input_size)
+        self.diner_feature_layer = nn.Linear(embedding_dim, diner_feature_input_size)
+
         for index in range(1, num_layers + 1):
-            layer_size = out_size if index != 1 else input_size
-            setattr(self, "sage_layer_" + str(index), SageLayer(layer_size, out_size))
+            layer_size = embedding_dim if index != 1 else embedding_dim
+            setattr(self, "sage_layer_" + str(index), SageLayer(layer_size, embedding_dim))
+
+    def forward(self, batch_nodes: Tensor):
+        B_ks = self._sample_from_batch(batch_nodes=batch_nodes)
+        pre_emb = self.raw_features
+        for i in range(self.num_layers):
+            B_k = B_ks[i]
+            cur_emb = torch.empty((len(B_k), self.output_size))
+            sage_layer = getattr(f"sage_layer_{i+1}")
+            for i,node in enumerate(B_k):
+                neighbors = self._sample_neighbors(node, num_samples=4)
+                pre_emb_neighbors = pre_emb[neighbors] # h^{k-1}_{u'}
+                cur_emb_neighbors = self.aggregate(pre_emb_neighbors)
+                pre_emb_node = pre_emb[node] # h^{k-1}_{u}
+                cur_emb_node = sage_layer(pre_emb_node, cur_emb_neighbors)
+                # normalize
+                cur_emb[i] = cur_emb_node
+            pre_emb = cur_emb
+        return cur_emb
 
     def pos_sample(self, batch: Tensor) -> Tensor:
         pass
@@ -81,6 +106,29 @@ class GraphSage(BaseEmbedding):
 
     def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
         pass
+
+    def _sample_neighbors(self, node: int, num_samples: int):
+        neighbors = list(self.graph.neighbors(node))
+        if len(neighbors) <= num_samples:
+            return neighbors
+        else:
+            return np.random.choice(neighbors, size=num_samples, replace=False)
+
+    def _sample_from_batch(self, batch_nodes: Tensor):
+        batches = [batch_nodes]
+        for _ in range(self.num_layers):
+            batch_nodes_cp = batch_nodes.detach().cpu().numpy()
+            neighbors = []
+            for node in batch_nodes_cp:
+                neighbors.append(self._sample_neighbors(node, 4))
+            batch_nodes_cp = np.concatenate(
+                (batch_nodes_cp, np.concatenate((neighbors)))
+            )
+            batches.append(torch.tensor(batch_nodes_cp))
+        return batches[::-1]
+
+    def aggregate(self, emb: Tensor):
+        return emb
 
 
 if __name__ == "__main__":

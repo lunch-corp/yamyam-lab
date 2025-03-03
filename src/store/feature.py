@@ -142,3 +142,45 @@ class DinerFeatureStore(BaseFeatureStore):
             "menu_count",
         ]:
             self.diner[col] = self.diner[col].fillna(self.diner[col].median())
+
+
+def make_user_feature(review: pd.DataFrame):
+    category_feat = (review.groupby(["reviewer_id", "diner_category_large"])
+               .size()
+               .unstack(fill_value=0)
+               .reset_index()
+               .sort_values(by="reviewer_id"))
+    score_feat = (review.groupby("reviewer_id")["reviewer_review_score"]
+                  .mean()
+                  .reset_index()
+                  .sort_values(by="reviewer_id"))
+    feat = pd.merge(
+        left=category_feat,
+        right=score_feat,
+        how="inner",
+        on="reviewer_id",
+    )
+    return feat.iloc[:, 1:].values
+
+
+def make_diner_feature(review: pd.DataFrame, diner: pd.DataFrame):
+    diner = diner.sort_values(by="diner_idx")
+    category_one_hot_feat = pd.get_dummies(diner["diner_category_large"], prefix="category_large").astype(int)
+    region_feat = pd.get_dummies(diner["diner_address_constituency"], prefix="category_large").astype(int)
+    score_feat = (review.groupby("diner_idx")["reviewer_review_score"]
+                  .mean()
+                  .to_dict())
+    diner_idx_not_exists = set(diner["diner_idx"].unique()) - set(review["diner_idx"].unique())
+    for diner_idx in diner_idx_not_exists:
+        score_feat[diner_idx] = 0
+    score_feat = (pd.DataFrame(score_feat.items(), columns=["diner_idx", "reviewer_review_score"])
+                  .sort_values(by="diner_idx")
+                  .values)
+    return np.concatenate(
+        [
+            category_one_hot_feat,
+            region_feat,
+            score_feat,
+        ],
+        axis=1
+    )

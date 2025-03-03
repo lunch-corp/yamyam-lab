@@ -47,6 +47,8 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger.info(
                 f"category column for node meta: {args.category_column_for_meta}"
             )
+        elif args.model == "graphsage":
+            logger.info(f"number of sage layers: {args.num_sage_layers}")
         logger.info(f"result path: {args.result_path}")
         logger.info(f"test: {args.test}")
 
@@ -95,7 +97,10 @@ def main(args: ArgumentParser.parse_args) -> None:
             q=args.q,
             p=args.p,
             top_k_values=top_k_values,
-            meta_path=args.meta_path,
+            meta_path=args.meta_path, # metapath2vec parameter
+            num_layers=args.num_sage_layers, # graphsage parameter
+            user_raw_features=data["user_feature"], # graphsage parameter
+            diner_raw_features=data["diner_feature"], # graphsage parameter
         ).to(DEVICE)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
