@@ -98,7 +98,7 @@ def setup_ranker_config(request) -> TestConfig:
             ],
         ),
         models=ModelConfig(
-            model_path="res/models/",
+            model_path=f"result/{model}/",
             results="ranker",
             name=model,
             params=OmegaConf.create(params),

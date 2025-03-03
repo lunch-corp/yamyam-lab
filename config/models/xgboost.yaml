@@ -1,6 +1,6 @@
 name: xgboost
 
-model_path: res/models/
+model_path: result/xgboost/
 results: xgb_ranker
 
 params:
