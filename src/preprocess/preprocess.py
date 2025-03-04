@@ -13,6 +13,7 @@ from torch_geometric.data import Data
 
 from constant.lib.h3 import RESOLUTION
 from data.dataset import load_dataset
+from data.validator import DataValidator
 from preprocess.diner_transform import CategoryProcessor
 from preprocess.feature_store import DinerFeatureStore
 from tools.h3 import get_h3_index, get_hexagon_neighbors
@@ -59,6 +60,12 @@ def preprocess_common(
     Returns (Tuple[pd.DataFrame, pd.DataFrame]):
         Preprocessed review dataset and diner dataset.
     """
+    # step 0: validate data
+    data_validator = DataValidator()
+    data_validator.validate(review, name_of_df="review")
+    data_validator.validate(diner, name_of_df="diner")
+    data_validator.validate(diner_with_raw_category, name_of_df="category")
+
     # step 1: filter reviewers writing reviews greater than or equal to `min_reviews`
     reviewer_counts = review["reviewer_id"].value_counts()
     valid_reviewers = reviewer_counts[reviewer_counts >= min_reviews].index
