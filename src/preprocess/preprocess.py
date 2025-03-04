@@ -64,7 +64,9 @@ def preprocess_common(
     data_validator = DataValidator()
     review = data_validator.validate(review, name_of_df="review")
     diner = data_validator.validate(diner, name_of_df="diner")
-    diner_with_raw_category = data_validator.validate(diner_with_raw_category, name_of_df="category")
+    diner_with_raw_category = data_validator.validate(
+        diner_with_raw_category, name_of_df="category"
+    )
 
     # step 1: filter reviewers writing reviews greater than or equal to `min_reviews`
     reviewer_counts = review["reviewer_id"].value_counts()
