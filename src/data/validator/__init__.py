@@ -9,7 +9,7 @@ class DataValidator:
     def __init__(self):
         self.reviewer_schema = schemas.ReviewerSchema
         self.category_schema = schemas.CategorySchema
-        self.review_schema = schemas.ReviewerSchema
+        self.review_schema = schemas.ReviewSchema
         self.diner_schema = schemas.DinerSchema
 
     def validate(
