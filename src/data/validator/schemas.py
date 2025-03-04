@@ -1,6 +1,5 @@
 import pandera as pa
 from pandera.typing import Series
-import pandas as pd
 
 # 값의 범위 설정
 PRICE_MIN: int = 0  # 최소 가격
@@ -12,6 +11,7 @@ LON_MAX: float = 132.0  # 최대 경도
 REVIEW_SCORE_MIN: float = 0.0  # 최소 리뷰 점수
 REVIEW_SCORE_MAX: float = 5.0  # 최대 리뷰 점수
 
+
 class ReviewerSchema(pa.DataFrameModel):
     reviewer_id: Series[int] = pa.Field(nullable=False, unique=True)
     reviewer_user_name: Series[str] = pa.Field(nullable=True)
@@ -19,12 +19,14 @@ class ReviewerSchema(pa.DataFrameModel):
     badge_grade: Series[str] = pa.Field(nullable=True)
     badge_level: Series[int] = pa.Field(nullable=True)
 
+
 class CategorySchema(pa.DataFrameModel):
     diner_idx: Series[float] = pa.Field(nullable=False, unique=True, coerce=True)
     industry_category: Series[str] = pa.Field(nullable=True)
     diner_category_large: Series[str] = pa.Field(nullable=True)
     diner_category_middle: Series[str] = pa.Field(nullable=True)
     diner_category_small: Series[str] = pa.Field(nullable=True)
+
 
 class ReviewSchema(pa.DataFrameModel):
     diner_idx: Series[float] = pa.Field(nullable=False, unique=False, coerce=True)
@@ -34,17 +36,16 @@ class ReviewSchema(pa.DataFrameModel):
     reviewer_review_date: Series[str] = pa.Field(nullable=True)
     reviewer_review_score: Series[float] = pa.Field(
         nullable=True,
-        in_range={"min_value": REVIEW_SCORE_MIN, "max_value": REVIEW_SCORE_MAX}
+        in_range={"min_value": REVIEW_SCORE_MIN, "max_value": REVIEW_SCORE_MAX},
     )
+
 
 class DinerSchema(pa.DataFrameModel):
     diner_idx: Series[float] = pa.Field(nullable=False, unique=True, coerce=True)
     diner_name: Series[str] = pa.Field(nullable=True)
     diner_tag: Series[str] = pa.Field(nullable=True)
     diner_menu_name: Series[str] = pa.Field(nullable=True)
-    diner_menu_price: Series[str] = pa.Field(
-        nullable=True
-    )
+    diner_menu_price: Series[str] = pa.Field(nullable=True)
     # "[1, 2, 3]" , 변환전이라 검증이 안됨
     # diner_menu_price: Series[float] = pa.Field(
     #     nullable=True,
@@ -58,12 +59,10 @@ class DinerSchema(pa.DataFrameModel):
     diner_num_address: Series[str] = pa.Field(nullable=True)
     diner_phone: Series[str] = pa.Field(nullable=True)
     diner_lat: Series[float] = pa.Field(
-        nullable=True,
-        in_range={"min_value": LAT_MIN, "max_value": LAT_MAX}
+        nullable=True, in_range={"min_value": LAT_MIN, "max_value": LAT_MAX}
     )
     diner_lon: Series[float] = pa.Field(
-        nullable=True,
-        in_range={"min_value": LON_MIN, "max_value": LON_MAX}
+        nullable=True, in_range={"min_value": LON_MIN, "max_value": LON_MAX}
     )
     diner_open_time: Series[str] = pa.Field(nullable=True)
     diner_open_time_titles: Series[str] = pa.Field(nullable=True)
