@@ -10,7 +10,6 @@ from prettytable import PrettyTable
 
 from data import load_test_dataset
 from model.rank import build_model
-import time
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -64,7 +63,6 @@ def geocoding(address: str) -> list[float]:
 
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
-    start_time = time.time()
     test, already_reviewed = load_test_dataset(
         reviewer_id=cfg.user_name,
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
@@ -102,7 +100,6 @@ def _main(cfg: DictConfig):
         f"{test['reviewer_user_name'].values[0]}님을 위한 추천 식당 리스트를 알립니다.\n{table}"
     )
 
-    logging.info(f"Total time taken: {time.time() - start_time:.2f} seconds")
 
 if __name__ == "__main__":
     _main()
