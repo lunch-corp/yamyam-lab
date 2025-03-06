@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
-import math
 
 import hydra
+import numpy as np
+import pandas as pd
 from geopy.geocoders import Nominatim
 from omegaconf import DictConfig
 from prettytable import PrettyTable
@@ -12,37 +13,37 @@ from data import load_test_dataset
 from model.rank import build_model
 
 
-def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+def haversine_series(
+    reviewer_lat: float, reviewer_lon: float, diner_lat: pd.Series, diner_lon: pd.Series
+) -> np.ndarray:
     """
-    Calculate the great-circle distance between two points
-    on the Earth's surface using the Haversine formula.
+    Compute the great-circle distance between a single point (lat1, lon1) and multiple points (lat2, lon2)
+    using the Haversine formula in a vectorized way.
 
     Parameters:
-        lat1, lon1: Latitude and longitude of the first point in decimal degrees
-        lat2, lon2: Latitude and longitude of the second point in decimal degrees
+        lat1, lon1: Single latitude and longitude in decimal degrees (float)
+        lat2, lon2: Pandas Series of latitude and longitude in decimal degrees
 
     Returns:
-        Distance between the two points in kilometers
+        Pandas Series of distances in kilometers
     """
-    # Convert latitude and longitude from degrees to radians
-    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    # Convert degrees to radians
+    reviewer_lat, reviewer_lon = np.radians(reviewer_lat), np.radians(reviewer_lon)
+    diner_lat, diner_lon = np.radians(diner_lat), np.radians(diner_lon)
 
     # Haversine formula
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
+    dlat = diner_lat - reviewer_lat
+    dlon = diner_lon - reviewer_lon
     a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        np.sin(dlat / 2) ** 2
+        + np.cos(reviewer_lat) * np.cos(diner_lat) * np.sin(dlon / 2) ** 2
     )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
 
     # Earth's radius in kilometers
     radius = 6371.0
 
-    # Calculate the distance
-    distance = radius * c
-
-    return distance
+    return radius * c
 
 
 # 예제 데이터 : df_shake
@@ -67,14 +68,10 @@ def _main(cfg: DictConfig):
         reviewer_id=cfg.user_name,
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
     )
-    test["user_lat"] = geocoding(cfg.user_address)[0]
-    test["user_lon"] = geocoding(cfg.user_address)[1]
 
-    test["distance"] = test.apply(
-        lambda x: haversine(
-            x["user_lat"], x["user_lon"], x["diner_lat"], x["diner_lon"]
-        ),
-        axis=1,
+    user_lat, user_lon = geocoding(cfg.user_address)
+    test["distance"] = haversine_series(
+        user_lat, user_lon, test["diner_lat"], test["diner_lon"]
     )
     test = test.loc[test["distance"] <= cfg.distance_threshold]
     X_test = test[cfg.data.features]
