@@ -13,19 +13,21 @@ from data import load_test_dataset
 from model.rank import build_model
 
 
-def haversine_series(
+def haversine(
     reviewer_lat: float, reviewer_lon: float, diner_lat: pd.Series, diner_lon: pd.Series
 ) -> np.ndarray:
     """
     Compute the great-circle distance between a single point (lat1, lon1) and multiple points (lat2, lon2)
     using the Haversine formula in a vectorized way.
 
-    Parameters:
-        lat1, lon1: Single latitude and longitude in decimal degrees (float)
-        lat2, lon2: Pandas Series of latitude and longitude in decimal degrees
+    Args:
+        reviewer_lat (float): Latitude of the reviewer.
+        reviewer_lon (float): Longitude of the reviewer.
+        diner_lat (pd.Series): Latitude of the diners.
+        diner_lon (pd.Series): Longitude of the diners.
 
     Returns:
-        Pandas Series of distances in kilometers
+        np.ndarray: Array of distances.
     """
     # Convert degrees to radians
     reviewer_lat, reviewer_lon = np.radians(reviewer_lat), np.radians(reviewer_lon)
@@ -70,7 +72,7 @@ def _main(cfg: DictConfig):
     )
 
     user_lat, user_lon = geocoding(cfg.user_address)
-    test["distance"] = haversine_series(
+    test["distance"] = haversine(
         user_lat, user_lon, test["diner_lat"], test["diner_lon"]
     )
     test = test.loc[test["distance"] <= cfg.distance_threshold]
