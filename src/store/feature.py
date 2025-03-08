@@ -4,8 +4,10 @@ from typing import List, Self
 import numpy as np
 import pandas as pd
 
+from store.base import BaseFeatureStore
 
-class DinerFeatureStore:
+
+class DinerFeatureStore(BaseFeatureStore):
     def __init__(
         self: Self, review: pd.DataFrame, diner: pd.DataFrame, features: List[str]
     ):
@@ -19,25 +21,17 @@ class DinerFeatureStore:
             diner (pd.DataFrame): Diner data.
             features (List[str]): List of features to make.
         """
-        self.review = review
-        self.diner = diner
+        super().__init__(review, diner, features)
+
         self.feature_methods = {
             "all_review_cnt": self.calculate_all_review_cnt,
             "diner_review_tags": self.calculate_diner_score,
             "diner_menu_price": self.calculate_diner_price,
         }
+
         for feature in features:
             if feature not in self.feature_methods.keys():
                 raise ValueError(f"{feature} not matched with implemented method")
-        self.features = features
-
-    def make_features(self: Self) -> None:
-        """
-        Feature engineer using `self.features`.
-        """
-        for feature in self.features:
-            featuren_eng_func = self.feature_methods[feature]
-            featuren_eng_func()
 
     def calculate_all_review_cnt(self: Self) -> None:
         """
