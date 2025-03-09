@@ -20,14 +20,21 @@ from preprocess.preprocess import (
     prepare_networkx_undirected_graph,
     train_test_split_stratify,
 )
+from tools.config import load_yaml
 from tools.logger import setup_logger
 from tools.parse_args import parse_args_embedding
 from tools.plot import plot_metric_at_k
 
 
+CONFIG_PATH = os.path.join(
+    os.path.dirname(__file__), "../config/data/embedding.yaml"
+)
+
+
 def main(args: ArgumentParser.parse_args) -> None:
     os.makedirs(args.result_path, exist_ok=True)
     logger = setup_logger(os.path.join(args.result_path, FileName.LOG.value))
+    config = load_yaml(CONFIG_PATH)
 
     try:
         logger.info(f"embedding model: {args.model}")
@@ -59,6 +66,8 @@ def main(args: ArgumentParser.parse_args) -> None:
             y_columns=["reviewer_review_score"],
             is_graph_model=True,
             category_column_for_meta=args.category_column_for_meta,
+            user_engineered_feature_names=config.user_engineered_feature_names,
+            diner_engineered_feature_names=config.diner_engineered_feature_names,
             test=args.test,
         )
         train_graph, val_graph = prepare_networkx_undirected_graph(

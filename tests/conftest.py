@@ -13,7 +13,7 @@ class DataConfig:
     min_reviews: int
     features: List[str]
     cat_features: List[str]
-    diner_engineered_feature_names: List[str]
+    diner_engineered_feature_names: List[Dict[str, Any]]
 
 
 @dataclass
@@ -92,9 +92,11 @@ def setup_ranker_config(request) -> TestConfig:
             ],
             cat_features=["diner_review_cnt_category", "badge_level", "badge_grade"],
             diner_engineered_feature_names=[
-                "all_review_cnt",
-                "diner_review_tags",
-                "diner_menu_price",
+                {
+                    "all_review_cnt": {},
+                    "diner_review_tags": {},
+                    "diner_menu_price": {},
+                }
             ],
         ),
         models=ModelConfig(
