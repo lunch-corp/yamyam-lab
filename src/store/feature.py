@@ -36,7 +36,7 @@ class DinerFeatureStore(BaseFeatureStore):
                 raise ValueError(f"{feat} not matched with implemented method")
         self.feature_param_pair = feature_param_pair
 
-        self.engineered_feature_names = []
+        self.engineered_feature_names = ["diner_idx"]
 
     def make_features(self: Self) -> None:
         """
@@ -259,5 +259,5 @@ class UserFeatureStore:
             on="reviewer_id",
         )
 
-    def _get_user_feature(self: Self) -> pd.DataFrame:
+    def _get_engineered_features(self: Self) -> pd.DataFrame:
         return self.user

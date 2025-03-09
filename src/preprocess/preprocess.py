@@ -111,6 +111,8 @@ def preprocess_common(
 def map_id_to_ascending_integer(
     review: pd.DataFrame,
     diner: pd.DataFrame,
+    user_feature: pd.DataFrame,
+    diner_feature: pd.DataFrame,
     is_graph_model: bool = False,
     category_column_for_meta: str = "diner_category_large",
 ) -> Dict[str, Any]:
@@ -154,6 +156,9 @@ def map_id_to_ascending_integer(
     review["reviewer_id"] = review["reviewer_id"].map(reviewer_mapping)
     diner["diner_idx"] = diner["diner_idx"].map(diner_mapping)
 
+    user_feature["reviewer_id"] = user_feature["reviewer_id"].map(reviewer_mapping)
+    diner_feature["diner_idx"] = diner_feature["diner_idx"].map(diner_mapping)
+
     # metadata preprocessing
     if is_graph_model:
         diner = preprocess_diner_data_for_candidate_generation(
@@ -178,6 +183,8 @@ def map_id_to_ascending_integer(
     return {
         "review": review,
         "diner": diner,
+        "user_feature": user_feature,
+        "diner_feature": diner_feature,
         "num_diners": num_diners,
         "num_users": num_users,
         "num_metas": len(meta_mapping) if meta_mapping else 0,
@@ -293,6 +300,7 @@ def train_test_split_stratify(
         feature_param_pair=user_engineered_feature_names,
     )
     user_fs.make_features()
+    user_feature = user_fs._get_engineered_features()
 
     # diner feature engineering
     diner_fs = DinerFeatureStore(
@@ -301,20 +309,20 @@ def train_test_split_stratify(
         feature_param_pair=diner_engineered_feature_names,
     )
     diner_fs.make_features()
-    diner = diner_fs.diner
+    diner_feature = diner_fs._get_engineered_features()
 
     mapped_res = map_id_to_ascending_integer(
         review=review,
         diner=diner,
+        user_feature=user_feature,
+        diner_feature=diner_feature,
         is_graph_model=is_graph_model,
         category_column_for_meta=category_column_for_meta,
     )
 
     review = mapped_res.get("review")
-    diner = mapped_res.get("diner")
+    diner = mapped_res.get("diner_feature")
     mapped_res = {k: v for k, v in mapped_res.items() if k not in ["review", "diner"]}
-    mapped_res["user_feature"] = user_fs._get_user_feature()
-    mapped_res["diner_feature"] = diner_fs._get_engineered_features()
 
     train, val = train_test_split(
         review,
