@@ -1,9 +1,10 @@
+from abc import ABC, abstractmethod
 from typing import List, Self
 
 import pandas as pd
 
 
-class BaseFeatureStore:
+class BaseFeatureStore(ABC):
     def __init__(
         self: Self, review: pd.DataFrame, diner: pd.DataFrame, features: List[str]
     ):
@@ -22,10 +23,9 @@ class BaseFeatureStore:
         self.features = features
         self.feature_methods = {}
 
+    @abstractmethod
     def make_features(self: Self) -> None:
         """
         Feature engineer using `self.features`.
         """
-        for feature in self.features:
-            featuren_eng_func = self.feature_methods[feature]
-            featuren_eng_func()
+        raise NotImplementedError

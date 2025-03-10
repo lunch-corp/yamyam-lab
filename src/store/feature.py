@@ -33,6 +33,11 @@ class DinerFeatureStore(BaseFeatureStore):
             if feature not in self.feature_methods.keys():
                 raise ValueError(f"{feature} not matched with implemented method")
 
+    def make_features(self: Self) -> None:
+        for feature in self.features:
+            featuren_eng_func = self.feature_methods[feature]
+            featuren_eng_func()
+
     def calculate_all_review_cnt(self: Self) -> None:
         """
         Calculate number of review counts for each diner.
