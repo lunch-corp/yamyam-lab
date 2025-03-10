@@ -13,19 +13,21 @@ from data import load_test_dataset
 from model.rank import build_model
 
 
-def haversine_series(
+def haversine(
     reviewer_lat: float, reviewer_lon: float, diner_lat: pd.Series, diner_lon: pd.Series
-) -> pd.Series:
+) -> np.ndarray:
     """
     Compute the great-circle distance between a single point (lat1, lon1) and multiple points (lat2, lon2)
     using the Haversine formula in a vectorized way.
 
-    Parameters:
-        lat1, lon1: Single latitude and longitude in decimal degrees (float)
-        lat2, lon2: Pandas Series of latitude and longitude in decimal degrees
+    Args:
+        reviewer_lat (float): Latitude of the reviewer.
+        reviewer_lon (float): Longitude of the reviewer.
+        diner_lat (pd.Series): Latitude of the diners.
+        diner_lon (pd.Series): Longitude of the diners.
 
     Returns:
-        Pandas Series of distances in kilometers
+        np.ndarray: Array of distances.
     """
     # Convert degrees to radians
     reviewer_lat, reviewer_lon = np.radians(reviewer_lat), np.radians(reviewer_lon)
@@ -43,7 +45,7 @@ def haversine_series(
     # Earth's radius in kilometers
     radius = 6371.0
 
-    return pd.Series(radius * c)
+    return radius * c
 
 
 # 예제 데이터 : df_shake
@@ -69,11 +71,9 @@ def _main(cfg: DictConfig):
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
     )
 
-    test["distance"] = haversine_series(
-        geocoding(cfg.user_address)[0],
-        geocoding(cfg.user_address)[1],
-        test["diner_lat"],
-        test["diner_lon"],
+    user_lat, user_lon = geocoding(cfg.user_address)
+    test["distance"] = haversine(
+        user_lat, user_lon, test["diner_lat"], test["diner_lon"]
     )
     test = test.loc[test["distance"] <= cfg.distance_threshold]
     X_test = test[cfg.data.features]
@@ -84,15 +84,15 @@ def _main(cfg: DictConfig):
 
     test["prediction"] = predictions
     test = test.sort_values(by=["prediction"], ascending=False)
-    test = test.loc[(test["diner_category_middle"].isin([*cfg.diner_category_middle]))]
+    test = test.loc[(test["diner_category_large"].isin([*cfg.diner_category_large]))]
     test = test.head(cfg.top_n)
 
     table = PrettyTable()
-    table.field_names = ["diner_name", "diner_category_small", "prediction"]
+    table.field_names = ["diner_name", "diner_category_middle", "prediction"]
 
     for _, row in test.iterrows():
         table.add_row(
-            [row["diner_name"], row["diner_category_small"], row["prediction"]]
+            [row["diner_name"], row["diner_category_middle"], row["prediction"]]
         )
 
     logging.info(
