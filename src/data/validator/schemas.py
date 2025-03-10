@@ -1,3 +1,5 @@
+from typing import List
+
 import pandera as pa
 from pandera.typing import Series
 
@@ -43,30 +45,38 @@ class ReviewSchema(pa.DataFrameModel):
 class DinerSchema(pa.DataFrameModel):
     diner_idx: Series[float] = pa.Field(nullable=False, unique=True, coerce=True)
     diner_name: Series[str] = pa.Field(nullable=True)
-    diner_tag: Series[str] = pa.Field(nullable=True)
-    diner_menu_name: Series[str] = pa.Field(nullable=True)
-    diner_menu_price: Series[str] = pa.Field(nullable=True)
-    # "[1, 2, 3]" , 변환전이라 검증이 안됨
-    # diner_menu_price: Series[float] = pa.Field(
-    #     nullable=True,
-    #     in_range={"min_value": PRICE_MIN, "max_value": PRICE_MAX}
-    # )
+    diner_tag: Series[List[str]] = pa.Field(nullable=True)
+    diner_menu_name: Series[List[str]] = pa.Field(nullable=True)
+    diner_menu_price: Series[List[int]] = pa.Field(nullable=True)
     diner_review_cnt: Series[int] = pa.Field(nullable=True, coerce=True)
     diner_review_avg: Series[float] = pa.Field(nullable=True)
     diner_blog_review_cnt: Series[float] = pa.Field(nullable=True)
-    diner_review_tags: Series[str] = pa.Field(nullable=True)
+    diner_review_tags: Series[List[str]] = pa.Field(nullable=True)
     diner_road_address: Series[str] = pa.Field(nullable=True)
     diner_num_address: Series[str] = pa.Field(nullable=True)
     diner_phone: Series[str] = pa.Field(nullable=True)
-    diner_lat: Series[float] = pa.Field(
-        nullable=True, in_range={"min_value": LAT_MIN, "max_value": LAT_MAX}
-    )
-    diner_lon: Series[float] = pa.Field(
-        nullable=True, in_range={"min_value": LON_MIN, "max_value": LON_MAX}
-    )
+    # diner_lat: Series[float] = pa.Field(
+    #     nullable=True, in_range={"min_value": LAT_MIN, "max_value": LAT_MAX}
+    # )
+    diner_lat: Series[float] = pa.Field(nullable=True)
+    # diner_lon: Series[float] = pa.Field(
+    #     nullable=True, in_range={"min_value": LON_MIN, "max_value": LON_MAX}
+    # )
+    diner_lon: Series[float] = pa.Field(nullable=True)
     diner_open_time: Series[str] = pa.Field(nullable=True)
-    diner_open_time_titles: Series[str] = pa.Field(nullable=True)
-    diner_open_time_hours: Series[str] = pa.Field(nullable=True)
-    diner_open_time_off_days_title: Series[str] = pa.Field(nullable=True)
-    diner_open_time_off_days_hours: Series[str] = pa.Field(nullable=True)
+    diner_open_time_titles: Series[List[str]] = pa.Field(nullable=True)
+    diner_open_time_hours: Series[List[str]] = pa.Field(nullable=True)
+    diner_open_time_off_days_title: Series[List[str]] = pa.Field(nullable=True)
+    diner_open_time_off_days_hours: Series[List[str]] = pa.Field(nullable=True)
     bayesian_score: Series[float] = pa.Field(nullable=True)
+
+    @pa.check("diner_menu_price")
+    def custom_check(cls, diner_menu_price: Series[List[int]]) -> Series[bool]:
+        PRICE_MIN: int = 0  # 최소 가격
+        PRICE_MAX: int = 1000000  # 최대 가격
+
+        return diner_menu_price.apply(
+            lambda prices: all(PRICE_MIN <= price <= PRICE_MAX for price in prices)
+            if isinstance(prices, list)
+            else False
+        )
