@@ -28,7 +28,7 @@ user_name: 3830746302
 top_n: 20
 user_address: 광운대학교
 distance_threshold: 0.5
-diner_category_middle:
+diner_category_large:
 - 육류,고기
 - 해물,생선
 - 치킨
