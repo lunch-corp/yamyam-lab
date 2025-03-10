@@ -84,15 +84,15 @@ def _main(cfg: DictConfig):
 
     test["prediction"] = predictions
     test = test.sort_values(by=["prediction"], ascending=False)
-    test = test.loc[(test["diner_category_middle"].isin([*cfg.diner_category_middle]))]
+    test = test.loc[(test["diner_category_large"].isin([*cfg.diner_category_large]))]
     test = test.head(cfg.top_n)
 
     table = PrettyTable()
-    table.field_names = ["diner_name", "diner_category_small", "prediction"]
+    table.field_names = ["diner_name", "diner_category_middle", "prediction"]
 
     for _, row in test.iterrows():
         table.add_row(
-            [row["diner_name"], row["diner_category_small"], row["prediction"]]
+            [row["diner_name"], row["diner_category_middle"], row["prediction"]]
         )
 
     logging.info(
