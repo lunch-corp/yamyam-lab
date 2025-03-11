@@ -3,7 +3,7 @@ from typing import List, Tuple
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
-from preprocess.feature_store import DinerFeatureStore
+from store.feature import DinerFeatureStore
 from tools.google_drive import ensure_data_files
 
 

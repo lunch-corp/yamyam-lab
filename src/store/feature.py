@@ -4,8 +4,10 @@ from typing import List, Self
 import numpy as np
 import pandas as pd
 
+from store.base import BaseFeatureStore
 
-class DinerFeatureStore:
+
+class DinerFeatureStore(BaseFeatureStore):
     def __init__(
         self: Self, review: pd.DataFrame, diner: pd.DataFrame, features: List[str]
     ):
@@ -19,22 +21,19 @@ class DinerFeatureStore:
             diner (pd.DataFrame): Diner data.
             features (List[str]): List of features to make.
         """
-        self.review = review
-        self.diner = diner
+        super().__init__(review, diner, features)
+
         self.feature_methods = {
             "all_review_cnt": self.calculate_all_review_cnt,
             "diner_review_tags": self.calculate_diner_score,
             "diner_menu_price": self.calculate_diner_price,
         }
+
         for feature in features:
             if feature not in self.feature_methods.keys():
                 raise ValueError(f"{feature} not matched with implemented method")
-        self.features = features
 
     def make_features(self: Self) -> None:
-        """
-        Feature engineer using `self.features`.
-        """
         for feature in self.features:
             featuren_eng_func = self.feature_methods[feature]
             featuren_eng_func()
@@ -77,17 +76,25 @@ class DinerFeatureStore:
     def _extract_scores_array(
         self: Self, reviews: str, categories: list[tuple[str, str]]
     ) -> np.ndarray:
-        # 리뷰 데이터를 파싱하여 배열로 변환
-        parsed = [[] if pd.isna(review) else eval(review) for review in reviews]
-        # 카테고리별 점수 초기화 (rows x categories)
+        # 카테고리 인덱스 매핑
+        category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
+
+        # 결과 배열 초기화
         scores = np.zeros((len(reviews), len(categories)), dtype=int)
 
-        # 각 리뷰에서 카테고리 점수 추출
-        category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
-        for row_idx, review in enumerate(parsed):
-            for cat, score in review:
-                if cat in category_map:  # 해당 카테고리가 정의된 경우
-                    scores[row_idx, category_map[cat]] = score
+        # 리뷰 파싱 후 벡터화
+        for i, review in enumerate(reviews):
+            if pd.isna(review):  # 결측치 예외 처리
+                continue
+
+            try:
+                parsed_review = ast.literal_eval(review)  # 안전한 문자열 평가
+                for cat, score in parsed_review:
+                    if cat in category_map:
+                        scores[i, category_map[cat]] = score
+
+            except (SyntaxError, ValueError, TypeError):
+                continue  # 파싱 에러 방지
 
         return scores
 

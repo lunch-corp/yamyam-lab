@@ -15,7 +15,7 @@ from constant.lib.h3 import RESOLUTION
 from data.dataset import load_dataset
 from data.validator import DataValidator
 from preprocess.diner_transform import CategoryProcessor
-from preprocess.feature_store import DinerFeatureStore
+from store.feature import DinerFeatureStore
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")

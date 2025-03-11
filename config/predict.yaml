@@ -26,10 +26,9 @@ model_path: res/models/
 results: lightgbm_ranker
 user_name: 3830746302
 top_n: 20
-user_lat: 37.498095
-user_lon: 127.027610
-distance_threshold: 1
-diner_category_middle:
+user_address: 광운대학교
+distance_threshold: 0.5
+diner_category_large:
 - 육류,고기
 - 해물,생선
 - 치킨

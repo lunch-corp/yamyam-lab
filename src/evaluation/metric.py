@@ -19,7 +19,7 @@ def ranking_metrics_at_k(
     liked_items: NDArray,
     reco_items: NDArray,
 ) -> Dict[str, float]:
-    """
+    r"""
     References
     - https://sdsawtelle.github.io/blog/output/mean-average-precision-MAP-for-recommender-systems.html
     - https://gist.github.com/bwhite/3726239
