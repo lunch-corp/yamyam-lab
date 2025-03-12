@@ -188,10 +188,10 @@ def map_id_to_ascending_integer(
 
 
 def make_feature(
-        review: pd.DataFrame,
-        diner: pd.DataFrame,
-        user_engineered_feature_names: Dict[str, Dict[str, Any]],
-        diner_engineered_feature_names: Dict[str, Dict[str, Any]],
+    review: pd.DataFrame,
+    diner: pd.DataFrame,
+    user_engineered_feature_names: Dict[str, Dict[str, Any]],
+    diner_engineered_feature_names: Dict[str, Dict[str, Any]],
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     # user feature engineering
     user_fs = UserFeatureStore(
@@ -372,17 +372,13 @@ def train_test_split_stratify(
         "y_val": torch.tensor(val[y_columns].values, dtype=torch.float32),
         "diner": diner,
         "user_feature": torch.tensor(
-            user_feature
-            .sort_values(by="reviewer_id")
+            user_feature.sort_values(by="reviewer_id")
             .drop("reviewer_id", axis=1)
             .values,
-            dtype=torch.float32
+            dtype=torch.float32,
         ),
         "diner_feature": torch.tensor(
-            diner_feature
-            .sort_values(by="diner_idx")
-            .drop("diner_idx", axis=1)
-            .values,
+            diner_feature.sort_values(by="diner_idx").drop("diner_idx", axis=1).values,
             dtype=torch.float32,
         ),
         **mapped_res,

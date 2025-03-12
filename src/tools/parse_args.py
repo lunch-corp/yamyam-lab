@@ -30,7 +30,10 @@ def parse_args_embedding():
     parser = argparse.ArgumentParser()
     # common parameter
     parser.add_argument(
-        "--model", type=str, required=True, choices=["node2vec", "metapath2vec", "graphsage"]
+        "--model",
+        type=str,
+        required=True,
+        choices=["node2vec", "metapath2vec", "graphsage"],
     )
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-2)

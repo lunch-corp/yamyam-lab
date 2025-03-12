@@ -25,10 +25,7 @@ from tools.logger import setup_logger
 from tools.parse_args import parse_args_embedding
 from tools.plot import plot_metric_at_k
 
-
-CONFIG_PATH = os.path.join(
-    os.path.dirname(__file__), "../config/data/embedding.yaml"
-)
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/data/embedding.yaml")
 
 
 def main(args: ArgumentParser.parse_args) -> None:
@@ -109,10 +106,10 @@ def main(args: ArgumentParser.parse_args) -> None:
             p=args.p,
             top_k_values=top_k_values,
             model_name=args.model,
-            meta_path=args.meta_path, # metapath2vec parameter
-            num_layers=args.num_sage_layers, # graphsage parameter
-            user_raw_features=data["user_feature"], # graphsage parameter
-            diner_raw_features=data["diner_feature"], # graphsage parameter
+            meta_path=args.meta_path,  # metapath2vec parameter
+            num_layers=args.num_sage_layers,  # graphsage parameter
+            user_raw_features=data["user_feature"],  # graphsage parameter
+            diner_raw_features=data["diner_feature"],  # graphsage parameter
         ).to(DEVICE)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
@@ -153,7 +150,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                 # in last epoch when training graphsage,
                 # propagation should be run to store embeddings for each node
                 if epoch == args.epochs - 1 and args.model == "graphsage":
-                    batch_nodes = pos_rw[:,0]
+                    batch_nodes = pos_rw[:, 0]
                     model.propagate_and_store_embedding(batch_nodes)
             total_loss /= len(loader)
             model.tr_loss.append(total_loss)

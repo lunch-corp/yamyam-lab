@@ -1,5 +1,5 @@
 import ast
-from typing import List, Self, Dict, Any
+from typing import Any, Dict, List, Self
 
 import numpy as np
 import pandas as pd
@@ -9,7 +9,10 @@ from store.base import BaseFeatureStore
 
 class DinerFeatureStore(BaseFeatureStore):
     def __init__(
-        self: Self, review: pd.DataFrame, diner: pd.DataFrame, feature_param_pair: Dict[str, Dict[str, Any]]
+        self: Self,
+        review: pd.DataFrame,
+        diner: pd.DataFrame,
+        feature_param_pair: Dict[str, Dict[str, Any]],
     ):
         """
         Feature engineering on diner data.
@@ -54,7 +57,9 @@ class DinerFeatureStore(BaseFeatureStore):
         Calculate number of review counts for each diner.
         """
         diner_idx2review_cnt = self.review["diner_idx"].value_counts().to_dict()
-        self.diner["all_review_cnt"] = self.diner["diner_idx"].map(diner_idx2review_cnt).fillna(0)
+        self.diner["all_review_cnt"] = (
+            self.diner["diner_idx"].map(diner_idx2review_cnt).fillna(0)
+        )
         self.engineered_feature_names.append("all_review_cnt")
 
     def calculate_diner_score(self: Self, **kwargs) -> None:
@@ -114,11 +119,13 @@ class DinerFeatureStore(BaseFeatureStore):
         """
         Calculates mean review score from review data.
         """
-        diner_id2score = (self.review.groupby("diner_idx")["reviewer_review_score"]
-                          .mean()
-                          .to_dict())
+        diner_id2score = (
+            self.review.groupby("diner_idx")["reviewer_review_score"].mean().to_dict()
+        )
         # diners that do not have any reviews
-        diner_id_not_exists = set(self.diner["diner_idx"].unique()) - set(self.review["diner_idx"].unique())
+        diner_id_not_exists = set(self.diner["diner_idx"].unique()) - set(
+            self.review["diner_idx"].unique()
+        )
         for diner_id in diner_id_not_exists:
             # processing null values as zero could trigger bias
             # because it treats diners to have lowest review scores
@@ -128,11 +135,11 @@ class DinerFeatureStore(BaseFeatureStore):
         self.engineered_feature_names.append("mean_review_score")
 
     def one_hot_encoding_categorical_features(
-            self: Self,
-            categorical_feature_name: List[str],
-            drop_first: bool = False,
-            **kwargs
-    )-> None:
+        self: Self,
+        categorical_feature_name: List[str],
+        drop_first: bool = False,
+        **kwargs,
+    ) -> None:
         """
         One hot encoding categorical features.
         This method converts a categorical feature with C categories into one-hot encoded C dimensional features.
@@ -153,9 +160,7 @@ class DinerFeatureStore(BaseFeatureStore):
             ).astype(int)
             self.diner = pd.concat([self.diner, one_hot_encoding_feat], axis=1)
 
-            self.engineered_feature_names.extend(
-                list(one_hot_encoding_feat.columns)
-            )
+            self.engineered_feature_names.extend(list(one_hot_encoding_feat.columns))
 
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
     def _extract_statistics(self: Self, prices: str) -> pd.Series:
@@ -186,7 +191,7 @@ class DinerFeatureStore(BaseFeatureStore):
 
     # numpy 기반으로 점수 추출 최적화
     def _extract_scores_array(
-            self: Self, reviews: str, categories: list[tuple[str, str]]
+        self: Self, reviews: str, categories: list[tuple[str, str]]
     ) -> np.ndarray:
         # 카테고리 인덱스 매핑
         category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
@@ -222,7 +227,10 @@ class DinerFeatureStore(BaseFeatureStore):
 
 class UserFeatureStore(BaseFeatureStore):
     def __init__(
-        self: Self, review: pd.DataFrame, diner: pd.DataFrame, feature_param_pair: Dict[str, Dict[str, Any]]
+        self: Self,
+        review: pd.DataFrame,
+        diner: pd.DataFrame,
+        feature_param_pair: Dict[str, Dict[str, Any]],
     ):
         """
         Feature engineering on user data.
@@ -258,9 +266,7 @@ class UserFeatureStore(BaseFeatureStore):
         self.feature_param_pair = feature_param_pair
         # initial user feature dataframe to merge with other engineered features
         self.user = pd.DataFrame(
-            {
-                "reviewer_id": sorted(review["reviewer_id"].unique())
-            }
+            {"reviewer_id": sorted(review["reviewer_id"].unique())}
         )
 
     def make_features(self: Self) -> None:
@@ -271,9 +277,7 @@ class UserFeatureStore(BaseFeatureStore):
             self.feature_methods[feat](**params)
 
     def calculate_categorical_feature_count(
-            self: Self,
-            categorical_feature_names: List[str],
-            **kwargs
+        self: Self, categorical_feature_names: List[str], **kwargs
     ) -> None:
         """
         Count number of appearance of each category in a categorical feature.
@@ -285,10 +289,12 @@ class UserFeatureStore(BaseFeatureStore):
         for feature in categorical_feature_names:
             if feature not in self.review.columns:
                 raise ValueError(f"{feature} not in review data columns")
-            category_feat = (self.review.groupby(["reviewer_id", feature])
-                             .size()
-                             .unstack(fill_value=0)
-                             .reset_index())
+            category_feat = (
+                self.review.groupby(["reviewer_id", feature])
+                .size()
+                .unstack(fill_value=0)
+                .reset_index()
+            )
             self.user = pd.merge(
                 left=self.user,
                 right=category_feat,
@@ -303,9 +309,11 @@ class UserFeatureStore(BaseFeatureStore):
         Args:
             **kwargs: Additional keyword arguments.
         """
-        score_feat = (self.review.groupby("reviewer_id")["reviewer_review_score"]
-                      .mean()
-                      .reset_index())
+        score_feat = (
+            self.review.groupby("reviewer_id")["reviewer_review_score"]
+            .mean()
+            .reset_index()
+        )
         self.user = pd.merge(
             left=self.user,
             right=score_feat,

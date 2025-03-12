@@ -18,7 +18,7 @@ class SageLayer(nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         self.linear = nn.Linear(
-            in_features=input_size*2,
+            in_features=input_size * 2,
             out_features=output_size,
         )
 
@@ -80,12 +80,14 @@ class Model(BaseEmbedding):
 
         for index in range(1, num_layers + 1):
             layer_size = embedding_dim if index != 1 else embedding_dim
-            setattr(self, "sage_layer_" + str(index), SageLayer(layer_size, embedding_dim))
+            setattr(
+                self, "sage_layer_" + str(index), SageLayer(layer_size, embedding_dim)
+            )
 
         self.d_graph = precompute_probabilities(
             graph=graph,
-            p=1, # unbiased random walk
-            q=1, # unbiased random walk
+            p=1,  # unbiased random walk
+            q=1,  # unbiased random walk
         )
 
     def forward(self, batch_nodes: Tensor) -> Tensor:
@@ -101,22 +103,26 @@ class Model(BaseEmbedding):
         emb = self._get_raw_features()
         for i in range(self.num_layers):
             B_k = B_ks[i]
-            sage_layer = getattr(self, f"sage_layer_{i+1}")
+            sage_layer = getattr(self, f"sage_layer_{i + 1}")
             for node in B_k:
                 # sample neighbors from current node
-                neighbors = self._sample_neighbors(node.item(), num_samples=self.walks_per_node)
+                neighbors = self._sample_neighbors(
+                    node.item(), num_samples=self.walks_per_node
+                )
 
                 # get neighbor nodes embeddings in previous step
-                pre_emb_neighbors = emb[neighbors] # h^{k-1}_{u'}
+                pre_emb_neighbors = emb[neighbors]  # h^{k-1}_{u'}
 
                 # aggregate neighbor embedding vectors
-                agg_emb_neighbors = self.aggregate(pre_emb_neighbors) # AGG_k( h^{k-1}_{u'} )
+                agg_emb_neighbors = self.aggregate(
+                    pre_emb_neighbors
+                )  # AGG_k( h^{k-1}_{u'} )
 
                 # get current node embedding in previous step
-                pre_emb_node = emb[node] # h^{k-1}_{u}
+                pre_emb_node = emb[node]  # h^{k-1}_{u}
 
                 # pass sage layer and get node embedding in current step
-                cur_emb_node = sage_layer(pre_emb_node, agg_emb_neighbors) # h^{k}_{u}
+                cur_emb_node = sage_layer(pre_emb_node, agg_emb_neighbors)  # h^{k}_{u}
 
                 # normalize current node embedding
                 cur_emb_node = F.normalize(cur_emb_node, p=2, dim=1)
@@ -217,7 +223,9 @@ class Model(BaseEmbedding):
         """
         batch_nodes = torch.tensor(
             [
-                node_id for node_id in torch.unique(batch_nodes).clone() if self.graph.has_node(node_id.item())
+                node_id
+                for node_id in torch.unique(batch_nodes).clone()
+                if self.graph.has_node(node_id.item())
             ]
         )
         batches = [batch_nodes]
@@ -229,11 +237,7 @@ class Model(BaseEmbedding):
             last_batch_nodes_with_neighbors = np.concatenate(
                 (last_batch_nodes, np.concatenate(neighbors))
             )
-            batches.append(
-                torch.tensor(
-                    np.unique(last_batch_nodes_with_neighbors)
-                )
-            )
+            batches.append(torch.tensor(np.unique(last_batch_nodes_with_neighbors)))
         return batches[::-1]
 
     def aggregate(self, emb: Tensor) -> Tensor:
@@ -262,7 +266,7 @@ class Model(BaseEmbedding):
         """
         user_features = self.user_feature_layer(self.user_raw_features)
         diner_features = self.diner_feature_layer(self.diner_raw_features)
-        return torch.concat([diner_features, user_features]) # diner index first
+        return torch.concat([diner_features, user_features])  # diner index first
 
     def propagate_and_store_embedding(self, batch_nodes: Tensor):
         with torch.no_grad():

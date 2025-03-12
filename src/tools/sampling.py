@@ -3,8 +3,8 @@ from torch import Tensor
 
 
 def uniform_sampling_without_replacement_from_pool(
-        pool: Tensor,
-        size: int,
+    pool: Tensor,
+    size: int,
 ) -> Tensor:
     """
     Uniform sampling without replacement using `torch.randperm`.

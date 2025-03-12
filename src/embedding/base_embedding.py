@@ -39,7 +39,7 @@ class BaseEmbedding(nn.Module):
         self.walks_per_node = walks_per_node
         self.num_negative_samples = num_negative_samples
         self.num_nodes = num_nodes
-        self.model_name=model_name
+        self.model_name = model_name
         self.EPS = 1e-15
         self.num_users = len(self.user_ids)
         self.num_diners = len(self.diner_ids)

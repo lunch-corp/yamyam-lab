@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Self
+from typing import Any, Dict, Self
 
 import pandas as pd
 
 
 class BaseFeatureStore(ABC):
     def __init__(
-        self: Self, review: pd.DataFrame, diner: pd.DataFrame, feature_param_pair: Dict[str, Dict[str, Any]]
+        self: Self,
+        review: pd.DataFrame,
+        diner: pd.DataFrame,
+        feature_param_pair: Dict[str, Dict[str, Any]],
     ):
         """
         Feature engineering on diner data or user data.
