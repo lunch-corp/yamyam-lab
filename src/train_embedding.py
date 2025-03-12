@@ -88,7 +88,9 @@ def main(args: ArgumentParser.parse_args) -> None:
             data, open(os.path.join(args.result_path, FileName.DATA_OBJECT.value), "wb")
         )
 
-        num_nodes = data["num_users"] + data["num_diners"] + data["num_metas"]
+        num_nodes = data["num_users"] + data["num_diners"]
+        if args.model == "metapath2vec":
+            num_nodes += data["num_metas"]
         top_k_values = TOP_K_VALUES_FOR_PRED + TOP_K_VALUES_FOR_CANDIDATE
 
         # import embedding module

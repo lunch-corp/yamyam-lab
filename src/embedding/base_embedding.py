@@ -14,6 +14,7 @@ from constant.device.device import DEVICE
 from constant.evaluation.recommend import RECOMMEND_BATCH_SIZE
 from constant.metric.metric import Metric, NearCandidateMetric
 from evaluation.metric import ranked_precision, ranking_metrics_at_k
+from tools.generate_walks import generate_walks
 from tools.utils import convert_tensor, safe_divide
 
 
@@ -101,6 +102,51 @@ class BaseEmbedding(nn.Module):
     @abstractmethod
     def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
         raise NotImplementedError
+
+    def _pos_sample(self, batch: Tensor) -> Tensor:
+        """
+        For each of node id, generate biased random walk using `generate_walks` function.
+        Based on transition probabilities information (`d_graph`), perform biased random walks.
+
+        Args:
+            batch (Tensor): A batch of node ids which are starting points in each biased random walk.
+
+        Returns (Tensor):
+            Generated biased random walks. Number of random walks are based on walks_per_node,
+            walk_length, and context size. Note that random walks are concatenated row-wise.
+        """
+        batch = batch.repeat(self.walks_per_node)
+        rw = generate_walks(
+            node_ids=batch.detach().cpu().numpy(),
+            d_graph=self.d_graph,
+            walk_length=self.walk_length,
+            num_walks=1,
+        )
+        return rw
+
+    def _neg_sample(self, batch: Tensor) -> Tensor:
+        """
+        Sample negative with uniform sampling.
+        In word2vec objective function, to reduce computation burden, negative sampling
+        is performed and approximate denominator of probability.
+
+        Args:
+            batch (Tensor): A batch of node ids.
+
+        Returns (Tensor):
+            Negative samples for each of node ids.
+        """
+        batch = batch.repeat(self.walks_per_node)
+
+        rw = torch.randint(
+            self.num_nodes,
+            (batch.size(0), self.num_negative_samples),
+            dtype=batch.dtype,
+            device=batch.device,
+        )
+        rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
+
+        return rw
 
     def recommend_all(
         self,

@@ -50,7 +50,7 @@ class DinerFeatureStore(BaseFeatureStore):
         Calculate number of review counts for each diner.
         """
         diner_idx2review_cnt = self.review["diner_idx"].value_counts().to_dict()
-        self.diner["all_review_cnt"] = self.diner["diner_idx"].map(diner_idx2review_cnt)
+        self.diner["all_review_cnt"] = self.diner["diner_idx"].map(diner_idx2review_cnt).fillna(0)
         self.engineered_feature_names.append("all_review_cnt")
 
     def calculate_diner_score(self: Self, **kwargs) -> None:
