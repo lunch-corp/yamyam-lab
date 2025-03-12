@@ -19,6 +19,7 @@ from train_embedding import main
     [
         ("node2vec", False),
         ("metapath2vec", True),
+        ("graphsage", False)
     ],
     indirect=["setup_config"],
 )

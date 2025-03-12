@@ -52,7 +52,7 @@ def setup_config(request):
     args.walks_per_node = 10
     args.num_negative_samples = 20
     args.p = 1
-    args.q = 0.5
+    args.q = 1
     args.result_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), f"../result/{args.model}"
     )
@@ -63,6 +63,7 @@ def setup_config(request):
         ["user", "diner", "category", "diner", "user"],
     ]
     args.category_column_for_meta = "diner_category_large"
+    args.num_sage_layers = 2
     args.test = True
     return args
 
