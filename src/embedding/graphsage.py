@@ -22,12 +22,6 @@ class SageLayer(nn.Module):
             out_features=output_size,
         )
 
-        self._init_params()
-
-    def _init_params(self):
-        for param in self.parameters():
-            nn.init.xavier_uniform_(param)
-
     def forward(self, self_feat: torch.Tensor, agg_feat: torch.Tensor):
         concat_feat = torch.concat([self_feat, agg_feat], dim=0).unsqueeze(
             0
