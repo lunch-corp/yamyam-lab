@@ -60,10 +60,6 @@ def preprocess_common(
         Preprocessed review dataset and diner dataset.
     """
     # step 1: filter reviewers writing reviews greater than or equal to `min_reviews`
-    diner_counts = review["diner_idx"].value_counts()
-    valid_diners = diner_counts[diner_counts >= 3].index
-    review = review[review["diner_idx"].isin(valid_diners)]
-
     reviewer_counts = review["reviewer_id"].value_counts()
     valid_reviewers = reviewer_counts[reviewer_counts >= min_reviews].index
     review = review[review["reviewer_id"].isin(valid_reviewers)]
