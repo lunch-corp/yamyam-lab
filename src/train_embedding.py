@@ -152,9 +152,9 @@ def main(args: ArgumentParser.parse_args) -> None:
             # propagation should be run to store embeddings for each node at every epoch
             if args.model == "graphsage":
                 for batch_nodes in DataLoader(
-                        torch.tensor([node for node in train_graph.nodes()]),
-                        batch_size=args.batch_size,
-                        shuffle=True,
+                    torch.tensor([node for node in train_graph.nodes()]),
+                    batch_size=args.batch_size,
+                    shuffle=True,
                 ):
                     model.propagate_and_store_embedding(batch_nodes)
 

@@ -37,7 +37,7 @@ def test_train_test_split_stratify_rank():
         random_state=42,
         stratify="reviewer_id",
         is_rank=True,
-        diner_engineered_feature_names={"all_review_cnt":{}},
+        diner_engineered_feature_names={"all_review_cnt": {}},
     )
 
     assert data["X_train"].shape[0] > 10000
