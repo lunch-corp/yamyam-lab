@@ -5,6 +5,7 @@ import traceback
 from argparse import ArgumentParser
 
 import torch
+from torch.utils.data import DataLoader
 
 from candidate.near import NearCandidateGenerator
 from constant.candidate.near import MAX_DISTANCE_KM
@@ -147,11 +148,16 @@ def main(args: ArgumentParser.parse_args) -> None:
                 optimizer.step()
                 total_loss += loss.item()
 
-                # in last epoch when training graphsage,
-                # propagation should be run to store embeddings for each node
-                if epoch == args.epochs - 1 and args.model == "graphsage":
-                    batch_nodes = pos_rw[:, 0]
+            # when training graphsage for every epoch,
+            # propagation should be run to store embeddings for each node at every epoch
+            if args.model == "graphsage":
+                for batch_nodes in DataLoader(
+                        torch.tensor([node for node in train_graph.nodes()]),
+                        batch_size=args.batch_size,
+                        shuffle=True,
+                ):
                     model.propagate_and_store_embedding(batch_nodes)
+
             total_loss /= len(loader)
             model.tr_loss.append(total_loss)
 

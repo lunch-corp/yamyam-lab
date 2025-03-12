@@ -269,5 +269,12 @@ class Model(BaseEmbedding):
         return torch.concat([diner_features, user_features])  # diner index first
 
     def propagate_and_store_embedding(self, batch_nodes: Tensor):
+        """
+        Propagates graphsage algorithm to get embeddings for batch_nodes.
+        Because graphsage is inductive algorithm, embeddings should be updated at every epoch.
+
+        Args:
+            batch_nodes (Tensor): List of nodes to propagate
+        """
         with torch.no_grad():
             self._embedding[batch_nodes] = self.forward(batch_nodes)
