@@ -22,7 +22,7 @@ class SageLayer(nn.Module):
             out_features=output_size,
         )
 
-        # self._init_params()
+        self._init_params()
 
     def _init_params(self):
         for param in self.parameters():
