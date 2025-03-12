@@ -14,7 +14,7 @@ from torch_geometric.data import Data
 from constant.lib.h3 import RESOLUTION
 from data.dataset import load_dataset
 from preprocess.diner_transform import CategoryProcessor
-from store.feature import DinerFeatureStore
+from store.feature import DinerFeatureStore, UserFeatureStore
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
@@ -200,7 +200,7 @@ def make_feature(
         feature_param_pair=user_engineered_feature_names,
     )
     user_fs.make_features()
-    user_feature = user_fs._get_engineered_features()
+    user_feature = user_fs.get_engineered_features()
 
     # diner feature engineering
     diner_fs = DinerFeatureStore(
@@ -209,7 +209,7 @@ def make_feature(
         feature_param_pair=diner_engineered_feature_names,
     )
     diner_fs.make_features()
-    diner_feature = diner_fs._get_engineered_features()
+    diner_feature = diner_fs.get_engineered_features()
     return user_feature, diner_feature
 
 

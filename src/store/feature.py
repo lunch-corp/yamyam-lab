@@ -22,7 +22,11 @@ class DinerFeatureStore(BaseFeatureStore):
             feature_param_pair (Dict[str, Dict[str, Any]]): Key is name of engineered feature and
                 values are its corresponding parameters.
         """
-        super().__init__(review, diner, features)
+        super().__init__(
+            review=review,
+            diner=diner,
+            feature_param_pair=feature_param_pair,
+        )
 
         self.feature_methods = {
             "all_review_cnt": self.calculate_all_review_cnt,
@@ -206,17 +210,17 @@ class DinerFeatureStore(BaseFeatureStore):
 
         return scores
 
-    def _get_engineered_features(self) -> pd.DataFrame:
+    def get_engineered_features(self) -> pd.DataFrame:
         """
-        Helper function getting features after engineering.
+        Get engineered features only without original features with primary key.
 
         Returns (pd.DataFrame):
-            Engineered features.
+            Engineered features dataframe.
         """
         return self.diner[self.engineered_feature_names]
 
 
-class UserFeatureStore:
+class UserFeatureStore(BaseFeatureStore):
     def __init__(
         self: Self, review: pd.DataFrame, diner: pd.DataFrame, feature_param_pair: Dict[str, Dict[str, Any]]
     ):
@@ -231,6 +235,12 @@ class UserFeatureStore:
             feature_param_pair (Dict[str, Dict[str, Any]]): Key is name of engineered feature and
                 values are its corresponding parameters.
         """
+        super().__init__(
+            review=review,
+            diner=diner,
+            feature_param_pair=feature_param_pair,
+        )
+
         self.review = pd.merge(
             left=review,
             right=diner[["diner_idx", "diner_category_large", "diner_category_middle"]],
@@ -303,11 +313,11 @@ class UserFeatureStore:
             on="reviewer_id",
         )
 
-    def _get_engineered_features(self: Self) -> pd.DataFrame:
+    def get_engineered_features(self: Self) -> pd.DataFrame:
         """
-        Helper function getting features after engineering.
+        Get engineered features only without original features with primary key.
 
         Returns (pd.DataFrame):
-            Engineered features.
+            Engineered features dataframe.
         """
         return self.user
