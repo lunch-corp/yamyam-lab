@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from numpy.typing import NDArray
 from torch import Tensor
+from torch.nn import Embedding
 from torch.utils.data import DataLoader
 
 from constant.device.device import DEVICE
@@ -28,6 +29,7 @@ class BaseEmbedding(nn.Module):
         walks_per_node: int,
         num_negative_samples: int,
         num_nodes: int,
+        model_name: str,
     ):
         super().__init__()
         self.user_ids = user_ids
@@ -37,6 +39,7 @@ class BaseEmbedding(nn.Module):
         self.walks_per_node = walks_per_node
         self.num_negative_samples = num_negative_samples
         self.num_nodes = num_nodes
+        self.model_name=model_name
         self.EPS = 1e-15
         self.num_users = len(self.user_ids)
         self.num_diners = len(self.diner_ids)
@@ -57,6 +60,13 @@ class BaseEmbedding(nn.Module):
             for k in top_k_values
         }
 
+        if self.model_name in ["node2vec", "metapath2vec"]:
+            # trainable parameters
+            self._embedding = Embedding(self.num_nodes, self.embedding_dim)
+        else:
+            # not trainable parameters, but result tensors from model forwarding
+            self._embedding = torch.empty((self.num_nodes, self.embedding_dim))
+
     def forward(self, batch: Tensor) -> Tensor:
         """
         Dummy forward pass which actually does not do anything.
@@ -67,7 +77,7 @@ class BaseEmbedding(nn.Module):
         Returns (Tensor):
             A batch of node embeddings.
         """
-        emb = self.embedding.weight
+        emb = self._embedding.weight
         return emb if batch is None else emb[batch]
 
     def loader(self, **kwargs) -> DataLoader:
@@ -190,7 +200,7 @@ class BaseEmbedding(nn.Module):
         }
         max_k = max(top_k_values)
         start = 0
-        diner_embeds = self.embedding(self.diner_ids)
+        diner_embeds = self.get_embedding(self.diner_ids)
 
         # store true diner id visited by user in validation dataset
         self.train_liked = convert_tensor(X_train, list)
@@ -198,7 +208,7 @@ class BaseEmbedding(nn.Module):
 
         while start < self.num_users:
             batch_users = self.user_ids[start : start + RECOMMEND_BATCH_SIZE]
-            user_embeds = self.embedding(batch_users)
+            user_embeds = self.get_embedding(batch_users)
             scores = torch.mm(user_embeds, diner_embeds.t())
 
             # TODO: change for loop to more efficient program
@@ -397,8 +407,8 @@ class BaseEmbedding(nn.Module):
         Returns (Tuple[NDArray, NDArray]):
             top_k diner_ids and associated scores.
         """
-        user_embed = self.embedding(user_id)
-        diner_embeds = self.embedding(self.diner_ids)
+        user_embed = self.get_embedding(user_id)
+        diner_embeds = self.get_embedding(self.diner_ids)
         score = torch.mm(user_embed, diner_embeds.t()).squeeze(0)
         for diner_idx in already_liked_item_id:
             score[diner_idx] = -float("inf")
@@ -406,3 +416,9 @@ class BaseEmbedding(nn.Module):
         pred_liked_item_id = top_k.indices.detach().cpu().numpy()
         pred_liked_item_score = top_k.values.detach().cpu().numpy()
         return pred_liked_item_id, pred_liked_item_score
+
+    def get_embedding(self, batch_tensor: Tensor):
+        if self.model_name in ["node2vec", "metapath2vec"]:
+            return self._embedding(batch_tensor)
+        else:
+            return self._embedding[batch_tensor]

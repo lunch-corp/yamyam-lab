@@ -108,6 +108,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             q=args.q,
             p=args.p,
             top_k_values=top_k_values,
+            model_name=args.model,
             meta_path=args.meta_path, # metapath2vec parameter
             num_layers=args.num_sage_layers, # graphsage parameter
             user_raw_features=data["user_feature"], # graphsage parameter
@@ -148,6 +149,12 @@ def main(args: ArgumentParser.parse_args) -> None:
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
+
+                # in last epoch when training graphsage,
+                # propagation should be run to store embeddings for each node
+                if epoch == args.epochs - 1 and args.model == "graphsage":
+                    batch_nodes = pos_rw[:,0]
+                    model.propagate_and_store_embedding(batch_nodes)
             total_loss /= len(loader)
             model.tr_loss.append(total_loss)
 

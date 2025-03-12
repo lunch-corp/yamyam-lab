@@ -48,6 +48,7 @@ class Model(BaseEmbedding):
         num_layers: int,
         user_raw_features: torch.Tensor,
         diner_raw_features: torch.Tensor,
+        model_name: str,
         agg_func: str = "MEAN",
         walks_per_node: int = 1,
         walk_length: int = 1,
@@ -63,6 +64,7 @@ class Model(BaseEmbedding):
             walks_per_node=walks_per_node,
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
+            model_name=model_name,
         )
         self.num_layers = num_layers
         self.user_raw_features = user_raw_features
@@ -215,7 +217,7 @@ class Model(BaseEmbedding):
         """
         batch_nodes = torch.tensor(
             [
-                node_id for node_id in batch_nodes.clone() if self.graph.has_node(node_id.item())
+                node_id for node_id in torch.unique(batch_nodes).clone() if self.graph.has_node(node_id.item())
             ]
         )
         batches = [batch_nodes]
@@ -261,3 +263,7 @@ class Model(BaseEmbedding):
         user_features = self.user_feature_layer(self.user_raw_features)
         diner_features = self.diner_feature_layer(self.diner_raw_features)
         return torch.concat([diner_features, user_features]) # diner index first
+
+    def propagate_and_store_embedding(self, batch_nodes: Tensor):
+        with torch.no_grad():
+            self._embedding[batch_nodes] = self.forward(batch_nodes)

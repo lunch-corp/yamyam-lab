@@ -5,7 +5,6 @@ import networkx as nx
 import numpy as np
 import torch
 from torch import Tensor
-from torch.nn import Embedding
 
 from embedding.base_embedding import BaseEmbedding
 from tools.generate_walks import (
@@ -25,6 +24,7 @@ class Model(BaseEmbedding):
         embedding_dim: int,
         num_nodes: int,
         meta_path: List[List[str]],
+        model_name: List[str],
         meta_field: str = "meta",
         walks_per_node: int = 1,
         num_negative_samples: int = 1,
@@ -50,6 +50,7 @@ class Model(BaseEmbedding):
             embedding_dim (int): Dimension of each node.
             num_nodes (int): Total numer of nodes in given graph.
             meta_path (List[str]): Meta path to generate walks.
+            model_name (str): Name of model.
             meta_field (str): Field name used in graph object.
             walks_per_node (int): Number of walks per each node.
             num_negative_samples (int): Number of negative samples per each positive sample.
@@ -65,10 +66,8 @@ class Model(BaseEmbedding):
             walks_per_node=walks_per_node,
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
+            model_name=model_name,
         )
-
-        # create embedding for each node
-        self.embedding = Embedding(self.num_nodes, self.embedding_dim)
 
         self.meta_path = meta_path
         self.meta_field = meta_field
@@ -214,10 +213,10 @@ class Model(BaseEmbedding):
             )
             start, rest = pos_rw_unpadded[:, 0], pos_rw_unpadded[:, 1:].contiguous()
 
-            h_start = self.embedding(start).view(
+            h_start = self._embedding(start).view(
                 pos_rw_unpadded.size(0), 1, self.embedding_dim
             )
-            h_rest = self.embedding(rest.view(-1)).view(
+            h_rest = self._embedding(rest.view(-1)).view(
                 pos_rw_unpadded.size(0), -1, self.embedding_dim
             )
 
@@ -229,10 +228,10 @@ class Model(BaseEmbedding):
             neg_rw_sliced = neg_rw[start_idx:count, :]
             start, rest = neg_rw_sliced[:, 0], neg_rw_sliced[:, 1:].contiguous()
 
-            h_start = self.embedding(start).view(
+            h_start = self._embedding(start).view(
                 neg_rw_sliced.size(0), 1, self.embedding_dim
             )
-            h_rest = self.embedding(rest.view(-1)).view(
+            h_rest = self._embedding(rest.view(-1)).view(
                 neg_rw_sliced.size(0), -1, self.embedding_dim
             )
 
