@@ -107,7 +107,9 @@ class DinerFeatureStore(BaseFeatureStore):
         )
 
     def calculate_diner_mean_review_score(self: Self, **kwargs) -> None:
-        # mean review score from review data
+        """
+        Calculates mean review score from review data.
+        """
         diner_id2score = (self.review.groupby("diner_idx")["reviewer_review_score"]
                           .mean()
                           .to_dict())
@@ -121,11 +123,30 @@ class DinerFeatureStore(BaseFeatureStore):
 
         self.engineered_feature_names.append("mean_review_score")
 
-    def one_hot_encoding_categorical_features(self: Self, categorical_feature_name: List[str], **kwargs) -> None:
+    def one_hot_encoding_categorical_features(
+            self: Self,
+            categorical_feature_name: List[str],
+            drop_first: bool = False,
+            **kwargs
+    )-> None:
+        """
+        One hot encoding categorical features.
+        This method converts a categorical feature with C categories into one-hot encoded C dimensional features.
+        Depending on the type of algorithm, C-1 dimensional features could be required.
+
+        Args:
+            categorical_feature_name (List[str]): List of categorical feature names.
+            drop_first (bool): Whether using C-1 columns or not. When set as False, uses C columns.
+            **kwargs: Additional keyword arguments.
+        """
         for feature_name in categorical_feature_name:
             if feature_name not in self.diner.columns:
                 raise ValueError(f"{feature_name} not in diner data")
-            one_hot_encoding_feat = pd.get_dummies(self.diner[feature_name], prefix=feature_name).astype(int)
+            one_hot_encoding_feat = pd.get_dummies(
+                self.diner[feature_name],
+                prefix=feature_name,
+                drop_first=drop_first,
+            ).astype(int)
             self.diner = pd.concat([self.diner, one_hot_encoding_feat], axis=1)
 
             self.engineered_feature_names.extend(
@@ -186,6 +207,12 @@ class DinerFeatureStore(BaseFeatureStore):
         return scores
 
     def _get_engineered_features(self) -> pd.DataFrame:
+        """
+        Helper function getting features after engineering.
+
+        Returns (pd.DataFrame):
+            Engineered features.
+        """
         return self.diner[self.engineered_feature_names]
 
 
@@ -233,7 +260,18 @@ class UserFeatureStore:
         for feat, params in self.feature_param_pair.items():
             self.feature_methods[feat](**params)
 
-    def calculate_categorical_feature_count(self: Self, categorical_feature_names: List[str], **kwargs):
+    def calculate_categorical_feature_count(
+            self: Self,
+            categorical_feature_names: List[str],
+            **kwargs
+    ) -> None:
+        """
+        Count number of appearance of each category in a categorical feature.
+
+        Args:
+            categorical_feature_names (List[str]): List of categorical features.
+            **kwargs: Additional keyword arguments.
+        """
         for feature in categorical_feature_names:
             if feature not in self.review.columns:
                 raise ValueError(f"{feature} not in review data columns")
@@ -248,7 +286,13 @@ class UserFeatureStore:
                 on="reviewer_id",
             )
 
-    def calculate_user_mean_review_score(self: Self, **kwargs):
+    def calculate_user_mean_review_score(self: Self, **kwargs) -> None:
+        """
+        Calculates mean review score of each user.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+        """
         score_feat = (self.review.groupby("reviewer_id")["reviewer_review_score"]
                       .mean()
                       .reset_index())
@@ -260,4 +304,10 @@ class UserFeatureStore:
         )
 
     def _get_engineered_features(self: Self) -> pd.DataFrame:
+        """
+        Helper function getting features after engineering.
+
+        Returns (pd.DataFrame):
+            Engineered features.
+        """
         return self.user
