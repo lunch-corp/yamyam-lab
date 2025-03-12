@@ -7,7 +7,6 @@ import torch
 import torch.nn as nn
 from numpy.typing import NDArray
 from torch import Tensor
-from torch.nn import Embedding
 from torch.utils.data import DataLoader
 
 from constant.device.device import DEVICE
@@ -42,9 +41,6 @@ class BaseEmbedding(nn.Module):
         self.num_users = len(self.user_ids)
         self.num_diners = len(self.diner_ids)
         self.tr_loss = []
-
-        # create embedding for each node
-        self.embedding = Embedding(self.num_nodes, self.embedding_dim)
 
         # store metric value at each epoch
         self.metric_at_k_total_epochs = {

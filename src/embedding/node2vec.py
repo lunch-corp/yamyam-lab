@@ -3,6 +3,7 @@ from typing import List, Tuple, Union
 import networkx as nx
 import torch
 from torch import Tensor
+from torch.nn import Embedding
 
 from embedding.base_embedding import BaseEmbedding
 from tools.generate_walks import generate_walks, precompute_probabilities
@@ -70,6 +71,10 @@ class Model(BaseEmbedding):
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
         )
+
+        # create embedding for each node
+        self.embedding = Embedding(self.num_nodes, self.embedding_dim)
+
         self.walk_length = walk_length
         self.p = p
         self.q = q
@@ -94,14 +99,7 @@ class Model(BaseEmbedding):
             Generated biased random walks. Number of random walks are based on walks_per_node,
             walk_length, and context size. Note that random walks are concatenated row-wise.
         """
-        batch = batch.repeat(self.walks_per_node)
-        rw = generate_walks(
-            node_ids=batch.detach().cpu().numpy(),
-            d_graph=self.d_graph,
-            walk_length=self.walk_length,
-            num_walks=1,
-        )
-        return rw
+        return self._pos_sample(batch)
 
     @torch.jit.export
     def neg_sample(self, batch: Tensor) -> Tensor:
@@ -116,17 +114,7 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Negative samples for each of node ids.
         """
-        batch = batch.repeat(self.walks_per_node)
-
-        rw = torch.randint(
-            self.num_nodes,
-            (batch.size(0), self.num_negative_samples),
-            dtype=batch.dtype,
-            device=batch.device,
-        )
-        rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
-
-        return rw
+        return self._neg_sample(batch)
 
     @torch.jit.export
     def sample(self, batch: Union[List[int], Tensor]) -> Tuple[Tensor, Tensor]:

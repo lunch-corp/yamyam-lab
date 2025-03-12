@@ -5,6 +5,7 @@ import networkx as nx
 import numpy as np
 import torch
 from torch import Tensor
+from torch.nn import Embedding
 
 from embedding.base_embedding import BaseEmbedding
 from tools.generate_walks import (
@@ -65,6 +66,10 @@ class Model(BaseEmbedding):
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
         )
+
+        # create embedding for each node
+        self.embedding = Embedding(self.num_nodes, self.embedding_dim)
+
         self.meta_path = meta_path
         self.meta_field = meta_field
 
