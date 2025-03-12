@@ -9,8 +9,8 @@ class BaseFeatureStore(ABC):
         self: Self, review: pd.DataFrame, diner: pd.DataFrame, feature_param_pair: Dict[str, Dict[str, Any]]
     ):
         """
-        Feature engineering on diner data.
-        This class gets `features` indicating which features to make.
+        Feature engineering on diner data or user data.
+        This class gets `feature_param_pair` indicating which features to make with corresponding parameters.
         Unimplemented feature name will raise error with `self.feature_methods`.
 
         Args:
