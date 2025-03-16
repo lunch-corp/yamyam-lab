@@ -14,7 +14,7 @@ def main(cfg: DictConfig):
         test_size=cfg.data.test_size,
         min_reviews=cfg.data.min_reviews,
         is_rank=True,
-        diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
+        diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
     )
 
     X_train, y_train, X_test, y_test = (

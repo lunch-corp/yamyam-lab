@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Any, Dict, Tuple
 
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
@@ -40,7 +40,7 @@ def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Dat
 
 
 def load_test_dataset(
-    reviewer_id: int, diner_engineered_feature_names: List[str]
+    reviewer_id: int, feature_param_pair: Dict[str, Dict[str, Any]]
 ) -> tuple[pd.DataFrame, list[str]]:
     """
     Load test dataset for inference
@@ -77,7 +77,7 @@ def load_test_dataset(
     diner_fs = DinerFeatureStore(
         review=review,
         diner=diner,
-        features=diner_engineered_feature_names,
+        feature_param_pair=feature_param_pair,
     )
     diner_fs.make_features()
     diner = diner_fs.diner

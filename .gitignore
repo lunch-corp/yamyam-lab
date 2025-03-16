@@ -20,3 +20,6 @@ tests/result/*
 
 data/.DS_Store
 data/dataset.zip
+
+
+tests/model/result/

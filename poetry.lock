@@ -904,6 +904,18 @@ files = [
 ]
 
 [[package]]
+name = "easydict"
+version = "1.13"
+description = "Access dict values as attributes (works recursively)."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "easydict-1.13-py3-none-any.whl", hash = "sha256:6b787daf4dcaf6377b4ad9403a5cee5a86adbc0ca9a5bcf5410e9902002aeac2"},
+    {file = "easydict-1.13.tar.gz", hash = "sha256:b1135dedbc41c8010e2bc1f77ec9744c7faa42bce1a1c87416791449d6c87780"},
+]
+
+[[package]]
 name = "executing"
 version = "2.2.0"
 description = "Get the currently executing AST node of a frame, and other information"
@@ -5340,4 +5352,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "fe46ce31fd094f094d67ebc4ebb790871a8b5279b23c580c68cda8d6847b7bd0"
+content-hash = "6305db5a896c7f00c8c1567a72695972904bbb68e479d84a8b9e8fd632fae478"

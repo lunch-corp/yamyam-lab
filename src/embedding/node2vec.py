@@ -5,7 +5,7 @@ import torch
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
-from tools.generate_walks import generate_walks, precompute_probabilities
+from tools.generate_walks import precompute_probabilities
 
 
 class Model(BaseEmbedding):
@@ -42,6 +42,7 @@ class Model(BaseEmbedding):
             breadth-first strategy and depth-first strategy (default: :obj:`1`)
         num_negative_samples (int, optional): The number of negative samples to
             use for each positive sample. (default: :obj:`1`)
+        model_name (str): Name of model.
     """
 
     def __init__(
@@ -53,6 +54,7 @@ class Model(BaseEmbedding):
         walk_length: int,
         num_nodes: int,
         top_k_values: List[int],
+        model_name: str,
         walks_per_node: int = 1,
         p: float = 1.0,
         q: float = 1.0,
@@ -69,7 +71,9 @@ class Model(BaseEmbedding):
             walks_per_node=walks_per_node,
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
+            model_name=model_name,
         )
+
         self.walk_length = walk_length
         self.p = p
         self.q = q
@@ -94,14 +98,7 @@ class Model(BaseEmbedding):
             Generated biased random walks. Number of random walks are based on walks_per_node,
             walk_length, and context size. Note that random walks are concatenated row-wise.
         """
-        batch = batch.repeat(self.walks_per_node)
-        rw = generate_walks(
-            node_ids=batch.detach().cpu().numpy(),
-            d_graph=self.d_graph,
-            walk_length=self.walk_length,
-            num_walks=1,
-        )
-        return rw
+        return self._pos_sample(batch)
 
     @torch.jit.export
     def neg_sample(self, batch: Tensor) -> Tensor:
@@ -116,17 +113,7 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Negative samples for each of node ids.
         """
-        batch = batch.repeat(self.walks_per_node)
-
-        rw = torch.randint(
-            self.num_nodes,
-            (batch.size(0), self.num_negative_samples),
-            dtype=batch.dtype,
-            device=batch.device,
-        )
-        rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
-
-        return rw
+        return self._neg_sample(batch)
 
     @torch.jit.export
     def sample(self, batch: Union[List[int], Tensor]) -> Tuple[Tensor, Tensor]:
@@ -159,8 +146,8 @@ class Model(BaseEmbedding):
         # Positive loss.
         start, rest = pos_rw[:, 0], pos_rw[:, 1:].contiguous()
 
-        h_start = self.embedding(start).view(pos_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(
+        h_start = self._embedding(start).view(pos_rw.size(0), 1, self.embedding_dim)
+        h_rest = self._embedding(rest.view(-1)).view(
             pos_rw.size(0), -1, self.embedding_dim
         )
 
@@ -170,8 +157,8 @@ class Model(BaseEmbedding):
         # Negative loss.
         start, rest = neg_rw[:, 0], neg_rw[:, 1:].contiguous()
 
-        h_start = self.embedding(start).view(neg_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(
+        h_start = self._embedding(start).view(neg_rw.size(0), 1, self.embedding_dim)
+        h_rest = self._embedding(rest.view(-1)).view(
             neg_rw.size(0), -1, self.embedding_dim
         )
 

@@ -15,7 +15,7 @@ from constant.lib.h3 import RESOLUTION
 from data.dataset import load_dataset
 from data.validator import DataValidator
 from preprocess.diner_transform import CategoryProcessor
-from store.feature import DinerFeatureStore
+from store.feature import DinerFeatureStore, UserFeatureStore
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
@@ -192,6 +192,32 @@ def map_id_to_ascending_integer(
     }
 
 
+def make_feature(
+    review: pd.DataFrame,
+    diner: pd.DataFrame,
+    user_engineered_feature_names: Dict[str, Dict[str, Any]],
+    diner_engineered_feature_names: Dict[str, Dict[str, Any]],
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    # user feature engineering
+    user_fs = UserFeatureStore(
+        review=review,
+        diner=diner,
+        feature_param_pair=user_engineered_feature_names,
+    )
+    user_fs.make_features()
+    user_feature = user_fs.get_engineered_features()
+
+    # diner feature engineering
+    diner_fs = DinerFeatureStore(
+        review=review,
+        diner=diner,
+        feature_param_pair=diner_engineered_feature_names,
+    )
+    diner_fs.make_features()
+    diner_feature = diner_fs.get_engineered_features()
+    return user_feature, diner_feature
+
+
 def preprocess_diner_data_for_candidate_generation(
     diner: pd.DataFrame,
     category_column_for_meta: str = None,
@@ -240,7 +266,8 @@ def create_target_column(review: pd.DataFrame) -> pd.DataFrame:
 def train_test_split_stratify(
     test_size: float,
     min_reviews: int,
-    diner_engineered_feature_names: List[str] = [],
+    user_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
+    diner_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
     X_columns: List[str] = ["diner_idx", "reviewer_id"],
     y_columns: List[str] = ["reviewer_review_score"],
     random_state: int = 42,
@@ -258,7 +285,8 @@ def train_test_split_stratify(
     Args:
         test_size (float): ratio of test dataset.
         min_reviews (int): minimum number of reviews for each reviewer.
-        diner_engineered_feature_names (List[str]):
+        diner_engineered_feature_names (Dict[str, Dict[str, Any]]): Key is name of engineered feature and
+            values are its corresponding parameters.
         X_columns (List[str]): column names for model feature.
         y_columns (List[str]): column names for target value.
         random_state (int): random seed for reproducibility.
@@ -274,15 +302,6 @@ def train_test_split_stratify(
     # load data
     review, diner, diner_with_raw_category = load_dataset(test=test)
 
-    # feature engineering
-    diner_fs = DinerFeatureStore(
-        review=review,
-        diner=diner,
-        features=diner_engineered_feature_names,
-    )
-    diner_fs.make_features()
-    diner = diner_fs.diner
-
     assert category_column_for_meta in diner_with_raw_category.columns
     review, diner = preprocess_common(
         review=review,
@@ -290,6 +309,7 @@ def train_test_split_stratify(
         diner_with_raw_category=diner_with_raw_category,
         min_reviews=min_reviews,
     )
+
     mapped_res = map_id_to_ascending_integer(
         review=review,
         diner=diner,
@@ -298,7 +318,6 @@ def train_test_split_stratify(
     )
 
     review = mapped_res.get("review")
-    diner = mapped_res.get("diner")
     mapped_res = {k: v for k, v in mapped_res.items() if k not in ["review", "diner"]}
 
     train, val = train_test_split(
@@ -314,6 +333,14 @@ def train_test_split_stratify(
     )
     # TODO: check whether diners from train is equivalent with diners from val
 
+    # feature engineering using only train data
+    user_feature, diner_feature = make_feature(
+        review=train,
+        diner=diner,
+        user_engineered_feature_names=user_engineered_feature_names,
+        diner_engineered_feature_names=diner_engineered_feature_names,
+    )
+
     if is_rank:
         # label Encoder
         le = LabelEncoder()
@@ -321,10 +348,10 @@ def train_test_split_stratify(
         val["badge_grade"] = le.transform(val["badge_grade"])
 
         # merge diner data
-        train = train.merge(diner, on="diner_idx", how="inner").drop_duplicates(
+        train = train.merge(diner_feature, on="diner_idx", how="inner").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
-        val = val.merge(diner, on="diner_idx", how="inner").drop_duplicates(
+        val = val.merge(diner_feature, on="diner_idx", how="inner").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
 
@@ -349,6 +376,16 @@ def train_test_split_stratify(
         "X_val": torch.tensor(val[X_columns].values),
         "y_val": torch.tensor(val[y_columns].values, dtype=torch.float32),
         "diner": diner,
+        "user_feature": torch.tensor(
+            user_feature.sort_values(by="reviewer_id")
+            .drop("reviewer_id", axis=1)
+            .values,
+            dtype=torch.float32,
+        ),
+        "diner_feature": torch.tensor(
+            diner_feature.sort_values(by="diner_idx").drop("diner_idx", axis=1).values,
+            dtype=torch.float32,
+        ),
         **mapped_res,
     }
 

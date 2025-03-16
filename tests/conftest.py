@@ -13,7 +13,7 @@ class DataConfig:
     min_reviews: int
     features: List[str]
     cat_features: List[str]
-    diner_engineered_feature_names: List[str]
+    diner_engineered_feature_names: List[Dict[str, Any]]
 
 
 @dataclass
@@ -52,7 +52,7 @@ def setup_config(request):
     args.walks_per_node = 10
     args.num_negative_samples = 20
     args.p = 1
-    args.q = 0.5
+    args.q = 1
     args.result_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), f"../result/{args.model}"
     )
@@ -63,6 +63,7 @@ def setup_config(request):
         ["user", "diner", "category", "diner", "user"],
     ]
     args.category_column_for_meta = "diner_category_large"
+    args.num_sage_layers = 2
     args.test = True
     return args
 
@@ -92,9 +93,11 @@ def setup_ranker_config(request) -> TestConfig:
             ],
             cat_features=["diner_review_cnt_category", "badge_level", "badge_grade"],
             diner_engineered_feature_names=[
-                "all_review_cnt",
-                "diner_review_tags",
-                "diner_menu_price",
+                {
+                    "all_review_cnt": {},
+                    "diner_review_tags": {},
+                    "diner_menu_price": {},
+                }
             ],
         ),
         models=ModelConfig(

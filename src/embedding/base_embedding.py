@@ -14,6 +14,7 @@ from constant.device.device import DEVICE
 from constant.evaluation.recommend import RECOMMEND_BATCH_SIZE
 from constant.metric.metric import Metric, NearCandidateMetric
 from evaluation.metric import ranked_precision, ranking_metrics_at_k
+from tools.generate_walks import generate_walks
 from tools.utils import convert_tensor, safe_divide
 
 
@@ -28,6 +29,7 @@ class BaseEmbedding(nn.Module):
         walks_per_node: int,
         num_negative_samples: int,
         num_nodes: int,
+        model_name: str,
     ):
         super().__init__()
         self.user_ids = user_ids
@@ -37,13 +39,11 @@ class BaseEmbedding(nn.Module):
         self.walks_per_node = walks_per_node
         self.num_negative_samples = num_negative_samples
         self.num_nodes = num_nodes
+        self.model_name = model_name
         self.EPS = 1e-15
         self.num_users = len(self.user_ids)
         self.num_diners = len(self.diner_ids)
         self.tr_loss = []
-
-        # create embedding for each node
-        self.embedding = Embedding(self.num_nodes, self.embedding_dim)
 
         # store metric value at each epoch
         self.metric_at_k_total_epochs = {
@@ -60,6 +60,13 @@ class BaseEmbedding(nn.Module):
             for k in top_k_values
         }
 
+        if self.model_name in ["node2vec", "metapath2vec"]:
+            # trainable parameters
+            self._embedding = Embedding(self.num_nodes, self.embedding_dim)
+        else:
+            # not trainable parameters, but result tensors from model forwarding
+            self._embedding = torch.empty((self.num_nodes, self.embedding_dim))
+
     def forward(self, batch: Tensor) -> Tensor:
         """
         Dummy forward pass which actually does not do anything.
@@ -70,7 +77,7 @@ class BaseEmbedding(nn.Module):
         Returns (Tensor):
             A batch of node embeddings.
         """
-        emb = self.embedding.weight
+        emb = self._embedding.weight
         return emb if batch is None else emb[batch]
 
     def loader(self, **kwargs) -> DataLoader:
@@ -101,6 +108,51 @@ class BaseEmbedding(nn.Module):
     @abstractmethod
     def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
         raise NotImplementedError
+
+    def _pos_sample(self, batch: Tensor) -> Tensor:
+        """
+        For each of node id, generate biased random walk using `generate_walks` function.
+        Based on transition probabilities information (`d_graph`), perform biased random walks.
+
+        Args:
+            batch (Tensor): A batch of node ids which are starting points in each biased random walk.
+
+        Returns (Tensor):
+            Generated biased random walks. Number of random walks are based on walks_per_node,
+            walk_length, and context size. Note that random walks are concatenated row-wise.
+        """
+        batch = batch.repeat(self.walks_per_node)
+        rw = generate_walks(
+            node_ids=batch.detach().cpu().numpy(),
+            d_graph=self.d_graph,
+            walk_length=self.walk_length,
+            num_walks=1,
+        )
+        return rw
+
+    def _neg_sample(self, batch: Tensor) -> Tensor:
+        """
+        Sample negative with uniform sampling.
+        In word2vec objective function, to reduce computation burden, negative sampling
+        is performed and approximate denominator of probability.
+
+        Args:
+            batch (Tensor): A batch of node ids.
+
+        Returns (Tensor):
+            Negative samples for each of node ids.
+        """
+        batch = batch.repeat(self.walks_per_node)
+
+        rw = torch.randint(
+            self.num_nodes,
+            (batch.size(0), self.num_negative_samples),
+            dtype=batch.dtype,
+            device=batch.device,
+        )
+        rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
+
+        return rw
 
     def recommend_all(
         self,
@@ -148,7 +200,7 @@ class BaseEmbedding(nn.Module):
         }
         max_k = max(top_k_values)
         start = 0
-        diner_embeds = self.embedding(self.diner_ids)
+        diner_embeds = self.get_embedding(self.diner_ids)
 
         # store true diner id visited by user in validation dataset
         self.train_liked = convert_tensor(X_train, list)
@@ -156,7 +208,7 @@ class BaseEmbedding(nn.Module):
 
         while start < self.num_users:
             batch_users = self.user_ids[start : start + RECOMMEND_BATCH_SIZE]
-            user_embeds = self.embedding(batch_users)
+            user_embeds = self.get_embedding(batch_users)
             scores = torch.mm(user_embeds, diner_embeds.t())
 
             # TODO: change for loop to more efficient program
@@ -355,8 +407,8 @@ class BaseEmbedding(nn.Module):
         Returns (Tuple[NDArray, NDArray]):
             top_k diner_ids and associated scores.
         """
-        user_embed = self.embedding(user_id)
-        diner_embeds = self.embedding(self.diner_ids)
+        user_embed = self.get_embedding(user_id)
+        diner_embeds = self.get_embedding(self.diner_ids)
         score = torch.mm(user_embed, diner_embeds.t()).squeeze(0)
         for diner_idx in already_liked_item_id:
             score[diner_idx] = -float("inf")
@@ -364,3 +416,9 @@ class BaseEmbedding(nn.Module):
         pred_liked_item_id = top_k.indices.detach().cpu().numpy()
         pred_liked_item_score = top_k.values.detach().cpu().numpy()
         return pred_liked_item_id, pred_liked_item_score
+
+    def get_embedding(self, batch_tensor: Tensor):
+        if self.model_name in ["node2vec", "metapath2vec"]:
+            return self._embedding(batch_tensor)
+        else:
+            return self._embedding[batch_tensor]
