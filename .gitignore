@@ -27,3 +27,7 @@ tests/model/result/
 credentials/
 
 candidates/
+
+zip/
+
+.DS_Store

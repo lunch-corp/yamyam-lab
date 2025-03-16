@@ -3,6 +3,7 @@ import os
 import pickle
 import traceback
 from argparse import ArgumentParser
+from datetime import datetime
 
 import torch
 from torch.utils.data import DataLoader
@@ -22,11 +23,17 @@ from preprocess.preprocess import (
     train_test_split_stratify,
 )
 from tools.config import load_yaml
+from tools.google_drive import GoogleDriveManager
 from tools.logger import setup_logger
 from tools.parse_args import parse_args_embedding
 from tools.plot import plot_metric_at_k
+from tools.zip import zip_files_in_directory
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/data/embedding.yaml")
+ROOT_PATH = os.path.join(
+    os.path.dirname(__file__), ".."
+)
+CONFIG_PATH = os.path.join(ROOT_PATH, "./config/data/embedding.yaml")
+ZIP_PATH = os.path.join(ROOT_PATH, "./zip")
 
 
 def main(args: ArgumentParser.parse_args) -> None:
@@ -260,6 +267,37 @@ def main(args: ArgumentParser.parse_args) -> None:
             tr_loss=model.tr_loss,
             parent_save_path=args.result_path,
         )
+
+        if args.save_candidate:
+            # generate candidates and zip related files
+            dt = datetime.now().strftime("%Y%m%d%H%M")
+            zip_path = os.path.join(ZIP_PATH, args.model, dt)
+            os.makedirs(zip_path, exist_ok=True)
+            candidates_df = model.generate_candidates_for_each_user(top_k_value=50)
+            # save files to zip
+            pickle.dump(data["user_mapping"], open(os.path.join(zip_path, "user_mapping.pkl"), "wb"))
+            pickle.dump(
+                data["diner_mapping"], open(os.path.join(zip_path, "dimer_mapping.pkl"), "wb")
+            )
+            candidates_df.to_parquet(os.path.join(zip_path, "candidate.parquet"), index=False)
+            # zip file
+            zip_files_in_directory(
+                dir_path=zip_path,
+                zip_file_name=f"{dt}.zip",
+                allowed_type=[".pkl", ".parquet"],
+                logger=logger,
+            )
+            # upload zip file to google drive
+            manager = GoogleDriveManager(
+                reusable_token_path=args.reusable_token_path,
+                reuse_auth_info=True,
+            )
+            file_id = manager.upload_candidates_result(
+                model_name=args.model,
+                file_path=os.path.join(zip_path, f"{dt}.zip"),
+            )
+            logger.info(f"Successfully uploaded candidate results to google drive."
+                        f"File id: {file_id}")
 
     except:
         logger.error(traceback.format_exc())

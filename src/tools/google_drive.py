@@ -394,7 +394,6 @@ class GoogleDriveManager:
     def download_candidates_result(
             self,
             model_name: str,
-            download_path: str,
             latest: bool = True,
             file_id: str = None
     ):
@@ -403,7 +402,6 @@ class GoogleDriveManager:
 
         Args:
             model_name (str): Name of candidate generator model.
-            download_path (str): Path to the downloaded file.
             latest (bool): Whether download latest result or not.
             file_id (str): If latest is set as False, download candidate result whose
                 file_id is equal to `file_id`.
@@ -412,17 +410,7 @@ class GoogleDriveManager:
             Path to the downloaded file.
 
         """
-        if model_name not in self.CANDIDATE_GENERATOR_MODEL:
-            raise ValueError(f"Unsupported model: {model_name}."
-                             f"Should be one of {self.CANDIDATE_GENERATOR_MODEL}")
-        if latest is False and file_id is None:
-            raise ValueError(f"File id must be provided when latest is set as False")
-        # get model folder id
-        files = self.list_files_in_folder(
-            folder_id=self.CANDIDATES_FOLDER_ID,
-            mime_type=MimeType.FOLDER.value,
-        )
-        model_folder_id = [file for file in files if file["name"] == model_name][0]["id"]
+        model_folder_id = self._get_model_folder_id(model_name=model_name)
 
         # get latest file_id
         if latest:
@@ -436,6 +424,14 @@ class GoogleDriveManager:
         return self.download_file(
             file_id=latest_file_id,
             download_path=download_path,
+        )
+
+    def upload_candidates_result(self, model_name: str, file_path: str):
+        model_folder_id = self._get_model_folder_id(model_name=model_name)
+        return self.upload_file(
+            file_path=file_path,
+            folder_id=model_folder_id,
+            file_type=AllowedFileType.ZIP,
         )
 
     def _get_latest_zip_file(self, folder_id: str) -> Dict[str, Any]:
@@ -453,3 +449,14 @@ class GoogleDriveManager:
             mime_type=MimeType.ZIP.value,
         )
         return sorted(files, key=lambda x: x["name"])[-1]
+
+    def _get_model_folder_id(self, model_name: str):
+        if model_name not in self.CANDIDATE_GENERATOR_MODEL:
+            raise ValueError(f"Unsupported model: {model_name}."
+                             f"Should be one of {self.CANDIDATE_GENERATOR_MODEL}")
+        # get model folder id
+        files = self.list_files_in_folder(
+            folder_id=self.CANDIDATES_FOLDER_ID,
+            mime_type=MimeType.FOLDER.value,
+        )
+        return [file for file in files if file["name"] == model_name][0]["id"]

@@ -22,6 +22,5 @@ if __name__ == "__main__":
     )
     manager.download_candidates_result(
         model_name=args.model_name,
-        download_path="candidates",
         latest=args.latest,
     )
