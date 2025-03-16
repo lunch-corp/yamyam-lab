@@ -29,9 +29,7 @@ from tools.parse_args import parse_args_embedding
 from tools.plot import plot_metric_at_k
 from tools.zip import zip_files_in_directory
 
-ROOT_PATH = os.path.join(
-    os.path.dirname(__file__), ".."
-)
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/data/embedding.yaml")
 ZIP_PATH = os.path.join(ROOT_PATH, "./zip")
 
@@ -275,11 +273,17 @@ def main(args: ArgumentParser.parse_args) -> None:
             os.makedirs(zip_path, exist_ok=True)
             candidates_df = model.generate_candidates_for_each_user(top_k_value=50)
             # save files to zip
-            pickle.dump(data["user_mapping"], open(os.path.join(zip_path, "user_mapping.pkl"), "wb"))
             pickle.dump(
-                data["diner_mapping"], open(os.path.join(zip_path, "dimer_mapping.pkl"), "wb")
+                data["user_mapping"],
+                open(os.path.join(zip_path, "user_mapping.pkl"), "wb"),
             )
-            candidates_df.to_parquet(os.path.join(zip_path, "candidate.parquet"), index=False)
+            pickle.dump(
+                data["diner_mapping"],
+                open(os.path.join(zip_path, "dimer_mapping.pkl"), "wb"),
+            )
+            candidates_df.to_parquet(
+                os.path.join(zip_path, "candidate.parquet"), index=False
+            )
             # zip file
             zip_files_in_directory(
                 dir_path=zip_path,
@@ -296,8 +300,10 @@ def main(args: ArgumentParser.parse_args) -> None:
                 model_name=args.model,
                 file_path=os.path.join(zip_path, f"{dt}.zip"),
             )
-            logger.info(f"Successfully uploaded candidate results to google drive."
-                        f"File id: {file_id}")
+            logger.info(
+                f"Successfully uploaded candidate results to google drive."
+                f"File id: {file_id}"
+            )
 
     except:
         logger.error(traceback.format_exc())

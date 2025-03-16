@@ -438,14 +438,16 @@ class BaseEmbedding(nn.Module):
             top_k_score = top_k.values
             candi = torch.cat(
                 (
-                    batch_users.repeat_interleave(top_k_value).view(-1,1),
-                    top_k_id.view(-1,1),
-                    top_k_score.view(-1,1)
+                    batch_users.repeat_interleave(top_k_value).view(-1, 1),
+                    top_k_id.view(-1, 1),
+                    top_k_score.view(-1, 1),
                 ),
-                dim=1
+                dim=1,
             )
             res = torch.cat((res, candi), dim=0)
             start += RECOMMEND_BATCH_SIZE
         dtypes = {"user_id": np.int64, "diner_id": np.int64, "score": np.float64}
-        res = pd.DataFrame(res.detach().numpy(), columns=list(dtypes.keys())).astype(dtypes)
+        res = pd.DataFrame(res.detach().numpy(), columns=list(dtypes.keys())).astype(
+            dtypes
+        )
         return res

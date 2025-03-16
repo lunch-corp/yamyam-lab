@@ -5,10 +5,10 @@ from typing import List
 
 
 def zip_files_in_directory(
-        dir_path: str,
-        zip_file_name: str,
-        allowed_type: List[str],
-        logger: logging.Logger,
+    dir_path: str,
+    zip_file_name: str,
+    allowed_type: List[str],
+    logger: logging.Logger,
 ) -> None:
     # Create a list of files to zip
     files_to_zip = []

@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import gdown
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build, Resource
-from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
 
 try:
     from dotenv import load_dotenv
@@ -24,9 +24,7 @@ except ModuleNotFoundError:
 
 ABS_PATH = Path(__file__).resolve().parents[2]
 data_dir = os.path.join(ABS_PATH, "data")
-ROOT_PATH = os.path.join(
-    os.path.dirname(__file__), "../.."
-)
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
 
 
 def get_env_var(var_name: str) -> str:
@@ -220,10 +218,10 @@ class GoogleDriveManager:
     """
 
     def __init__(
-            self,
-            credential_file_path_from_gcloud_console: str = None,
-            reusable_token_path: str = None,
-            reuse_auth_info: bool = True,
+        self,
+        credential_file_path_from_gcloud_console: str = None,
+        reusable_token_path: str = None,
+        reuse_auth_info: bool = True,
     ):
         """
         Initializes manager.
@@ -235,7 +233,9 @@ class GoogleDriveManager:
                 login authentication is not required.
             reuse_auth_info (bool): Whether reuse auth info or not.
         """
-        self.credential_file_path_from_gcloud_console = credential_file_path_from_gcloud_console
+        self.credential_file_path_from_gcloud_console = (
+            credential_file_path_from_gcloud_console
+        )
         self.reusable_token_path = reusable_token_path
         self.reuse_auth_info = reuse_auth_info
 
@@ -245,17 +245,25 @@ class GoogleDriveManager:
     def _verify_inputs(self):
         if self.reuse_auth_info:
             if self.reusable_token_path is None:
-                raise ValueError("To reuse auth info, reusable token path must be provided.")
+                raise ValueError(
+                    "To reuse auth info, reusable token path must be provided."
+                )
         else:
             if self.credential_file_path_from_gcloud_console is None:
-                raise ValueError("For initial authentication, original credential.json from gcloud must be provided.")
+                raise ValueError(
+                    "For initial authentication, original credential.json from gcloud must be provided."
+                )
 
     def _authenticate_and_build_client(self) -> Resource:
         # Check if token.json exists
         if self.reuse_auth_info:
-            creds = Credentials.from_authorized_user_file(self.reusable_token_path, self.SCOPES)
+            creds = Credentials.from_authorized_user_file(
+                self.reusable_token_path, self.SCOPES
+            )
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(self.credential_file_path_from_gcloud_console, self.SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(
+                self.credential_file_path_from_gcloud_console, self.SCOPES
+            )
             creds = flow.run_local_server(port=0)
 
             # Save the credentials to reuse auth info
@@ -290,15 +298,17 @@ class GoogleDriveManager:
         if parent_folder_id:
             folder_metadata["parents"] = [parent_folder_id]
 
-        folder = self.service.files().create(body=folder_metadata, fields="id").execute()
+        folder = (
+            self.service.files().create(body=folder_metadata, fields="id").execute()
+        )
 
         return folder.get("id")
 
     def upload_file(
-            self,
-            file_path: str,
-            folder_id: str,
-            file_type: AllowedFileType,
+        self,
+        file_path: str,
+        folder_id: str,
+        file_type: AllowedFileType,
     ):
         """
         Upload specified file stored in local directory.
@@ -316,23 +326,23 @@ class GoogleDriveManager:
 
         file_metadata = {
             "name": file_name,
-            "parents": [folder_id]  # This puts the file in the folder we just created
+            "parents": [folder_id],  # This puts the file in the folder we just created
         }
 
         media = MediaFileUpload(
-            file_path,
-            mimetype=self.MAPPING.get(file_type).value,
-            resumable=True
+            file_path, mimetype=self.MAPPING.get(file_type).value, resumable=True
         )
-        file = self.service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id"
-        ).execute()
+        file = (
+            self.service.files()
+            .create(body=file_metadata, media_body=media, fields="id")
+            .execute()
+        )
 
         return file.get("id")
 
-    def list_files_in_folder(self, folder_id: str, mime_type=None) -> List[Dict[str, Any]]:
+    def list_files_in_folder(
+        self, folder_id: str, mime_type=None
+    ) -> List[Dict[str, Any]]:
         """
         List all files in a folder, optionally filtered by MIME type
 
@@ -392,10 +402,7 @@ class GoogleDriveManager:
         return file_path
 
     def download_candidates_result(
-            self,
-            model_name: str,
-            latest: bool = True,
-            file_id: str = None
+        self, model_name: str, latest: bool = True, file_id: str = None
     ):
         """
         Download candidate result specified by candidate generator model name.
@@ -452,8 +459,10 @@ class GoogleDriveManager:
 
     def _get_model_folder_id(self, model_name: str):
         if model_name not in self.CANDIDATE_GENERATOR_MODEL:
-            raise ValueError(f"Unsupported model: {model_name}."
-                             f"Should be one of {self.CANDIDATE_GENERATOR_MODEL}")
+            raise ValueError(
+                f"Unsupported model: {model_name}."
+                f"Should be one of {self.CANDIDATE_GENERATOR_MODEL}"
+            )
         # get model folder id
         files = self.list_files_in_folder(
             folder_id=self.CANDIDATES_FOLDER_ID,
