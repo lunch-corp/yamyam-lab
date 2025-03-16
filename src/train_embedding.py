@@ -271,7 +271,9 @@ def main(args: ArgumentParser.parse_args) -> None:
             dt = datetime.now().strftime("%Y%m%d%H%M")
             zip_path = os.path.join(ZIP_PATH, args.model, dt)
             os.makedirs(zip_path, exist_ok=True)
-            candidates_df = model.generate_candidates_for_each_user(top_k_value=config.top_k_for_candidate_generation)
+            candidates_df = model.generate_candidates_for_each_user(
+                top_k_value=config.top_k_for_candidate_generation
+            )
             # save files to zip
             pickle.dump(
                 data["user_mapping"],
