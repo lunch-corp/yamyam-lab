@@ -107,7 +107,7 @@ class Model(BaseEmbedding):
 
                 # get neighbor nodes embeddings in previous step
                 pre_emb_neighbors = emb[neighbors]  # h^{k-1}_{u'}
-
+                print(pre_emb_neighbors.shape)
                 # aggregate neighbor embedding vectors
                 agg_emb_neighbors = self.aggregate(
                     pre_emb_neighbors
@@ -272,4 +272,4 @@ class Model(BaseEmbedding):
             batch_nodes (Tensor): List of nodes to propagate
         """
         with torch.no_grad():
-            self._embedding[batch_nodes] = self.forward(batch_nodes)
+            self._embedding[batch_nodes] = self.forward(batch_nodes).detach().cpu()
