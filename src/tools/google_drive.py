@@ -24,6 +24,9 @@ except ModuleNotFoundError:
 
 ABS_PATH = Path(__file__).resolve().parents[2]
 data_dir = os.path.join(ABS_PATH, "data")
+ROOT_PATH = os.path.join(
+    os.path.dirname(__file__), "../.."
+)
 
 
 def get_env_var(var_name: str) -> str:
@@ -210,6 +213,7 @@ class GoogleDriveManager:
     CANDIDATES_FOLDER_ID = "1_-NOoTC-K6aZMJLM4DgNitCGXX0QkbSA"
     CANDIDATE_GENERATOR_MODEL = ["node2vec", "metapath2vec", "graphsage"]
     MAPPING = {AllowedFileType.ZIP: MimeType.ZIP}
+    DOWNLOAD_PATH = os.path.join(ROOT_PATH, "candidates")
 
     """
     Google drive manager enabling various jobs using python client.
@@ -255,7 +259,8 @@ class GoogleDriveManager:
             creds = flow.run_local_server(port=0)
 
             # Save the credentials to reuse auth info
-            with open("token.json", "w") as token:
+            dir_name = os.path.join(ROOT_PATH, "credentials")
+            with open(os.path.join(dir_name, "token.json"), "w") as token:
                 token.write(creds.to_json())
 
         return build("drive", "v3", credentials=creds)
@@ -419,11 +424,14 @@ class GoogleDriveManager:
         )
         model_folder_id = [file for file in files if file["name"] == model_name][0]["id"]
 
-        # download file
+        # get latest file_id
         if latest:
             latest_file_id = self._get_latest_zip_file(model_folder_id).get("id")
         else:
             latest_file_id = file_id
+
+        download_path = os.path.join(self.DOWNLOAD_PATH, model_name)
+        os.makedirs(download_path, exist_ok=True)
 
         return self.download_file(
             file_id=latest_file_id,
