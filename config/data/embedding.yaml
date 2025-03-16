@@ -9,3 +9,4 @@ user_engineered_feature_names:
     categorical_feature_names:
       - diner_category_large
   user_mean_review_score: {}
+top_k_for_candidate_generation: 100
