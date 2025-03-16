@@ -1,0 +1,11 @@
+python3 src/train_embedding.py \
+  --model graphsage \
+  --batch_size 128 \
+  --embedding_dim 32 \
+  --epochs 30 \
+  --walks_per_node 10 \
+  --use_metadata \
+  --category_column_for_meta diner_category_large \
+  --num_negative_samples 6 \
+  --result_path result/graphsage \
+  --weighted_edge
