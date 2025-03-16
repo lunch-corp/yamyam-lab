@@ -433,7 +433,17 @@ class GoogleDriveManager:
             download_path=download_path,
         )
 
-    def upload_candidates_result(self, model_name: str, file_path: str):
+    def upload_candidates_result(self, model_name: str, file_path: str) -> str:
+        """
+        Uploads candidate result to related google drive directory.
+
+        Args:
+            model_name (str): Model name currently under training. This is used when finding folder_id of model.
+            file_path (str): File path of zil file to upload to google drive.
+
+        Returns (str):
+            Id of uploaded zip file.
+        """
         model_folder_id = self._get_model_folder_id(model_name=model_name)
         return self.upload_file(
             file_path=file_path,
@@ -458,6 +468,15 @@ class GoogleDriveManager:
         return sorted(files, key=lambda x: x["name"])[-1]
 
     def _get_model_folder_id(self, model_name: str):
+        """
+        Get folder id matched with given model_name.
+
+        Args:
+            model_name (str): Name of model to find.
+
+        Returns (str):
+            Id of folder matched with model_name.
+        """
         if model_name not in self.CANDIDATE_GENERATOR_MODEL:
             raise ValueError(
                 f"Unsupported model: {model_name}."
