@@ -1,11 +1,17 @@
+import io
 import os
 import re
 import shutil
 import zipfile
+from enum import Enum
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict, List
 
 import gdown
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build, Resource
+from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 
 try:
     from dotenv import load_dotenv
@@ -188,3 +194,254 @@ def get_file_paths(directory_path: str) -> Dict[str, str]:
             result[base_name] = str(new_file_path.absolute())
 
     return result
+
+
+class AllowedFileType(Enum):
+    ZIP = "zip"
+
+
+class MimeType(Enum):
+    ZIP = "application/zip"
+    FOLDER = "application/vnd.google-apps.folder"
+
+
+class GoogleDriveManager:
+    SCOPES = ["https://www.googleapis.com/auth/drive"]
+    CANDIDATES_FOLDER_ID = "1_-NOoTC-K6aZMJLM4DgNitCGXX0QkbSA"
+    CANDIDATE_GENERATOR_MODEL = ["node2vec", "metapath2vec", "graphsage"]
+    MAPPING = {AllowedFileType.ZIP: MimeType.ZIP}
+
+    """
+    Google drive manager enabling various jobs using python client.
+    """
+
+    def __init__(
+            self,
+            credential_file_path_from_gcloud_console: str = None,
+            reusable_token_path: str = None,
+            reuse_auth_info: bool = True,
+    ):
+        """
+        Initializes manager.
+
+        Args:
+            credential_file_path_from_gcloud_console (str): Json file downloaded from gcloud console.
+            reusable_token_path (str): After running `_authenticate_and_build_client` with `credential_file_path_from_gcloud_console`,
+                `token.json` will be created in `credentials/` folder. If this json file specified next time,
+                login authentication is not required.
+            reuse_auth_info (bool): Whether reuse auth info or not.
+        """
+        self.credential_file_path_from_gcloud_console = credential_file_path_from_gcloud_console
+        self.reusable_token_path = reusable_token_path
+        self.reuse_auth_info = reuse_auth_info
+
+        self._verify_inputs()
+        self.service = self._authenticate_and_build_client()
+
+    def _verify_inputs(self):
+        if self.reuse_auth_info:
+            if self.reusable_token_path is None:
+                raise ValueError("To reuse auth info, reusable token path must be provided.")
+        else:
+            if self.credential_file_path_from_gcloud_console is None:
+                raise ValueError("For initial authentication, original credential.json from gcloud must be provided.")
+
+    def _authenticate_and_build_client(self) -> Resource:
+        # Check if token.json exists
+        if self.reuse_auth_info:
+            creds = Credentials.from_authorized_user_file(self.reusable_token_path, self.SCOPES)
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(self.credential_file_path_from_gcloud_console, self.SCOPES)
+            creds = flow.run_local_server(port=0)
+
+            # Save the credentials to reuse auth info
+            with open("token.json", "w") as token:
+                token.write(creds.to_json())
+
+        return build("drive", "v3", credentials=creds)
+
+    def create_folder(
+        self,
+        folder_name: str,
+        parent_folder_id: str = None,
+    ) -> str:
+        """
+        Create a folder with given name.
+
+        Args:
+            folder_name (str): Name of folder.
+            parent_folder_id (str): Folder id of parent folder. If specified, creates folder within parent folder.
+
+        Returns (str):
+            Id of created folder.
+        """
+        # create metadata for folder to make
+        folder_metadata = {
+            "name": folder_name,
+            "mimeType": MimeType.FOLDER.value,
+        }
+
+        # If parent folder ID is provided, add it to the metadata
+        if parent_folder_id:
+            folder_metadata["parents"] = [parent_folder_id]
+
+        folder = self.service.files().create(body=folder_metadata, fields="id").execute()
+
+        return folder.get("id")
+
+    def upload_file(
+            self,
+            file_path: str,
+            folder_id: str,
+            file_type: AllowedFileType,
+    ):
+        """
+        Upload specified file stored in local directory.
+        Currently, only zip file is supported for uploading to google drive.
+
+        Args:
+            file_path (str): File path in local directory.
+            folder_id (str): Folder id to upload file.
+            file_type (AllowedFileType): Type of file to be uploaded.
+
+        Returns (str):
+            File id in after uploading.
+        """
+        file_name = os.path.basename(file_path)
+
+        file_metadata = {
+            "name": file_name,
+            "parents": [folder_id]  # This puts the file in the folder we just created
+        }
+
+        media = MediaFileUpload(
+            file_path,
+            mimetype=self.MAPPING.get(file_type).value,
+            resumable=True
+        )
+        file = self.service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id"
+        ).execute()
+
+        return file.get("id")
+
+    def list_files_in_folder(self, folder_id: str, mime_type=None) -> List[Dict[str, Any]]:
+        """
+        List all files in a folder, optionally filtered by MIME type
+
+        Args:
+            folder_id (str): ID of the folder to list files from.
+            mime_type (str): MIME type to filter by (None for all files).
+
+        Returns:
+            List of file metadata dictionaries
+        """
+        query = f"'{folder_id}' in parents and trashed=false"
+
+        if mime_type:
+            query += f" and mimeType='{mime_type}'"
+
+        results = (
+            self.service.files()
+            .list(
+                q=query,
+                spaces="drive",
+                fields="files(id, name, createdTime, modifiedTime, mimeType)",
+            )
+            .execute()
+        )
+
+        return results.get("files", [])
+
+    def download_file(self, file_id: str, download_path: str) -> str:
+        """
+        Download a file by ID.
+
+        Args:
+            file_id (str): ID of the file to download.
+            download_path (str): Path where to save the downloaded file.
+
+        Returns (str):
+            Path to the downloaded file.
+        """
+        # Get the file metadata to get the filename
+        file_metadata = (
+            self.service.files().get(fileId=file_id, fields="name").execute()
+        )
+        file_name = file_metadata.get("name")
+
+        request = self.service.files().get_media(fileId=file_id)
+
+        file_path = os.path.join(download_path, file_name)
+
+        with io.FileIO(file_path, "wb") as fh:
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+                print(f"Download progress: {int(status.progress() * 100)}%")
+
+        print(f"File downloaded to: {file_path}")
+        return file_path
+
+    def download_candidates_result(
+            self,
+            model_name: str,
+            download_path: str,
+            latest: bool = True,
+            file_id: str = None
+    ):
+        """
+        Download candidate result specified by candidate generator model name.
+
+        Args:
+            model_name (str): Name of candidate generator model.
+            download_path (str): Path to the downloaded file.
+            latest (bool): Whether download latest result or not.
+            file_id (str): If latest is set as False, download candidate result whose
+                file_id is equal to `file_id`.
+
+        Returns (str):
+            Path to the downloaded file.
+
+        """
+        if model_name not in self.CANDIDATE_GENERATOR_MODEL:
+            raise ValueError(f"Unsupported model: {model_name}."
+                             f"Should be one of {self.CANDIDATE_GENERATOR_MODEL}")
+        if latest is False and file_id is None:
+            raise ValueError(f"File id must be provided when latest is set as False")
+        # get model folder id
+        files = self.list_files_in_folder(
+            folder_id=self.CANDIDATES_FOLDER_ID,
+            mime_type=MimeType.FOLDER.value,
+        )
+        model_folder_id = [file for file in files if file["name"] == model_name][0]["id"]
+
+        # download file
+        if latest:
+            latest_file_id = self._get_latest_zip_file(model_folder_id).get("id")
+        else:
+            latest_file_id = file_id
+
+        return self.download_file(
+            file_id=latest_file_id,
+            download_path=download_path,
+        )
+
+    def _get_latest_zip_file(self, folder_id: str) -> Dict[str, Any]:
+        """
+        Get latest zip file.
+
+        Args:
+            folder_id (str): Folder id to search.
+
+        Returns (Dict[str, Any]):
+            Latest file sorted by its name.
+        """
+        files = self.list_files_in_folder(
+            folder_id=folder_id,
+            mime_type=MimeType.ZIP.value,
+        )
+        return sorted(files, key=lambda x: x["name"])[-1]
