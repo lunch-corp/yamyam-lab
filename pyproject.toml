@@ -41,6 +41,7 @@ pydantic = "^2.10.6"
 pandera = "^0.22.1"
 geopy = "^2.4.1"
 easydict = "^1.13"
+nvitop = "^1.4.2"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.9.3"
