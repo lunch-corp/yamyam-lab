@@ -3117,6 +3117,49 @@ files = [
 ]
 
 [[package]]
+name = "nvitop"
+version = "1.4.2"
+description = "An interactive NVIDIA-GPU process viewer and beyond, the one-stop solution for GPU process management."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "nvitop-1.4.2-py3-none-any.whl", hash = "sha256:cbb78b935dd843ce18eca6fb9d3d0199da168a15a0019a8f2308afcd3dff1af4"},
+    {file = "nvitop-1.4.2.tar.gz", hash = "sha256:13c039aa099374fb1a29eb9412849a9d984a162e2ad7d3a1ed2a7f5723914d71"},
+]
+
+[package.dependencies]
+colorama = {version = ">=0.4.0", markers = "platform_system == \"Windows\""}
+nvidia-ml-py = ">=11.450.51,<12.571.0a0"
+psutil = ">=5.6.6"
+windows-curses = {version = ">=2.2.0", markers = "platform_system == \"Windows\""}
+
+[package.extras]
+cuda10 = ["nvidia-ml-py (==11.450.51)"]
+lint = ["black (>=24.0.0,<25.0.0a0)", "mypy", "pre-commit", "pylint[spelling]", "typing-extensions"]
+pynvml-11-450-129 = ["nvidia-ml-py (==11.450.129)"]
+pynvml-11-450-51 = ["nvidia-ml-py (==11.450.51)"]
+pynvml-11-460-79 = ["nvidia-ml-py (==11.460.79)"]
+pynvml-11-470-66 = ["nvidia-ml-py (==11.470.66)"]
+pynvml-11-495-46 = ["nvidia-ml-py (==11.495.46)"]
+pynvml-11-510-69 = ["nvidia-ml-py (==11.510.69)"]
+pynvml-11-515-48 = ["nvidia-ml-py (==11.515.48)"]
+pynvml-11-515-75 = ["nvidia-ml-py (==11.515.75)"]
+pynvml-11-525-112 = ["nvidia-ml-py (==11.525.112)"]
+pynvml-11-525-131 = ["nvidia-ml-py (==11.525.131)"]
+pynvml-11-525-150 = ["nvidia-ml-py (==11.525.150)"]
+pynvml-11-525-84 = ["nvidia-ml-py (==11.525.84)"]
+pynvml-12-535-108 = ["nvidia-ml-py (==12.535.108)"]
+pynvml-12-535-133 = ["nvidia-ml-py (==12.535.133)"]
+pynvml-12-535-161 = ["nvidia-ml-py (==12.535.161)"]
+pynvml-12-535-77 = ["nvidia-ml-py (==12.535.77)"]
+pynvml-12-550-52 = ["nvidia-ml-py (==12.550.52)"]
+pynvml-12-550-89 = ["nvidia-ml-py (==12.550.89)"]
+pynvml-12-555-43 = ["nvidia-ml-py (==12.555.43)"]
+pynvml-12-560-30 = ["nvidia-ml-py (==12.560.30)"]
+pynvml-12-570-86 = ["nvidia-ml-py (==12.570.86)"]
+
+[[package]]
 name = "oauth2client"
 version = "4.1.3"
 description = "OAuth 2.0 client library"
@@ -5675,4 +5718,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "fd3d98afdda79e51852f30b61e30262d17ebc5def989ea40fbf88ee803ed53eb"
+content-hash = "1b880738e06f8efbda2dddab043e637d6de89f16c7d53caca38c0447e9dd9cf5"
