@@ -3,6 +3,7 @@ from typing import Any, Dict, Tuple
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
+from data.validator import DataValidator
 from store.feature import DinerFeatureStore
 from tools.google_drive import ensure_data_files
 
@@ -58,8 +59,12 @@ def load_test_dataset(
     diner = pd.read_csv(data_paths["diner"], low_memory=False)
     review = pd.read_csv(data_paths["review"])
     reviewer = pd.read_csv(data_paths["reviewer"])
-    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
+
     diner_with_raw_category = pd.read_csv(data_paths["category"])
+    data_validator = DataValidator()
+    review = data_validator.validate(review, name_of_df="review")
+    diner = data_validator.validate(diner, name_of_df="diner")
+    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
     # merge category column
     diner = pd.merge(
@@ -80,7 +85,7 @@ def load_test_dataset(
         feature_param_pair=feature_param_pair,
     )
     diner_fs.make_features()
-    diner = diner_fs.diner
+    diner_feature = diner_fs.engineered_features
 
     # 사용자별 리뷰한 레스토랑 ID 목록 생성
     user_2_diner_df = review.groupby("reviewer_id").agg({"diner_idx": list})
@@ -96,8 +101,20 @@ def load_test_dataset(
 
     # Create test data
     test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": candidates})
-    test = test.merge(diner, on="diner_idx", how="left")
-    test = test.merge(review, on="reviewer_id", how="left")
+    test = test.merge(diner_feature, on="diner_idx", how="inner")
+    test = test.merge(review, on="reviewer_id", how="inner")
+
+    # Add diner columns
+    diner_cols = [
+        "diner_name",
+        "diner_lat",
+        "diner_lon",
+        "diner_category_large",
+        "diner_category_middle",
+    ]
+    for col in diner_cols:
+        test[col] = diner[col].loc[diner["diner_idx"].isin(candidates)]
+
     already_reviewed = user_2_diner_map.get(reviewer_id, [])
 
     return test, already_reviewed

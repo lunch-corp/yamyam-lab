@@ -67,8 +67,7 @@ def geocoding(address: str) -> list[float]:
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
     test, already_reviewed = load_test_dataset(
-        reviewer_id=cfg.user_name,
-        diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
+        cfg.user_name, cfg.data.diner_engineered_feature_names[0]
     )
 
     user_lat, user_lon = geocoding(cfg.user_address)
