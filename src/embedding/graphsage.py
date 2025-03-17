@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from constant.device.device import DEVICE
 from embedding.base_embedding import BaseEmbedding
 from tools.generate_walks import precompute_probabilities
 from tools.sampling import uniform_sampling_without_replacement_from_pool
@@ -258,8 +259,8 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Concatenated features with diner feature first and user feature following.
         """
-        user_features = self.user_feature_layer(self.user_raw_features)
-        diner_features = self.diner_feature_layer(self.diner_raw_features)
+        user_features = self.user_feature_layer(self.user_raw_features.to(DEVICE))
+        diner_features = self.diner_feature_layer(self.diner_raw_features.to(DEVICE))
         return torch.concat([diner_features, user_features])  # diner index first
 
     def propagate_and_store_embedding(self, batch_nodes: Tensor):

@@ -3065,6 +3065,18 @@ files = [
 nvidia-nvjitlink-cu12 = "*"
 
 [[package]]
+name = "nvidia-ml-py"
+version = "12.570.86"
+description = "Python Bindings for the NVIDIA Management Library"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "nvidia_ml_py-12.570.86-py3-none-any.whl", hash = "sha256:58907de35a845abd13dcb227f18298f3b5dd94a72d04c9e594e77711e95c0b51"},
+    {file = "nvidia_ml_py-12.570.86.tar.gz", hash = "sha256:0508d4a0c7b6d015cf574530b95a62ed4fc89da3b8b47e1aefe6777db170ec8b"},
+]
+
+[[package]]
 name = "nvidia-nccl-cu12"
 version = "2.21.5"
 description = "NVIDIA Collective Communication Library (NCCL) Runtime"
@@ -5414,6 +5426,33 @@ groups = ["main"]
 files = [
     {file = "widgetsnbextension-4.0.13-py3-none-any.whl", hash = "sha256:74b2692e8500525cc38c2b877236ba51d34541e6385eeed5aec15a70f88a6c71"},
     {file = "widgetsnbextension-4.0.13.tar.gz", hash = "sha256:ffcb67bc9febd10234a362795f643927f4e0c05d9342c727b65d2384f8feacb6"},
+]
+
+[[package]]
+name = "windows-curses"
+version = "2.4.1"
+description = "Support for the standard curses module on Windows"
+optional = false
+python-versions = "*"
+groups = ["main"]
+markers = "platform_system == \"Windows\""
+files = [
+    {file = "windows_curses-2.4.1-cp310-cp310-win32.whl", hash = "sha256:53d711e07194d0d3ff7ceff29e0955b35479bc01465d46c3041de67b8141db2f"},
+    {file = "windows_curses-2.4.1-cp310-cp310-win_amd64.whl", hash = "sha256:325439cd4f37897a1de8a9c068a5b4c432f9244bf9c855ee2fbeb3fa721a770c"},
+    {file = "windows_curses-2.4.1-cp311-cp311-win32.whl", hash = "sha256:4fa1a176bfcf098d0c9bb7bc03dce6e83a4257fc0c66ad721f5745ebf0c00746"},
+    {file = "windows_curses-2.4.1-cp311-cp311-win_amd64.whl", hash = "sha256:fd7d7a9cf6c1758f46ed76b8c67f608bc5fcd5f0ca91f1580fd2d84cf41c7f4f"},
+    {file = "windows_curses-2.4.1-cp312-cp312-win32.whl", hash = "sha256:bdbe7d58747408aef8a9128b2654acf6fbd11c821b91224b9a046faba8c6b6ca"},
+    {file = "windows_curses-2.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:5c9c2635faf171a229caca80e1dd760ab00db078e2a285ba2f667bbfcc31777c"},
+    {file = "windows_curses-2.4.1-cp313-cp313-win32.whl", hash = "sha256:05d1ca01e5199a435ccb6c8c2978df4a169cdff1ec99ab15f11ded9de8e5be26"},
+    {file = "windows_curses-2.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:8cf653f8928af19c103ae11cfed38124f418dcdd92643c4cd17239c0cec2f9da"},
+    {file = "windows_curses-2.4.1-cp36-cp36m-win32.whl", hash = "sha256:6a5a831cabaadde41a6856fea5a0c68c74b7d11d332a816e5a5e6c84577aef3a"},
+    {file = "windows_curses-2.4.1-cp36-cp36m-win_amd64.whl", hash = "sha256:e61be805edc390ccfdeaf0e0c39736d931d3c4a007d6bf0f98d1e792ce437796"},
+    {file = "windows_curses-2.4.1-cp37-cp37m-win32.whl", hash = "sha256:a36b8fd4e410ddfb1a8eb65af2116c588e9f99b2ff3404412317440106755485"},
+    {file = "windows_curses-2.4.1-cp37-cp37m-win_amd64.whl", hash = "sha256:db776df70c10bd523c4a1ab0a7624a1d58c7d47f83ec49c6988f05bc1189e7b8"},
+    {file = "windows_curses-2.4.1-cp38-cp38-win32.whl", hash = "sha256:e9ce84559f80de7ec770d28c3b2991e0da51748def04e25a3c08ada727cfac2d"},
+    {file = "windows_curses-2.4.1-cp38-cp38-win_amd64.whl", hash = "sha256:618e31458fedba2cf8105485ff00533ece780026c544142fc1647a20dc6c7641"},
+    {file = "windows_curses-2.4.1-cp39-cp39-win32.whl", hash = "sha256:775a2e0fefeddfdb0e00b3fa6c4f21caf9982db34df30e4e62c49caaef7b5e56"},
+    {file = "windows_curses-2.4.1-cp39-cp39-win_amd64.whl", hash = "sha256:4588213f7ef3b0c24c5cb9e309653d7a84c1792c707561e8b471d466ca79f2b8"},
 ]
 
 [[package]]
