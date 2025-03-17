@@ -63,10 +63,10 @@ class DataValidator:
 
         # NaN을 고려하여 안전하게 ast.literal_eval 적용
         for col in columns_to_convert:
-            diner_df[col] = diner_df[col].apply(
+            diner_df.loc[:, col] = diner_df[col].apply(
                 lambda x: ast.literal_eval(x) if isinstance(x, str) else x
             )
-            diner_df[col] = diner_df[col].apply(
+            diner_df.loc[:, col] = diner_df[col].apply(
                 lambda x: [] if isinstance(x, float) and pd.isna(x) else x
             )
 
