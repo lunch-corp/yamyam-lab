@@ -205,7 +205,7 @@ def make_feature(
         feature_param_pair=user_engineered_feature_names,
     )
     user_fs.make_features()
-    user_feature = user_fs.get_engineered_features()
+    user_feature = user_fs.engineered_features
 
     # diner feature engineering
     diner_fs = DinerFeatureStore(
@@ -214,7 +214,7 @@ def make_feature(
         feature_param_pair=diner_engineered_feature_names,
     )
     diner_fs.make_features()
-    diner_feature = diner_fs.get_engineered_features()
+    diner_feature = diner_fs.engineered_features
     return user_feature, diner_feature
 
 

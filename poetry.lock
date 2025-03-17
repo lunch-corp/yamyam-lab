@@ -2925,6 +2925,18 @@ files = [
 nvidia-nvjitlink-cu12 = "*"
 
 [[package]]
+name = "nvidia-ml-py"
+version = "12.570.86"
+description = "Python Bindings for the NVIDIA Management Library"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "nvidia_ml_py-12.570.86-py3-none-any.whl", hash = "sha256:58907de35a845abd13dcb227f18298f3b5dd94a72d04c9e594e77711e95c0b51"},
+    {file = "nvidia_ml_py-12.570.86.tar.gz", hash = "sha256:0508d4a0c7b6d015cf574530b95a62ed4fc89da3b8b47e1aefe6777db170ec8b"},
+]
+
+[[package]]
 name = "nvidia-nccl-cu12"
 version = "2.21.5"
 description = "NVIDIA Collective Communication Library (NCCL) Runtime"
@@ -2963,6 +2975,49 @@ files = [
     {file = "nvidia_nvtx_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl", hash = "sha256:781e950d9b9f60d8241ccea575b32f5105a5baf4c2351cab5256a24869f12a1a"},
     {file = "nvidia_nvtx_cu12-12.4.127-py3-none-win_amd64.whl", hash = "sha256:641dccaaa1139f3ffb0d3164b4b84f9d253397e38246a4f2f36728b48566d485"},
 ]
+
+[[package]]
+name = "nvitop"
+version = "1.4.2"
+description = "An interactive NVIDIA-GPU process viewer and beyond, the one-stop solution for GPU process management."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "nvitop-1.4.2-py3-none-any.whl", hash = "sha256:cbb78b935dd843ce18eca6fb9d3d0199da168a15a0019a8f2308afcd3dff1af4"},
+    {file = "nvitop-1.4.2.tar.gz", hash = "sha256:13c039aa099374fb1a29eb9412849a9d984a162e2ad7d3a1ed2a7f5723914d71"},
+]
+
+[package.dependencies]
+colorama = {version = ">=0.4.0", markers = "platform_system == \"Windows\""}
+nvidia-ml-py = ">=11.450.51,<12.571.0a0"
+psutil = ">=5.6.6"
+windows-curses = {version = ">=2.2.0", markers = "platform_system == \"Windows\""}
+
+[package.extras]
+cuda10 = ["nvidia-ml-py (==11.450.51)"]
+lint = ["black (>=24.0.0,<25.0.0a0)", "mypy", "pre-commit", "pylint[spelling]", "typing-extensions"]
+pynvml-11-450-129 = ["nvidia-ml-py (==11.450.129)"]
+pynvml-11-450-51 = ["nvidia-ml-py (==11.450.51)"]
+pynvml-11-460-79 = ["nvidia-ml-py (==11.460.79)"]
+pynvml-11-470-66 = ["nvidia-ml-py (==11.470.66)"]
+pynvml-11-495-46 = ["nvidia-ml-py (==11.495.46)"]
+pynvml-11-510-69 = ["nvidia-ml-py (==11.510.69)"]
+pynvml-11-515-48 = ["nvidia-ml-py (==11.515.48)"]
+pynvml-11-515-75 = ["nvidia-ml-py (==11.515.75)"]
+pynvml-11-525-112 = ["nvidia-ml-py (==11.525.112)"]
+pynvml-11-525-131 = ["nvidia-ml-py (==11.525.131)"]
+pynvml-11-525-150 = ["nvidia-ml-py (==11.525.150)"]
+pynvml-11-525-84 = ["nvidia-ml-py (==11.525.84)"]
+pynvml-12-535-108 = ["nvidia-ml-py (==12.535.108)"]
+pynvml-12-535-133 = ["nvidia-ml-py (==12.535.133)"]
+pynvml-12-535-161 = ["nvidia-ml-py (==12.535.161)"]
+pynvml-12-535-77 = ["nvidia-ml-py (==12.535.77)"]
+pynvml-12-550-52 = ["nvidia-ml-py (==12.550.52)"]
+pynvml-12-550-89 = ["nvidia-ml-py (==12.550.89)"]
+pynvml-12-555-43 = ["nvidia-ml-py (==12.555.43)"]
+pynvml-12-560-30 = ["nvidia-ml-py (==12.560.30)"]
+pynvml-12-570-86 = ["nvidia-ml-py (==12.570.86)"]
 
 [[package]]
 name = "omegaconf"
@@ -5133,6 +5188,33 @@ files = [
 ]
 
 [[package]]
+name = "windows-curses"
+version = "2.4.1"
+description = "Support for the standard curses module on Windows"
+optional = false
+python-versions = "*"
+groups = ["main"]
+markers = "platform_system == \"Windows\""
+files = [
+    {file = "windows_curses-2.4.1-cp310-cp310-win32.whl", hash = "sha256:53d711e07194d0d3ff7ceff29e0955b35479bc01465d46c3041de67b8141db2f"},
+    {file = "windows_curses-2.4.1-cp310-cp310-win_amd64.whl", hash = "sha256:325439cd4f37897a1de8a9c068a5b4c432f9244bf9c855ee2fbeb3fa721a770c"},
+    {file = "windows_curses-2.4.1-cp311-cp311-win32.whl", hash = "sha256:4fa1a176bfcf098d0c9bb7bc03dce6e83a4257fc0c66ad721f5745ebf0c00746"},
+    {file = "windows_curses-2.4.1-cp311-cp311-win_amd64.whl", hash = "sha256:fd7d7a9cf6c1758f46ed76b8c67f608bc5fcd5f0ca91f1580fd2d84cf41c7f4f"},
+    {file = "windows_curses-2.4.1-cp312-cp312-win32.whl", hash = "sha256:bdbe7d58747408aef8a9128b2654acf6fbd11c821b91224b9a046faba8c6b6ca"},
+    {file = "windows_curses-2.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:5c9c2635faf171a229caca80e1dd760ab00db078e2a285ba2f667bbfcc31777c"},
+    {file = "windows_curses-2.4.1-cp313-cp313-win32.whl", hash = "sha256:05d1ca01e5199a435ccb6c8c2978df4a169cdff1ec99ab15f11ded9de8e5be26"},
+    {file = "windows_curses-2.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:8cf653f8928af19c103ae11cfed38124f418dcdd92643c4cd17239c0cec2f9da"},
+    {file = "windows_curses-2.4.1-cp36-cp36m-win32.whl", hash = "sha256:6a5a831cabaadde41a6856fea5a0c68c74b7d11d332a816e5a5e6c84577aef3a"},
+    {file = "windows_curses-2.4.1-cp36-cp36m-win_amd64.whl", hash = "sha256:e61be805edc390ccfdeaf0e0c39736d931d3c4a007d6bf0f98d1e792ce437796"},
+    {file = "windows_curses-2.4.1-cp37-cp37m-win32.whl", hash = "sha256:a36b8fd4e410ddfb1a8eb65af2116c588e9f99b2ff3404412317440106755485"},
+    {file = "windows_curses-2.4.1-cp37-cp37m-win_amd64.whl", hash = "sha256:db776df70c10bd523c4a1ab0a7624a1d58c7d47f83ec49c6988f05bc1189e7b8"},
+    {file = "windows_curses-2.4.1-cp38-cp38-win32.whl", hash = "sha256:e9ce84559f80de7ec770d28c3b2991e0da51748def04e25a3c08ada727cfac2d"},
+    {file = "windows_curses-2.4.1-cp38-cp38-win_amd64.whl", hash = "sha256:618e31458fedba2cf8105485ff00533ece780026c544142fc1647a20dc6c7641"},
+    {file = "windows_curses-2.4.1-cp39-cp39-win32.whl", hash = "sha256:775a2e0fefeddfdb0e00b3fa6c4f21caf9982db34df30e4e62c49caaef7b5e56"},
+    {file = "windows_curses-2.4.1-cp39-cp39-win_amd64.whl", hash = "sha256:4588213f7ef3b0c24c5cb9e309653d7a84c1792c707561e8b471d466ca79f2b8"},
+]
+
+[[package]]
 name = "wrapt"
 version = "1.17.2"
 description = "Module for decorators, wrappers and monkey patching."
@@ -5352,4 +5434,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "6305db5a896c7f00c8c1567a72695972904bbb68e479d84a8b9e8fd632fae478"
+content-hash = "6932e4e6a49609eef88b4ec9bdb875baafe03b4543c38777b21bacf815488e91"

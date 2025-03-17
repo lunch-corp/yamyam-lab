@@ -34,8 +34,9 @@ class BaseFeatureStore(ABC):
         """
         raise NotImplementedError
 
+    @property
     @abstractmethod
-    def get_engineered_features(self) -> pd.DataFrame:
+    def engineered_features(self) -> pd.DataFrame:
         """
         Get engineered features only without original features with primary key.
 

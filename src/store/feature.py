@@ -212,7 +212,8 @@ class DinerFeatureStore(BaseFeatureStore):
 
         return scores
 
-    def get_engineered_features(self) -> pd.DataFrame:
+    @property
+    def engineered_features(self) -> pd.DataFrame:
         """
         Get engineered features only without original features with primary key.
 
@@ -318,7 +319,8 @@ class UserFeatureStore(BaseFeatureStore):
             on="reviewer_id",
         )
 
-    def get_engineered_features(self: Self) -> pd.DataFrame:
+    @property
+    def engineered_features(self: Self) -> pd.DataFrame:
         """
         Get engineered features only without original features with primary key.
 
