@@ -64,6 +64,7 @@ def load_test_dataset(
     data_validator = DataValidator()
     review = data_validator.validate(review, name_of_df="review")
     diner = data_validator.validate(diner, name_of_df="diner")
+    reviewer = reviewer[reviewer["reviewer_id"] == reviewer_id]
     review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
     # merge category column
@@ -96,7 +97,7 @@ def load_test_dataset(
 
     reviewed_diners = list(set(user_2_diner_map.get(reviewer_id, [])))
     candidates = [d for d in candidate_pool if d not in reviewed_diners]
-    review = review[review["reviewer_id"] == reviewer_id].iloc[-1:]
+
     review = review.drop(columns=["diner_idx"])
 
     # Create test data
