@@ -26,7 +26,6 @@ repos:
   hooks:
     - id: poetry-check
     - id: poetry-lock
-      args: ["--check"]
 
 - repo: https://github.com/codespell-project/codespell
   rev: v2.4.1
