@@ -6,8 +6,8 @@ help:
 
 
 lint:
-	poetry run ruff format .
-	poetry run ruff check .
+	poetry run ruff format . --fix
+	poetry run ruff check . --fix
 
 test:
 	poetry run pytest
