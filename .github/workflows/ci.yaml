@@ -41,7 +41,7 @@ jobs:
           poetry-version: "2.1.1"
 
       - name: Check if poetry.lock is in sync with pyproject.toml
-        run: poetry lock --check
+        run: poetry check --lock
 
   test:
     name: Run tests
