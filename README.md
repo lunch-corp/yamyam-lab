@@ -13,7 +13,7 @@ $ poetry --version
 Poetry (version 2.1.1)
 ```
 
-Python version should be higher than `3.11`.
+Python version should be `3.11.x`.
 
 ```shell
 $ python --version
@@ -25,7 +25,7 @@ If python version is lower than `3.11`, try installing required version using `p
 Create virtual environment.
 
 ```shell
-$ poetry env activate
+$ poetry env use python3.11
 ```
 
 You can check virtual environment path info and its executable python path using following command.
