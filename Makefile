@@ -6,7 +6,7 @@ help:
 
 
 lint:
-	poetry run ruff format . --fix
+	poetry run ruff format .
 	poetry run ruff check . --fix
 
 test:
