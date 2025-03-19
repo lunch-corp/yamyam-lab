@@ -25,6 +25,12 @@ If python version is lower than `3.11`, try installing required version using `p
 Create virtual environment.
 
 ```shell
+$ poetry env activate
+```
+
+If your global python version is not 3.11, run following command.
+
+```shell
 $ poetry env use python3.11
 ```
 
