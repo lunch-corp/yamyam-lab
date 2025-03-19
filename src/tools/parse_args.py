@@ -61,6 +61,10 @@ def parse_args_embedding():
     # graphsage parameter
     parser.add_argument("--num_sage_layers", type=int, default=2)
 
+    # candidate generation parameter for two-stage reco
+    parser.add_argument("--save_candidate", action="store_true", required=False)
+    parser.add_argument("--reusable_token_path", type=str, required=False)
+
     return parser.parse_args()
 
 
