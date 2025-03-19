@@ -3,6 +3,7 @@ from typing import Dict, List, Tuple, Union
 
 import networkx as nx
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 from numpy.typing import NDArray
@@ -422,3 +423,31 @@ class BaseEmbedding(nn.Module):
             return self._embedding(batch_tensor)
         else:
             return self._embedding[batch_tensor]
+
+    def generate_candidates_for_each_user(self, top_k_value: int) -> pd.DataFrame:
+        start = 0
+        diner_embeds = self.get_embedding(self.diner_ids)
+        res = torch.tensor([], dtype=torch.float32)
+
+        while start < self.num_users:
+            batch_users = self.user_ids[start : start + RECOMMEND_BATCH_SIZE]
+            user_embeds = self.get_embedding(batch_users)
+            scores = torch.mm(user_embeds, diner_embeds.t())
+            top_k = torch.topk(scores, k=top_k_value)
+            top_k_id = top_k.indices
+            top_k_score = top_k.values
+            candi = torch.cat(
+                (
+                    batch_users.repeat_interleave(top_k_value).view(-1, 1),
+                    top_k_id.view(-1, 1),
+                    top_k_score.view(-1, 1),
+                ),
+                dim=1,
+            )
+            res = torch.cat((res, candi), dim=0)
+            start += RECOMMEND_BATCH_SIZE
+        dtypes = {"user_id": np.int64, "diner_id": np.int64, "score": np.float64}
+        res = pd.DataFrame(res.detach().numpy(), columns=list(dtypes.keys())).astype(
+            dtypes
+        )
+        return res
