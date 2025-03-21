@@ -1,3 +1,4 @@
+import datetime as dt
 from typing import Any, Dict, List, Self
 
 import numpy as np
@@ -89,7 +90,14 @@ class DinerFeatureStore(BaseFeatureStore):
         self.diner[["taste", "kind", "mood", "chip", "parking"]] = scores
 
         self.engineered_feature_names.extend(
-            ["diner_review_cnt_category", "taste", "kind", "mood", "chip", "parking"]
+            [
+                "diner_review_cnt_category",
+                "taste",
+                "kind",
+                "mood",
+                "chip",
+                "parking",
+            ]
         )
 
     def calculate_diner_price(self: Self, **kwargs) -> None:
@@ -111,7 +119,13 @@ class DinerFeatureStore(BaseFeatureStore):
             self.diner[col] = self.diner[col].fillna(self.diner[col].median())
 
         self.engineered_feature_names.extend(
-            ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
+            [
+                "min_price",
+                "max_price",
+                "mean_price",
+                "median_price",
+                "menu_count",
+            ]
         )
 
     def calculate_diner_mean_review_score(self: Self, **kwargs) -> None:
@@ -257,6 +271,7 @@ class UserFeatureStore(BaseFeatureStore):
         self.feature_methods = {
             "categorical_feature_count": self.calculate_categorical_feature_count,
             "user_mean_review_score": self.calculate_user_mean_review_score,
+            "calculate_scaled_scores": self.calculate_scaled_scores,
         }
         for feat, arg in feature_param_pair.items():
             if feat not in self.feature_methods.keys():
@@ -317,6 +332,159 @@ class UserFeatureStore(BaseFeatureStore):
             right=score_feat,
             how="inner",
             on="reviewer_id",
+        )
+
+    def calculate_scaled_scores(
+        self: Self,
+        badge_range: tuple = (0.1, 1.0),
+        date_range: tuple = (0.1, 1.0),
+        score_range: tuple = (-0.5, 1.0),
+        decay_period: int = 1095,
+        badge_weight: float = 0.3,
+        date_weight: float = 0.2,
+        score_weight: float = 0.5,
+        **kwargs,
+    ) -> None:
+        """
+        Calculate badge_scaled, date_scaled, score_scaled, and combined_score for each user.
+
+        Args:
+            badge_range (tuple): The range to scale badge_level to (min, max)
+            date_range (tuple): The range to scale date_weight to (min, max)
+            score_range (tuple): The range to scale score_diff to (min, max)
+            decay_period (int): Date weight decay period (default: 730 days)
+            **kwargs: Additional keyword arguments.
+        """
+
+        def min_max_scaling(value, min_val, max_val, range_min, range_max):
+            if max_val - min_val == 0:  # Zero division 방지
+                return range_min
+            return ((value - min_val) / (max_val - min_val)) * (
+                range_max - range_min
+            ) + range_min
+
+        # 필요한 컬럼이 있는지 확인
+        required_columns = ["badge_level"]
+        for col in required_columns:
+            if col not in self.review.columns:
+                raise ValueError(f"{col} not in review data columns")
+
+        # date_weight와 score_diff가 없는 경우 계산
+        if (
+            "date_weight" not in self.review.columns
+            or "score_diff" not in self.review.columns
+        ):
+            self._calculate_weighted_score(
+                decay_period=decay_period,
+            )
+
+        # 각 열의 최소, 최대값 계산
+        badge_min, badge_max = (
+            self.review["badge_level"].min(),
+            self.review["badge_level"].max(),
+        )
+        date_weight_min, date_weight_max = (
+            self.review["date_weight"].min(),
+            self.review["date_weight"].max(),
+        )
+        score_diff_min, score_diff_max = (
+            self.review["score_diff"].min(),
+            self.review["score_diff"].max(),
+        )
+
+        # 스케일링된 값 계산
+        self.review["badge_scaled"] = self.review["badge_level"].apply(
+            lambda x: min_max_scaling(
+                x, badge_min, badge_max, badge_range[0], badge_range[1]
+            )
+        )
+
+        self.review["date_scaled"] = self.review["date_weight"].apply(
+            lambda x: min_max_scaling(
+                x, date_weight_min, date_weight_max, date_range[0], date_range[1]
+            )
+        )
+
+        self.review["score_scaled"] = self.review["score_diff"].apply(
+            lambda x: min_max_scaling(
+                x, score_diff_min, score_diff_max, score_range[0], score_range[1]
+            )
+        )
+
+        # combined_score 계산 (badge_scaled 포함)
+        self.review["combined_score"] = (
+            (badge_weight * self.review["badge_scaled"])
+            + (date_weight * self.review["date_scaled"])
+            + (score_weight * self.review["score_scaled"])
+        )
+
+        # 사용자별로 평균 계산하여 사용자 특성으로 추가
+        scaled_features = (
+            self.review.groupby("reviewer_id")
+            .agg(
+                {
+                    "date_scaled": "mean",
+                    "score_scaled": "mean",
+                    "combined_score": "mean",
+                }
+            )
+            .reset_index()
+        )
+
+        self.user = pd.merge(
+            left=self.user,
+            right=scaled_features,
+            how="inner",
+            on="reviewer_id",
+        )
+
+    def _calculate_weighted_score(
+        self: Self,
+        decay_period: int = 1095,
+    ) -> None:
+        """
+        Calculate date_weight and score_diff for reviews if they don't exist.
+
+        Args:
+            decay_period (int): Date weight decay period in days
+        """
+
+        # 필수 컬럼 확인
+        required_columns = [
+            "reviewer_review_score",
+            "reviewer_avg",
+            "reviewer_review_date",
+        ]
+        for col in required_columns:
+            if col not in self.review.columns:
+                raise ValueError(
+                    f"{col} not in review data columns. Required for weighted score calculation."
+                )
+
+        # 현재 날짜 설정
+        current_date = dt.datetime.now()
+
+        def partly_calculate_weighted_score(row, today=current_date):
+            """
+            Calculate weighted_score to date-weight review scores
+
+            Returns:
+                Tuple of (date_weight, score_diff)
+            """
+            # 날짜 차이 계산
+            days_diff = (today - row["reviewer_review_date"]).days
+            date_weight = max(1 - max(0, days_diff - 90) / decay_period, 0.01)
+
+            # 사용자 평균과의 차이 계산
+            R = row["reviewer_avg"]
+            new_score = row["reviewer_review_score"]
+            simple_score = new_score - R
+
+            return (date_weight, simple_score)
+
+        # 리뷰 데이터에 가중치가 적용된 점수 계산
+        self.review[["date_weight", "score_diff"]] = self.review.apply(
+            partly_calculate_weighted_score, axis=1, result_type="expand"
         )
 
     @property
