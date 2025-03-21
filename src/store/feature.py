@@ -37,6 +37,7 @@ class DinerFeatureStore(BaseFeatureStore):
             "diner_menu_price": self.calculate_diner_price,
             "diner_mean_review_score": self.calculate_diner_mean_review_score,
             "one_hot_encoding_categorical_features": self.one_hot_encoding_categorical_features,
+            "bayesian_score": self.calculate_bayesian_score,
         }
         for feat, arg in feature_param_pair.items():
             if feat not in self.feature_methods.keys():
@@ -225,6 +226,50 @@ class DinerFeatureStore(BaseFeatureStore):
                 continue  # 파싱 에러 방지
 
         return scores
+
+    def calculate_bayesian_score(self: Self, k: int = 5, **kwargs) -> None:
+        """
+        Calculate Bayesian average score for each diner.
+
+        Args:
+            k (int): Minimum guaranteed review count (or arbitrary choice).
+            **kwargs: Additional keyword arguments.
+        """
+        # Check if review has 'combined_score' column
+        if "combined_score" not in self.review.columns:
+            raise ValueError(
+                "'combined_score' column not found in review data. Please ensure reviews are properly processed."
+            )
+        # Group by diner_idx and calculate review count and mean combined score
+        grouped = (
+            self.review.groupby("diner_idx")
+            .agg(
+                review_count=("reviewer_id", "count"),
+                mean_combined_score=("combined_score", "mean"),
+            )
+            .reset_index()
+        )
+
+        # Calculate global mean of combined scores
+        mu = grouped["mean_combined_score"].mean()
+
+        # Apply Bayesian Average formula
+        grouped["bayesian_score"] = (
+            (grouped["mean_combined_score"] * grouped["review_count"]) + (mu * k)
+        ) / (grouped["review_count"] + k)
+
+        # Merge with diner dataframe
+        self.diner = pd.merge(
+            left=self.diner,
+            right=grouped[["diner_idx", "bayesian_score"]],
+            on="diner_idx",
+            how="left",
+        )
+
+        # Handle diners with no reviews
+        self.diner["bayesian_score"] = self.diner["bayesian_score"].fillna(0)
+
+        self.engineered_feature_names.append("bayesian_score")
 
     @property
     def engineered_features(self) -> pd.DataFrame:
