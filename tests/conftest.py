@@ -13,6 +13,7 @@ class DataConfig:
     min_reviews: int
     features: List[str]
     cat_features: List[str]
+    user_engineered_feature_names: List[Dict[str, Any]]
     diner_engineered_feature_names: List[Dict[str, Any]]
 
 
@@ -91,6 +92,13 @@ def setup_ranker_config(request) -> TestConfig:
                 "parking",
             ],
             cat_features=["diner_review_cnt_category"],
+            user_engineered_feature_names=[
+                {
+                    "categorical_feature_count": {
+                        "categorical_feature_names": ["diner_category_large"]
+                    },
+                }
+            ],
             diner_engineered_feature_names=[
                 {
                     "all_review_cnt": {},
