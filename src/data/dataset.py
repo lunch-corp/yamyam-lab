@@ -1,10 +1,9 @@
 from typing import Any, Dict, Tuple
 
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
 
 from data.validator import DataValidator
-from store.feature import DinerFeatureStore
+from store.feature import DinerFeatureStore, UserFeatureStore
 from tools.google_drive import ensure_data_files
 
 
@@ -41,7 +40,9 @@ def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Dat
 
 
 def load_test_dataset(
-    reviewer_id: int, feature_param_pair: Dict[str, Dict[str, Any]]
+    reviewer_id: int,
+    user_feature_param_pair: Dict[str, Any],
+    diner_feature_param_pair: Dict[str, Any],
 ) -> tuple[pd.DataFrame, list[str]]:
     """
     Load test dataset for inference
@@ -75,15 +76,19 @@ def load_test_dataset(
         on="diner_idx",
     )
 
-    # label Encoder
-    le = LabelEncoder()
-    review["badge_grade"] = le.fit_transform(review["badge_grade"])
-
     # feature engineering
+    user_fs = UserFeatureStore(
+        review=review,
+        diner=diner,
+        feature_param_pair=user_feature_param_pair,
+    )
+    user_fs.make_features()
+    user_feature = user_fs.engineered_features
+
     diner_fs = DinerFeatureStore(
         review=review,
         diner=diner,
-        feature_param_pair=feature_param_pair,
+        feature_param_pair=diner_feature_param_pair,
     )
     diner_fs.make_features()
     diner_feature = diner_fs.engineered_features
@@ -102,6 +107,7 @@ def load_test_dataset(
 
     # Create test data
     test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": candidates})
+    test = test.merge(user_feature, on="reviewer_id", how="inner")
     test = test.merge(diner_feature, on="diner_idx", how="inner")
     test = test.merge(review, on="reviewer_id", how="inner")
 

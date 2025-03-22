@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
@@ -342,13 +341,15 @@ def train_test_split_stratify(
     )
 
     if is_rank:
-        # label Encoder
-        le = LabelEncoder()
-        train["badge_grade"] = le.fit_transform(train["badge_grade"])
-        val["badge_grade"] = le.transform(val["badge_grade"])
-
         # merge diner data
+        train = train.merge(
+            user_feature, on="reviewer_id", how="inner"
+        ).drop_duplicates(subset=["reviewer_id", "diner_idx"])
         train = train.merge(diner_feature, on="diner_idx", how="inner").drop_duplicates(
+            subset=["reviewer_id", "diner_idx"]
+        )
+
+        val = val.merge(user_feature, on="reviewer_id", how="inner").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
         val = val.merge(diner_feature, on="diner_idx", how="inner").drop_duplicates(

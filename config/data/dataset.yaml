@@ -3,8 +3,6 @@ min_reviews: 3
 random_state: 42
 path: data/
 features:
-  - badge_level
-  - badge_grade
   - diner_review_cnt_category
   - min_price
   - max_price
@@ -16,6 +14,15 @@ features:
   - mood
   - chip
   - parking
+  - asian
+  - japanese
+  - chinese
+  - korean
+  - western
+
+user_engineered_feature_names:
+  - categorical_feature_count: {"categorical_feature_names": ["diner_category_large"]}
+
 diner_engineered_feature_names:
   - all_review_cnt: {}
     diner_review_tags: {}
@@ -23,8 +30,6 @@ diner_engineered_feature_names:
 
 cat_features:
   - diner_review_cnt_category
-  - badge_level
-  - badge_grade
 
 target: target
 size: 30

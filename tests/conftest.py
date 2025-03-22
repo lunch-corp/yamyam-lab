@@ -78,8 +78,6 @@ def setup_ranker_config(request) -> TestConfig:
             test_size=0.2,
             min_reviews=5,
             features=[
-                "badge_level",
-                "badge_grade",
                 "diner_review_cnt_category",
                 "min_price",
                 "max_price",
@@ -92,7 +90,7 @@ def setup_ranker_config(request) -> TestConfig:
                 "chip",
                 "parking",
             ],
-            cat_features=["diner_review_cnt_category", "badge_level", "badge_grade"],
+            cat_features=["diner_review_cnt_category"],
             diner_engineered_feature_names=[
                 {
                     "all_review_cnt": {},
