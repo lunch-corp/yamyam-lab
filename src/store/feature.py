@@ -401,13 +401,6 @@ class UserFeatureStore(BaseFeatureStore):
             **kwargs: Additional keyword arguments.
         """
 
-        def min_max_scaling(value, min_val, max_val, range_min, range_max):
-            if max_val - min_val == 0:
-                return range_min
-            return ((value - min_val) / (max_val - min_val)) * (
-                range_max - range_min
-            ) + range_min
-
         # date_weight와 score_diff가 없는 경우 계산
         if (
             "date_weight" not in self.review.columns
@@ -534,3 +527,26 @@ class UserFeatureStore(BaseFeatureStore):
             Engineered features dataframe.
         """
         return self.user
+
+
+def min_max_scaling(
+    value: float, min_val: float, max_val: float, range_min: float, range_max: float
+) -> float:
+    """
+    Scale a value to a specified range using min-max scaling.
+
+    Args:
+        value (float): The value to be scaled.
+        min_val (float): The minimum value in the original data.
+        max_val (float): The maximum value in the original data.
+        range_min (float): The minimum value of the target range.
+        range_max (float): The maximum value of the target range.
+
+    Returns:
+        float: The scaled value within the specified range.
+    """
+    if max_val - min_val == 0:  # Zero division 방지
+        return range_min
+    return ((value - min_val) / (max_val - min_val)) * (
+        range_max - range_min
+    ) + range_min
