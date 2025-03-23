@@ -267,6 +267,17 @@ class UserFeatureStore(BaseFeatureStore):
         self.user = pd.DataFrame(
             {"reviewer_id": sorted(review["reviewer_id"].unique())}
         )
+        self.feature_dict = {
+            "한식": "korean",
+            "중식": "chinese",
+            "일식": "japanese",
+            "양식": "western",
+            "간식": "snack",
+            "아시아음식": "asian",
+            "패스트푸드": "fastfood",
+            "디저트": "dessert",
+            "카페": "cafe",
+        }
 
     def make_features(self: Self) -> None:
         """
@@ -294,20 +305,9 @@ class UserFeatureStore(BaseFeatureStore):
                 .unstack(fill_value=0)
                 .reset_index()
             )
-            feature_dict = {
-                "한식": "korean",
-                "중식": "chinese",
-                "일식": "japanese",
-                "양식": "western",
-                "간식": "snack",
-                "아시아음식": "asian",
-                "패스트푸드": "fastfood",
-                "디저트": "dessert",
-                "카페": "cafe",
-            }
 
             category_feat.columns = [
-                feature_dict.get(col, 0) if col in feature_dict else col
+                self.feature_dict.get(col, 0) if col in self.feature_dict else col
                 for col in category_feat.columns
             ]
 
