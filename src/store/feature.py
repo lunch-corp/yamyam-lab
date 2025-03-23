@@ -84,12 +84,11 @@ class DinerFeatureStore(BaseFeatureStore):
         ]
 
         scores = self._extract_scores_array(
-            self.diner["diner_review_tags"], tag_categories
+            self.diner["diner_review_tags"].to_list(), tag_categories
         )
 
         # 결과를 DataFrame으로 변환 및 병합
         self.diner[["taste", "kind", "mood", "chip", "parking"]] = scores
-
         self.engineered_feature_names.extend(
             [
                 "diner_review_cnt_category",
@@ -204,7 +203,7 @@ class DinerFeatureStore(BaseFeatureStore):
 
     # numpy 기반으로 점수 추출 최적화
     def _extract_scores_array(
-        self: Self, reviews: str, categories: list[tuple[str, str]]
+        self: Self, reviews: list[str], categories: list[tuple[str, str]]
     ) -> np.ndarray:
         # 카테고리 인덱스 매핑
         category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
@@ -216,9 +215,10 @@ class DinerFeatureStore(BaseFeatureStore):
         for i, review in enumerate(reviews):
             if any(pd.isna(review)):  # 결측치 예외 처리
                 continue
-
             try:
-                for cat, score in review:
+                for info in review:
+                    cat, score = ast.literal_eval(info)
+
                     if cat in category_map:
                         scores[i, category_map[cat]] = score
 
@@ -326,6 +326,17 @@ class UserFeatureStore(BaseFeatureStore):
         self.user = pd.DataFrame(
             {"reviewer_id": sorted(review["reviewer_id"].unique())}
         )
+        self.feature_dict = {
+            "한식": "korean",
+            "중식": "chinese",
+            "일식": "japanese",
+            "양식": "western",
+            "간식": "snack",
+            "아시아음식": "asian",
+            "패스트푸드": "fastfood",
+            "디저트": "dessert",
+            "카페": "cafe",
+        }
 
     def make_features(self: Self) -> None:
         """
@@ -353,6 +364,12 @@ class UserFeatureStore(BaseFeatureStore):
                 .unstack(fill_value=0)
                 .reset_index()
             )
+
+            category_feat.columns = [
+                self.feature_dict.get(col, 0) if col in self.feature_dict else col
+                for col in category_feat.columns
+            ]
+
             self.user = pd.merge(
                 left=self.user,
                 right=category_feat,
