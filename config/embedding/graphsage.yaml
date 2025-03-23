@@ -2,8 +2,17 @@ preprocess:
   data:
     min_review: 3
   feature_engineering:
-    diner_engineered_feature_names: {}
-    user_engineered_feature_names: {}
+    diner_engineered_feature_names:
+      all_review_cnt: {}
+      diner_mean_review_score: {}
+      one_hot_encoding_categorical_features:
+        categorical_feature_name:
+          - diner_category_large
+    user_engineered_feature_names:
+      categorical_feature_count:
+        categorical_feature_names:
+          - diner_category_large
+      user_mean_review_score: {}
 training:
   near_candidate:
     max_distance_km: 1

@@ -1,8 +1,6 @@
 preprocess:
   data:
     min_review: 3
-  h3:
-    resolution: 9
   feature_engineering:
     diner_engineered_feature_names:
       diner_category_meta_combined_with_h3:
@@ -38,4 +36,4 @@ post_training:
     diner_mapping: diner_mapping.pkl
     candidate: candidate.parquet
   candidate_generation:
-    top_k: 30
+    top_k: 100

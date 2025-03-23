@@ -68,6 +68,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             is_graph_model=True,
+            use_metadata=args.use_metadata,
             category_column_for_meta=args.category_column_for_meta,
             user_engineered_feature_names=fe.user_engineered_feature_names,
             diner_engineered_feature_names=fe.diner_engineered_feature_names,
@@ -81,7 +82,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner=data["diner"],
             user_mapping=data["user_mapping"],
             diner_mapping=data["diner_mapping"],
-            meta_mapping=data["meta_mapping"],
+            meta_mapping=data["meta_mapping"] if args.use_metadata else None,
             weighted=args.weighted_edge,
             use_metadata=args.use_metadata,
         )

@@ -308,6 +308,7 @@ def train_test_split_stratify(
     random_state: int = 42,
     stratify: str = "reviewer_id",
     is_graph_model: bool = False,
+    use_metadata: bool = False,
     category_column_for_meta: str = "diner_category_large",
     test: bool = False,
     is_rank: bool = False,
@@ -318,18 +319,19 @@ def train_test_split_stratify(
     and ensures that each reviewer in validation is included in train dataset.
 
     Args:
-        test_size (float): ratio of test dataset.
-        min_reviews (int): minimum number of reviews for each reviewer.
+        test_size (float): Ratio of test dataset.
+        min_reviews (int): Minimum number of reviews for each reviewer.
         diner_engineered_feature_names (Dict[str, Dict[str, Any]]): Key is name of engineered feature and
             values are its corresponding parameters.
-        X_columns (List[str]): column names for model feature.
-        y_columns (List[str]): column names for target value.
-        random_state (int): random seed for reproducibility.
-        stratify (str): reference column when stratifying review data.
-        is_graph_model (bool): indicator whether using graph based model or not.
+        X_columns (List[str]): Column names for model feature.
+        y_columns (List[str]): Column names for target value.
+        random_state (int): Random seed for reproducibility.
+        stratify (str): Reference column when stratifying review data.
+        is_graph_model (bool): Indicator whether using graph based model or not.
             When set true, all the mapped index should be unique in ascending order.
+        use_metadata (bool): Indicator whether using metadata or not. (for metapath2vec)
         category_column_for_meta (str): Category column name which will be used to generate meta for each node.
-        test (bool): indicator whether under pytest. when set true, use part of total dataset.
+        test (bool): Indicator whether under pytest. when set true, use part of total dataset.
 
     Returns (Dict[str, Any]):
         Dataset, statistics, and mapping information which could be used when training model.
@@ -344,13 +346,6 @@ def train_test_split_stratify(
         diner_with_raw_category=diner_with_raw_category,
         min_reviews=min_reviews,
     )
-
-    # mapped_res = map_id_to_ascending_integer(
-    #     review=review,
-    #     diner=diner,
-    #     is_graph_model=is_graph_model,
-    #     category_column_for_meta=category_column_for_meta,
-    # )
 
     mapped_res = reviewer_diner_mapping(
         review=review,
@@ -412,7 +407,7 @@ def train_test_split_stratify(
             **mapped_res,
         }
 
-    if is_graph_model:
+    if use_metadata:
         meta_mapping_info = meta_mapping(
             diner=diner_meta_feature,
             num_users=mapped_res.get("num_users"),
@@ -513,7 +508,7 @@ def prepare_networkx_undirected_graph(
     diner: pd.DataFrame,
     user_mapping: Dict[int, int],
     diner_mapping: Dict[int, int],
-    meta_mapping: Dict[int, int],
+    meta_mapping: Dict[int, int] = None,
     weighted: bool = False,
     use_metadata: bool = False,
 ) -> Tuple[nx.Graph, nx.Graph]:
@@ -567,7 +562,7 @@ def prepare_networkx_undirected_graph(
             val_graph.add_edge(diner_id.item(), reviewer_id.item())
 
     # add edge between diner and metadata
-    if use_metadata is True:
+    if use_metadata:
         for i, row in diner.iterrows():
             diner_idx = row["diner_idx"]
             metadata_id = row["metadata_id"]
@@ -577,13 +572,14 @@ def prepare_networkx_undirected_graph(
                 train_graph.add_edge(diner_idx, meta)
                 val_graph.add_edge(diner_idx, meta)
 
-    # add node and node attribute (user / diner / meta) to networkx graph
-    nodes_metadata = {
-        **{user_id: {"meta": "user"} for _, user_id in user_mapping.items()},
-        **{diner_id: {"meta": "diner"} for _, diner_id in diner_mapping.items()},
-        **{meta_id: {"meta": "category"} for _, meta_id in meta_mapping.items()},
-    }
-    nx.set_node_attributes(train_graph, nodes_metadata)
-    nx.set_node_attributes(val_graph, nodes_metadata)
+    if use_metadata:
+        # add node and node attribute (user / diner / meta) to networkx graph
+        nodes_metadata = {
+            **{user_id: {"meta": "user"} for _, user_id in user_mapping.items()},
+            **{diner_id: {"meta": "diner"} for _, diner_id in diner_mapping.items()},
+            **{meta_id: {"meta": "category"} for _, meta_id in meta_mapping.items()},
+        }
+        nx.set_node_attributes(train_graph, nodes_metadata)
+        nx.set_node_attributes(val_graph, nodes_metadata)
 
     return train_graph, val_graph
