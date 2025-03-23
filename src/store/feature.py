@@ -169,7 +169,28 @@ class DinerFeatureStore(BaseFeatureStore):
         category_column_for_meta: str,
         h3_resolution: int,
         **kwargs,
-    ):
+    ) -> None:
+        """
+        Generates node meta combining category column and h3 index.
+        Here, h3 index indicates hexagon id where diner locates offered by uber.
+
+        Example of this fe
+        When set as
+        - category_column_for_meta: diner_category_middle
+        - h3_resolution: 9
+        two features are generated.
+        - metadata_id: `치킨_3ffafda3123`
+        - metadata_id_neighbors: [`치킨_3ffazxv78`, `치킨_3ffaqcz511`, `치킨_3ffavnzx321`]
+
+        For each diner, metas like `치킨_3ffafda3123` will be generated where `치킨` is diner_category_middle
+        and `3ffafda3123` is h3 index for that diner.
+        Also, this function generates metadata for neighboring hexagon.
+
+        Args:
+            category_column_for_meta (str): Categorical column name combined with h3 index.
+            h3_resolution (int): Resolution value for h3 index. Large values creates smaller hexagon.
+            **kwargs: Additional keyword arguments.
+        """
         # get diner's h3_index
         self.diner["h3_index"] = self.diner.apply(
             lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], h3_resolution),
@@ -255,7 +276,7 @@ class DinerFeatureStore(BaseFeatureStore):
     @property
     def engineered_meta_features(self) -> pd.DataFrame:
         """
-        Get engineered meta features only without original features with primary key.
+        Get engineered `meta` features only without original features with primary key.
 
         Returns (pd.DataFrame):
             Engineered features dataframe.

@@ -117,14 +117,28 @@ def reviewer_diner_mapping(
     diner: pd.DataFrame,
     is_graph_model: bool = False,
 ) -> Dict[str, Any]:
-    diner_mapping, diner = _map_id_to_ascending_integer(
+    """
+    Map reviewer_id, diner_idx to integer in ascending order.
+    In raw data, reviewer_id and diner_idx are integer but their digit lengths are too long.
+    When training model, integer in ascending order is easier to handler and more efficient than current id format.
+
+    Args:
+        review (pd.DataFrame): Review dataset.
+        diner (pd.DataFrame): Diner dataset.
+        is_graph_model (bool): Indicator whether target model is graph based model or not.
+            When set true, all the mapped id should be unique.
+
+    Returns (Dict[str, Any]):
+        Mapped result.
+    """
+    diner_mapping, diner = map_id_to_ascending_integer(
         id_column="diner_idx",
         data=diner,
         start_number=0,
     )
     num_diners = len(diner_mapping)
     start_number = num_diners if is_graph_model else 0
-    reviewer_mapping, review = _map_id_to_ascending_integer(
+    reviewer_mapping, review = map_id_to_ascending_integer(
         id_column="reviewer_id",
         data=review,
         start_number=start_number,
@@ -144,12 +158,23 @@ def meta_mapping(
     diner: pd.DataFrame,
     num_users: int,
     num_diners: int,
-):
+) -> Dict[str, Any]:
+    """
+    Map meta_id in ascending order.
+
+    Args:
+        diner (pd.DataFrame): Diner dataset.
+        num_users (int): Number of users.
+        num_diners (int): Number of diners.
+
+    Returns (Dict[str, Any]):
+        Mapped result.
+    """
     meta_ids = list(diner["metadata_id"].unique())
     for meta in diner["metadata_id_neighbors"]:
         meta_ids.extend(meta)
     meta_ids = sorted(list(set(meta_ids)))
-    meta_mapping, diner = _map_id_to_ascending_integer(
+    meta_mapping, diner = map_id_to_ascending_integer(
         id_column="metadata_id",
         data=diner,
         start_number=num_diners + num_users,
@@ -166,93 +191,39 @@ def meta_mapping(
     }
 
 
-def _map_id_to_ascending_integer(
-    id_column: str, data: pd.DataFrame, start_number: int = 0, unique_ids: List = None
+def map_id_to_ascending_integer(
+    id_column: str,
+    data: pd.DataFrame,
+    start_number: int = 0,
+    unique_ids: List[int] = None,
 ) -> Tuple[Dict[int, int], pd.DataFrame]:
+    """
+    Maps primary key into ascending integer.
+    Kakao manages primary keys for reviewer (reviewer_id) and diner (diner_idx) with big integer numbers.
+        - Example of diner_idx values are 1783219, 1382138.
+    This function maps those big integer numbers into unique ascending integer sequence.
+
+    Why this process is necessary?
+     - Those values are not necessary to maintain their format and for efficient indexing in torch, unique ascending
+     integer representation is required. In pytorch, torch.nn.Embedding creates embedding matrix with
+     (num_samples x dimension) and kth row in this torch means representation of kth id.
+     - When searching values in data for kth id, reduced representation is more efficient in terms of time complexity.
+
+    Args:
+        id_column (str): Column name to convert to ascending integer.
+        data (pd.DataFrame): Diner or review data.
+        start_number (int): If set value larger than 0, say k, mapping will start from k rather than 0.
+            This option is useful when there are already unique mapping in data and wants to start right next.
+        unique_ids (List[int]): Ids needed to be converted to ascending integer.
+
+    Returns (Tuple[Dict[int, int], pd.DataFrame]):
+        Mapping dictionary and converted dataframe.
+    """
     if unique_ids is None:
         unique_ids = sorted(list(data[id_column].unique()))
     mapping_info = {id_: i + start_number for i, id_ in enumerate(unique_ids)}
     data[id_column] = data[id_column].map(mapping_info)
     return mapping_info, data
-
-
-def map_id_to_ascending_integer(
-    review: pd.DataFrame,
-    diner: pd.DataFrame,
-    is_graph_model: bool = False,
-    category_column_for_meta: str = "diner_category_large",
-) -> Dict[str, Any]:
-    """
-    Map reviewer_id, diner_idx to integer in ascending order.
-    In raw data, reviewer_id and diner_idx are integer but their digit lengths are too long.
-    When training model, integer in ascending order is easier to handler and more efficient than current id format.
-
-    Args:
-        review (pd.DataFrame): Review dataset.
-        diner (pd.DataFrame): Diner dataset.
-        is_graph_model (bool): Indicator whether target model is graph based model or not.
-            When set true, all the mapped id should be unique.
-        category_column_for_meta (str): Category column name which will be used to generate meta for each node.
-
-    Returns (Dict[str, Any]):
-        Mapped result.
-    """
-    # store unique number of diner and reviewer
-    diner_idxs = sorted(list(review["diner_idx"].unique()))
-    reviewer_ids = sorted(list(review["reviewer_id"].unique()))
-
-    num_diners = len(diner_idxs)
-    num_users = len(reviewer_ids)
-
-    # mapping diner_idx and reviewer_id
-    diner_mapping = {diner_idx: i for i, diner_idx in enumerate(diner_idxs)}
-
-    if is_graph_model:
-        # each node index in graph based model should be unique
-        reviewer_mapping = {
-            reviewer_id: (i + num_diners) for i, reviewer_id in enumerate(reviewer_ids)
-        }
-
-    else:
-        reviewer_mapping = {
-            reviewer_id: i for i, reviewer_id in enumerate(reviewer_ids)
-        }
-
-    review["diner_idx"] = review["diner_idx"].map(diner_mapping)
-    review["reviewer_id"] = review["reviewer_id"].map(reviewer_mapping)
-    diner["diner_idx"] = diner["diner_idx"].map(diner_mapping)
-
-    # metadata preprocessing
-    if is_graph_model:
-        diner = preprocess_diner_data_for_candidate_generation(
-            diner=diner,
-            category_column_for_meta=category_column_for_meta,
-        )
-        meta_ids = list(diner["metadata_id"].unique())
-        for meta in diner["metadata_id_neighbors"]:
-            meta_ids.extend(meta)
-        meta_ids = sorted(list(set(meta_ids)))
-
-        meta_mapping = {
-            meta_id: (i + num_diners + num_users) for i, meta_id in enumerate(meta_ids)
-        }
-        diner["metadata_id"] = diner["metadata_id"].map(meta_mapping)
-        diner["metadata_id_neighbors"] = diner["metadata_id_neighbors"].map(
-            lambda x: [meta_mapping[meta] for meta in x]
-        )
-    else:
-        meta_mapping = None
-
-    return {
-        "review": review,
-        "diner": diner,
-        "num_diners": num_diners,
-        "num_users": num_users,
-        "num_metas": len(meta_mapping) if meta_mapping else 0,
-        "diner_mapping": diner_mapping,
-        "user_mapping": reviewer_mapping,
-        "meta_mapping": meta_mapping,
-    }
 
 
 def make_feature(
