@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from store.base import BaseFeatureStore
+from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 
 class DinerFeatureStore(BaseFeatureStore):
@@ -36,13 +37,15 @@ class DinerFeatureStore(BaseFeatureStore):
             "diner_menu_price": self.calculate_diner_price,
             "diner_mean_review_score": self.calculate_diner_mean_review_score,
             "one_hot_encoding_categorical_features": self.one_hot_encoding_categorical_features,
+            "diner_category_meta_combined_with_h3": self.make_diner_category_meta_combined_with_h3,
         }
+
         for feat, arg in feature_param_pair.items():
             if feat not in self.feature_methods.keys():
                 raise ValueError(f"{feat} not matched with implemented method")
-        self.feature_param_pair = feature_param_pair
 
         self.engineered_feature_names = ["diner_idx"]
+        self.engineered_meta_feature_names = ["diner_idx"]
 
     def make_features(self: Self) -> None:
         """
@@ -161,6 +164,33 @@ class DinerFeatureStore(BaseFeatureStore):
 
             self.engineered_feature_names.extend(list(one_hot_encoding_feat.columns))
 
+    def make_diner_category_meta_combined_with_h3(
+        self: Self,
+        category_column_for_meta: str,
+        h3_resolution: int,
+        **kwargs,
+    ):
+        # get diner's h3_index
+        self.diner["h3_index"] = self.diner.apply(
+            lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], h3_resolution),
+            axis=1,
+        )
+        # get h3_index neighboring with diner's h3_index and concat with meta field
+        self.diner["metadata_id_neighbors"] = self.diner.apply(
+            lambda row: [
+                row[category_column_for_meta] + "_" + h3_index
+                for h3_index in get_hexagon_neighbors(row["h3_index"], k=1)
+            ],
+            axis=1,
+        )
+        # get current h3_index and concat with meta field
+        self.diner["metadata_id"] = self.diner.apply(
+            lambda row: row[category_column_for_meta] + "_" + row["h3_index"], axis=1
+        )
+        self.engineered_meta_feature_names.extend(
+            ["metadata_id", "metadata_id_neighbors"]
+        )
+
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
     def _extract_statistics(self: Self, prices: str) -> pd.Series:
         if not prices or any(pd.isna(prices)):  # 빈 리스트라면 NaN 반환
@@ -222,6 +252,16 @@ class DinerFeatureStore(BaseFeatureStore):
         """
         return self.diner[self.engineered_feature_names]
 
+    @property
+    def engineered_meta_features(self) -> pd.DataFrame:
+        """
+        Get engineered meta features only without original features with primary key.
+
+        Returns (pd.DataFrame):
+            Engineered features dataframe.
+        """
+        return self.diner[self.engineered_meta_feature_names]
+
 
 class UserFeatureStore(BaseFeatureStore):
     def __init__(
@@ -253,7 +293,6 @@ class UserFeatureStore(BaseFeatureStore):
             how="left",
             on="diner_idx",
         )
-        self.diner = diner
         self.feature_methods = {
             "categorical_feature_count": self.calculate_categorical_feature_count,
             "user_mean_review_score": self.calculate_user_mean_review_score,

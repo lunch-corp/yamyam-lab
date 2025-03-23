@@ -80,8 +80,7 @@ def preprocess_common(
     review = review[review["diner_idx"].isin(diner_idx_both_exist)]
     diner = diner[diner["diner_idx"].isin(diner_idx_both_exist)]
 
-    # step 3: replace diner_category with raw, unpreprocessed diner_category
-    # this is temporary preprocessing because preprocessed categories will be given
+    # step 3: preprocess diner categories and merge them with diner data
     category_columns = [
         "diner_category_large",
         "diner_category_middle",
@@ -96,7 +95,6 @@ def preprocess_common(
         )
         diner = diner[columns_exclude_category_columns]
 
-    # step 4: Logic for modifying restaurant categories
     processor = CategoryProcessor(diner_with_raw_category)
     diner_with_processd_category = processor.process_all().df
 
@@ -107,10 +105,75 @@ def preprocess_common(
         on="diner_idx",
     )
 
-    # step 5: temporary na filling
+    # step 4: temporary na filling
     diner["diner_category_large"] = diner["diner_category_large"].fillna("NA")
+    diner["diner_category_middle"] = diner["diner_category_middle"].fillna("NA")
 
     return review, diner
+
+
+def reviewer_diner_mapping(
+    review: pd.DataFrame,
+    diner: pd.DataFrame,
+    is_graph_model: bool = False,
+) -> Dict[str, Any]:
+    diner_mapping, diner = _map_id_to_ascending_integer(
+        id_column="diner_idx",
+        data=diner,
+        start_number=0,
+    )
+    num_diners = len(diner_mapping)
+    start_number = num_diners if is_graph_model else 0
+    reviewer_mapping, review = _map_id_to_ascending_integer(
+        id_column="reviewer_id",
+        data=review,
+        start_number=start_number,
+    )
+    review["diner_idx"] = review["diner_idx"].map(diner_mapping)
+    return {
+        "review": review,
+        "diner": diner,
+        "num_diners": num_diners,
+        "num_users": len(reviewer_mapping),
+        "diner_mapping": diner_mapping,
+        "user_mapping": reviewer_mapping,
+    }
+
+
+def meta_mapping(
+    diner: pd.DataFrame,
+    num_users: int,
+    num_diners: int,
+):
+    meta_ids = list(diner["metadata_id"].unique())
+    for meta in diner["metadata_id_neighbors"]:
+        meta_ids.extend(meta)
+    meta_ids = sorted(list(set(meta_ids)))
+    meta_mapping, diner = _map_id_to_ascending_integer(
+        id_column="metadata_id",
+        data=diner,
+        start_number=num_diners + num_users,
+        unique_ids=meta_ids,
+    )
+    # additional mapping
+    diner["metadata_id_neighbors"] = diner["metadata_id_neighbors"].map(
+        lambda x: [meta_mapping[meta] for meta in x]
+    )
+    return {
+        "diner": diner,
+        "meta_mapping": meta_mapping,
+        "num_metas": len(meta_mapping),
+    }
+
+
+def _map_id_to_ascending_integer(
+    id_column: str, data: pd.DataFrame, start_number: int = 0, unique_ids: List = None
+) -> Tuple[Dict[int, int], pd.DataFrame]:
+    if unique_ids is None:
+        unique_ids = sorted(list(data[id_column].unique()))
+    mapping_info = {id_: i + start_number for i, id_ in enumerate(unique_ids)}
+    data[id_column] = data[id_column].map(mapping_info)
+    return mapping_info, data
 
 
 def map_id_to_ascending_integer(
@@ -197,7 +260,7 @@ def make_feature(
     diner: pd.DataFrame,
     user_engineered_feature_names: Dict[str, Dict[str, Any]],
     diner_engineered_feature_names: Dict[str, Dict[str, Any]],
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     # user feature engineering
     user_fs = UserFeatureStore(
         review=review,
@@ -215,7 +278,8 @@ def make_feature(
     )
     diner_fs.make_features()
     diner_feature = diner_fs.engineered_features
-    return user_feature, diner_feature
+    diner_meta_feature = diner_fs.engineered_meta_features
+    return user_feature, diner_feature, diner_meta_feature
 
 
 def preprocess_diner_data_for_candidate_generation(
@@ -310,14 +374,21 @@ def train_test_split_stratify(
         min_reviews=min_reviews,
     )
 
-    mapped_res = map_id_to_ascending_integer(
+    # mapped_res = map_id_to_ascending_integer(
+    #     review=review,
+    #     diner=diner,
+    #     is_graph_model=is_graph_model,
+    #     category_column_for_meta=category_column_for_meta,
+    # )
+
+    mapped_res = reviewer_diner_mapping(
         review=review,
         diner=diner,
         is_graph_model=is_graph_model,
-        category_column_for_meta=category_column_for_meta,
     )
 
     review = mapped_res.get("review")
+    diner = mapped_res.get("diner")
     mapped_res = {k: v for k, v in mapped_res.items() if k not in ["review", "diner"]}
 
     train, val = train_test_split(
@@ -334,7 +405,7 @@ def train_test_split_stratify(
     # TODO: check whether diners from train is equivalent with diners from val
 
     # feature engineering using only train data
-    user_feature, diner_feature = make_feature(
+    user_feature, diner_feature, diner_meta_feature = make_feature(
         review=train,
         diner=diner,
         user_engineered_feature_names=user_engineered_feature_names,
@@ -370,12 +441,20 @@ def train_test_split_stratify(
             **mapped_res,
         }
 
+    if is_graph_model:
+        meta_mapping_info = meta_mapping(
+            diner=diner_meta_feature,
+            num_users=mapped_res.get("num_users"),
+            num_diners=mapped_res.get("num_diners"),
+        )
+        mapped_res = {**mapped_res, **meta_mapping_info}
+
     return {
         "X_train": torch.tensor(train[X_columns].values),
         "y_train": torch.tensor(train[y_columns].values, dtype=torch.float32),
         "X_val": torch.tensor(val[X_columns].values),
         "y_val": torch.tensor(val[y_columns].values, dtype=torch.float32),
-        "diner": diner,
+        "diner": diner_meta_feature,
         "user_feature": torch.tensor(
             user_feature.sort_values(by="reviewer_id")
             .drop("reviewer_id", axis=1)
