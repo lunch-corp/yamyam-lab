@@ -11,8 +11,6 @@ from torch import Tensor
 from torch.nn import Embedding
 from torch.utils.data import DataLoader
 
-from constant.device.device import DEVICE
-from constant.evaluation.recommend import RECOMMEND_BATCH_SIZE
 from constant.metric.metric import Metric, NearCandidateMetric
 from evaluation.metric import ranked_precision, ranking_metrics_at_k
 from tools.generate_walks import generate_walks
@@ -31,6 +29,8 @@ class BaseEmbedding(nn.Module):
         num_negative_samples: int,
         num_nodes: int,
         model_name: str,
+        device: str,
+        recommend_batch_size: int,
     ):
         super().__init__()
         self.user_ids = user_ids
@@ -41,6 +41,8 @@ class BaseEmbedding(nn.Module):
         self.num_negative_samples = num_negative_samples
         self.num_nodes = num_nodes
         self.model_name = model_name
+        self.device = device
+        self.recommend_batch_size = recommend_batch_size
         self.EPS = 1e-15
         self.num_users = len(self.user_ids)
         self.num_diners = len(self.diner_ids)
@@ -208,7 +210,7 @@ class BaseEmbedding(nn.Module):
         self.val_liked = convert_tensor(X_val, list)
 
         while start < self.num_users:
-            batch_users = self.user_ids[start : start + RECOMMEND_BATCH_SIZE]
+            batch_users = self.user_ids[start : start + self.recommend_batch_size]
             user_embeds = self.get_embedding(batch_users)
             scores = torch.mm(user_embeds, diner_embeds.t())
 
@@ -235,7 +237,7 @@ class BaseEmbedding(nn.Module):
                 top_k_values=top_k_values,
             )
 
-            start += RECOMMEND_BATCH_SIZE
+            start += self.recommend_batch_size
 
         for k in top_k_values:
             # save map
@@ -359,13 +361,15 @@ class BaseEmbedding(nn.Module):
                 for location in locations:
                     # filter only near diner
                     near_diner_ids = torch.tensor(nearby_candidates[location]).to(
-                        DEVICE
+                        self.device
                     )
                     near_diner_scores = scores[i][near_diner_ids]
 
                     # sort indices using predicted score
                     sorted_indices = torch.argsort(near_diner_scores, descending=True)
-                    near_diner_ids_sorted = near_diner_ids[sorted_indices].to(DEVICE)
+                    near_diner_ids_sorted = near_diner_ids[sorted_indices].to(
+                        self.device
+                    )
 
                     # top k filtering
                     near_diner_ids_sorted = near_diner_ids_sorted[:k]
@@ -430,7 +434,7 @@ class BaseEmbedding(nn.Module):
         res = torch.tensor([], dtype=torch.float32)
 
         while start < self.num_users:
-            batch_users = self.user_ids[start : start + RECOMMEND_BATCH_SIZE]
+            batch_users = self.user_ids[start : start + self.recommend_batch_size]
             user_embeds = self.get_embedding(batch_users)
             scores = torch.mm(user_embeds, diner_embeds.t())
             top_k = torch.topk(scores, k=top_k_value)
@@ -445,7 +449,7 @@ class BaseEmbedding(nn.Module):
                 dim=1,
             )
             res = torch.cat((res, candi), dim=0)
-            start += RECOMMEND_BATCH_SIZE
+            start += self.recommend_batch_size
         dtypes = {"user_id": np.int64, "diner_id": np.int64, "score": np.float64}
         res = pd.DataFrame(res.detach().numpy(), columns=list(dtypes.keys())).astype(
             dtypes

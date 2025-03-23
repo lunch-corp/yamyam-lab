@@ -55,6 +55,8 @@ class Model(BaseEmbedding):
         num_nodes: int,
         top_k_values: List[int],
         model_name: str,
+        device: str,
+        recommend_batch_size: int,
         walks_per_node: int = 1,
         p: float = 1.0,
         q: float = 1.0,
@@ -72,6 +74,8 @@ class Model(BaseEmbedding):
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
             model_name=model_name,
+            device=device,
+            recommend_batch_size=recommend_batch_size,
         )
 
         self.walk_length = walk_length

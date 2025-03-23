@@ -116,6 +116,8 @@ def main(args: ArgumentParser.parse_args) -> None:
             p=args.p,
             top_k_values=top_k_values,
             model_name=args.model,
+            device=device,
+            recommend_batch_size=config.training.evaluation.recommend_batch_size,
             meta_path=args.meta_path,  # metapath2vec parameter
             num_layers=args.num_sage_layers,  # graphsage parameter
             user_raw_features=data["user_feature"],  # graphsage parameter

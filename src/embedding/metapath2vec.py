@@ -24,7 +24,9 @@ class Model(BaseEmbedding):
         embedding_dim: int,
         num_nodes: int,
         meta_path: List[List[str]],
-        model_name: List[str],
+        model_name: str,
+        device: str,
+        recommend_batch_size: int,
         meta_field: str = "meta",
         walks_per_node: int = 1,
         num_negative_samples: int = 1,
@@ -48,7 +50,7 @@ class Model(BaseEmbedding):
             top_k_values (List[int]): List of k values used when recommending items to users.
             graph (nx.Graph): Defined networkx graph object.
             embedding_dim (int): Dimension of each node.
-            num_nodes (int): Total numer of nodes in given graph.
+            num_nodes (int): Total number of nodes in given graph.
             meta_path (List[str]): Meta path to generate walks.
             model_name (str): Name of model.
             meta_field (str): Field name used in graph object.
@@ -67,6 +69,8 @@ class Model(BaseEmbedding):
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
             model_name=model_name,
+            device=device,
+            recommend_batch_size=recommend_batch_size,
         )
 
         self.meta_path = meta_path
