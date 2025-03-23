@@ -11,12 +11,10 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
-from constant.lib.h3 import RESOLUTION
 from data.dataset import load_dataset
 from data.validator import DataValidator
 from preprocess.diner_transform import CategoryProcessor
 from store.feature import DinerFeatureStore, UserFeatureStore
-from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
@@ -251,39 +249,6 @@ def make_feature(
     diner_feature = diner_fs.engineered_features
     diner_meta_feature = diner_fs.engineered_meta_features
     return user_feature, diner_feature, diner_meta_feature
-
-
-def preprocess_diner_data_for_candidate_generation(
-    diner: pd.DataFrame,
-    category_column_for_meta: str = None,
-) -> pd.DataFrame:
-    """
-    Additional preprocessing when metadata is integrated to graph based model.
-
-    Args:
-        diner (pd.DataFrame): Diner dataset
-        category_column_for_meta (str): Category column name which will be used to generate meta for each node.
-
-    Returns (pd.DataFrame):
-        Diner dataset with metadata added.
-    """
-    # get diner's h3_index
-    diner["h3_index"] = diner.apply(
-        lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], RESOLUTION), axis=1
-    )
-    # get h3_index neighboring with diner's h3_index and concat with meta field
-    diner["metadata_id_neighbors"] = diner.apply(
-        lambda row: [
-            row[category_column_for_meta] + "_" + h3_index
-            for h3_index in get_hexagon_neighbors(row["h3_index"], k=1)
-        ],
-        axis=1,
-    )
-    # get current h3_index and concat with meta field
-    diner["metadata_id"] = diner.apply(
-        lambda row: row[category_column_for_meta] + "_" + row["h3_index"], axis=1
-    )
-    return diner
 
 
 def create_target_column(review: pd.DataFrame) -> pd.DataFrame:
