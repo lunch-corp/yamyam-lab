@@ -17,19 +17,21 @@ from tools.tensor import unpad_by_mask
 class Model(BaseEmbedding):
     def __init__(
         self,
+        # parameters for base_embedding
         user_ids: Tensor,
         diner_ids: Tensor,
         top_k_values: List[int],
         graph: nx.Graph,
         embedding_dim: int,
+        walks_per_node: int,
+        num_negative_samples: int,
         num_nodes: int,
-        meta_path: List[List[str]],
         model_name: str,
         device: str,
         recommend_batch_size: int,
+        # parameters for metapath2vec
+        meta_path: List[List[str]],
         meta_field: str = "meta",
-        walks_per_node: int = 1,
-        num_negative_samples: int = 1,
         inference: bool = False,
         **kwargs,
     ):
@@ -45,19 +47,21 @@ class Model(BaseEmbedding):
                 whereas that of metapath2vec is defined with `meta_path` parameter.
 
         Args:
-            user_ids (Tensor): List of user_ids in given graph.
-            diner_ids (Tensor): List of diner_ids in given graph.
-            top_k_values (List[int]): List of k values used when recommending items to users.
-            graph (nx.Graph): Defined networkx graph object.
-            embedding_dim (int): Dimension of each node.
-            num_nodes (int): Total number of nodes in given graph.
-            meta_path (List[str]): Meta path to generate walks.
-            model_name (str): Name of model.
-            meta_field (str): Field name used in graph object.
-            walks_per_node (int): Number of walks per each node.
-            num_negative_samples (int): Number of negative samples per each positive sample.
-            inference (bool): Indicator whether it is inference mode or not.
-            **kwargs:
+            user_ids (Tensor): User ids in data.
+            diner_ids (Tensor): Diner ids in data.
+            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
+            graph (nx.Graph): Networkx graph object generated from train data.
+            embedding_dim (int): Dimension of user / diner embedding vector.
+            walks_per_node (int): Number of generated walks for each node.
+            num_negative_samples (int): Number of negative samples for each node.
+            num_nodes (int): Total number of nodes.
+            model_name (str): Model name.
+            device (str): Device on which train is run. (cpu or cuda)
+            recommend_batch_size (int): Batch size when calculating validation metric.
+            meta_path (List[List[str]]): List of meta path which controls types of walk sequence.
+            meta_field (str): Name of meta field in graph object.
+            inference (bool): Indicator whether inference mode or not.
+            **kwargs: Additional keyword arguments.
         """
         super().__init__(
             user_ids=user_ids,

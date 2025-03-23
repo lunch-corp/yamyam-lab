@@ -32,6 +32,22 @@ class BaseEmbedding(nn.Module):
         device: str,
         recommend_batch_size: int,
     ):
+        """
+        Base module for node embedding model (node2vec, metapath2vec, graphsage)
+
+        Args:
+            user_ids (Tensor): User ids in data.
+            diner_ids (Tensor): Diner ids in data.
+            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
+            graph (nx.Graph): Networkx graph object generated from train data.
+            embedding_dim (int): Dimension of user / diner embedding vector.
+            walks_per_node (int): Number of generated walks for each node.
+            num_negative_samples (int): Number of negative samples for each node.
+            num_nodes (int): Total number of nodes.
+            model_name (str): Model name.
+            device (str): Device on which train is run. (cpu or cuda)
+            recommend_batch_size (int): Batch size when calculating validation metric.
+        """
         super().__init__()
         self.user_ids = user_ids
         self.diner_ids = diner_ids
