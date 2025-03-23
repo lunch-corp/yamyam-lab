@@ -14,7 +14,7 @@ hydra:
   run:
     dir: .
   output_subdir: null
-  
+
 defaults:
   - _self_
   - data: dataset
@@ -26,11 +26,10 @@ model_path: res/models/
 results: lightgbm_ranker
 user_name: 3830746302
 top_n: 20
-user_address: 중곡역
+user_address: 광운대학교
 distance_threshold: 0.5
 diner_category_large:
-- 치킨
 - 중식
-- 양식
 - 일식
 - 한식
+- 술집
