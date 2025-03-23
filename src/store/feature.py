@@ -37,7 +37,7 @@ class DinerFeatureStore(BaseFeatureStore):
             "diner_menu_price": self.calculate_diner_price,
             "diner_mean_review_score": self.calculate_diner_mean_review_score,
             "one_hot_encoding_categorical_features": self.one_hot_encoding_categorical_features,
-            "bayesian_score": self.calculate_bayesian_score,
+            # "bayesian_score": self.calculate_bayesian_score,
         }
         for feat, arg in feature_param_pair.items():
             if feat not in self.feature_methods.keys():
@@ -272,7 +272,7 @@ class DinerFeatureStore(BaseFeatureStore):
         self.engineered_feature_names.append("bayesian_score")
 
     @property
-    def engineered_features(self) -> pd.DataFrame:
+    def engineered_features(self: Self) -> pd.DataFrame:
         """
         Get engineered features only without original features with primary key.
 
@@ -316,7 +316,7 @@ class UserFeatureStore(BaseFeatureStore):
         self.feature_methods = {
             "categorical_feature_count": self.calculate_categorical_feature_count,
             "user_mean_review_score": self.calculate_user_mean_review_score,
-            "calculate_scaled_scores": self.calculate_scaled_scores,
+            # "scaled_scores": self.calculate_scaled_scores,
         }
         for feat, arg in feature_param_pair.items():
             if feat not in self.feature_methods.keys():
@@ -402,17 +402,11 @@ class UserFeatureStore(BaseFeatureStore):
         """
 
         def min_max_scaling(value, min_val, max_val, range_min, range_max):
-            if max_val - min_val == 0:  # Zero division 방지
+            if max_val - min_val == 0:
                 return range_min
             return ((value - min_val) / (max_val - min_val)) * (
                 range_max - range_min
             ) + range_min
-
-        # 필요한 컬럼이 있는지 확인
-        required_columns = ["badge_level"]
-        for col in required_columns:
-            if col not in self.review.columns:
-                raise ValueError(f"{col} not in review data columns")
 
         # date_weight와 score_diff가 없는 경우 계산
         if (
@@ -496,6 +490,7 @@ class UserFeatureStore(BaseFeatureStore):
 
         # 필수 컬럼 확인
         required_columns = [
+            "badge_level",
             "reviewer_review_score",
             "reviewer_avg",
             "reviewer_review_date",
@@ -509,7 +504,7 @@ class UserFeatureStore(BaseFeatureStore):
         # 현재 날짜 설정
         current_date = dt.datetime.now()
 
-        def partly_calculate_weighted_score(row, today=current_date):
+        def _partly_calculate_weighted_score(row, today=current_date):
             """
             Calculate weighted_score to date-weight review scores
 
@@ -521,15 +516,13 @@ class UserFeatureStore(BaseFeatureStore):
             date_weight = max(1 - max(0, days_diff - 90) / decay_period, 0.01)
 
             # 사용자 평균과의 차이 계산
-            R = row["reviewer_avg"]
-            new_score = row["reviewer_review_score"]
-            simple_score = new_score - R
+            simple_score = row["reviewer_review_score"] - row["reviewer_avg"]
 
             return (date_weight, simple_score)
 
         # 리뷰 데이터에 가중치가 적용된 점수 계산
         self.review[["date_weight", "score_diff"]] = self.review.apply(
-            partly_calculate_weighted_score, axis=1, result_type="expand"
+            _partly_calculate_weighted_score, axis=1, result_type="expand"
         )
 
     @property
