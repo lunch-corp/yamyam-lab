@@ -342,17 +342,17 @@ def train_test_split_stratify(
 
     if is_rank:
         # merge diner data
-        train = train.merge(
-            user_feature, on="reviewer_id", how="inner"
-        ).drop_duplicates(subset=["reviewer_id", "diner_idx"])
-        train = train.merge(diner_feature, on="diner_idx", how="inner").drop_duplicates(
+        train = train.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
+            subset=["reviewer_id", "diner_idx"]
+        )
+        train = train.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
 
-        val = val.merge(user_feature, on="reviewer_id", how="inner").drop_duplicates(
+        val = val.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
-        val = val.merge(diner_feature, on="diner_idx", how="inner").drop_duplicates(
+        val = val.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
 

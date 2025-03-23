@@ -9,7 +9,7 @@ from geopy.geocoders import Nominatim
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 
-from data import load_test_dataset
+from data.dataset import load_test_dataset
 from model.rank import build_model
 
 

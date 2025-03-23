@@ -21,7 +21,9 @@ features:
   - western
 
 user_engineered_feature_names:
-  - categorical_feature_count: {"categorical_feature_names": ["diner_category_large"]}
+  - categorical_feature_count:
+      categorical_feature_names:
+       - diner_category_large
 
 diner_engineered_feature_names:
   - all_review_cnt: {}

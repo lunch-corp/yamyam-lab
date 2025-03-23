@@ -3,7 +3,6 @@ from typing import Any, Dict, Tuple
 import pandas as pd
 
 from data.validator import DataValidator
-from store.feature import DinerFeatureStore, UserFeatureStore
 from tools.google_drive import ensure_data_files
 
 
@@ -53,6 +52,9 @@ def load_test_dataset(
         test: pd.DataFrame
         already_reviewed: list[str]
     """
+    # 순환 참조 방지
+    from preprocess.preprocess import make_feature
+
     # 필요한 데이터 다운로드 확인
     data_paths = ensure_data_files()
 
@@ -77,21 +79,9 @@ def load_test_dataset(
     )
 
     # feature engineering
-    user_fs = UserFeatureStore(
-        review=review,
-        diner=diner,
-        feature_param_pair=user_feature_param_pair,
+    user_feature, diner_feature = make_feature(
+        review, diner, user_feature_param_pair, diner_feature_param_pair
     )
-    user_fs.make_features()
-    user_feature = user_fs.engineered_features
-
-    diner_fs = DinerFeatureStore(
-        review=review,
-        diner=diner,
-        feature_param_pair=diner_feature_param_pair,
-    )
-    diner_fs.make_features()
-    diner_feature = diner_fs.engineered_features
 
     # 사용자별 리뷰한 레스토랑 ID 목록 생성
     user_2_diner_df = review.groupby("reviewer_id").agg({"diner_idx": list})
@@ -107,9 +97,9 @@ def load_test_dataset(
 
     # Create test data
     test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": candidates})
-    test = test.merge(user_feature, on="reviewer_id", how="inner")
-    test = test.merge(diner_feature, on="diner_idx", how="inner")
-    test = test.merge(review, on="reviewer_id", how="inner")
+    test = test.merge(user_feature, on="reviewer_id", how="left")
+    test = test.merge(diner_feature, on="diner_idx", how="left")
+    test = test.merge(review, on="reviewer_id", how="left")
 
     # Add diner columns
     diner_cols = [
