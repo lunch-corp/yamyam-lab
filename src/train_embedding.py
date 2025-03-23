@@ -266,6 +266,8 @@ def main(args: ArgumentParser.parse_args) -> None:
             metric=model.metric_at_k_total_epochs,
             tr_loss=model.tr_loss,
             parent_save_path=args.result_path,
+            top_k_values_for_pred=top_k_values_for_pred,
+            top_k_values_for_candidate=top_k_values_for_candidate,
         )
 
         if args.save_candidate:
