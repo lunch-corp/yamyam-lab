@@ -34,8 +34,8 @@ After running script, check whether zip file is downloaded in `candidates/{model
 
 Latest version of each candidate generator model is given below.
 
-| Model name   | Latest version |
-|--------------|----------------|
-| node2vec     | TBD            |
-| metapath2vec | TBD            |
-| graphsage    | TBD            |
+| Model name   | Latest version   |
+|--------------|------------------|
+| node2vec     | 202503241559.zip |
+| metapath2vec | TBD              |
+| graphsage    | TBD              |
