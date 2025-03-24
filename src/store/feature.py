@@ -1,9 +1,11 @@
+import ast
 from typing import Any, Dict, List, Self
 
 import numpy as np
 import pandas as pd
 
 from store.base import BaseFeatureStore
+from tools.h3 import get_h3_index, get_hexagon_neighbors
 
 
 class DinerFeatureStore(BaseFeatureStore):
@@ -36,13 +38,15 @@ class DinerFeatureStore(BaseFeatureStore):
             "diner_menu_price": self.calculate_diner_price,
             "diner_mean_review_score": self.calculate_diner_mean_review_score,
             "one_hot_encoding_categorical_features": self.one_hot_encoding_categorical_features,
+            "diner_category_meta_combined_with_h3": self.make_diner_category_meta_combined_with_h3,
         }
+
         for feat, arg in feature_param_pair.items():
             if feat not in self.feature_methods.keys():
                 raise ValueError(f"{feat} not matched with implemented method")
-        self.feature_param_pair = feature_param_pair
 
         self.engineered_feature_names = ["diner_idx"]
+        self.engineered_meta_feature_names = ["diner_idx"]
 
     def make_features(self: Self) -> None:
         """
@@ -82,12 +86,11 @@ class DinerFeatureStore(BaseFeatureStore):
         ]
 
         scores = self._extract_scores_array(
-            self.diner["diner_review_tags"], tag_categories
+            self.diner["diner_review_tags"].to_list(), tag_categories
         )
 
         # 결과를 DataFrame으로 변환 및 병합
         self.diner[["taste", "kind", "mood", "chip", "parking"]] = scores
-
         self.engineered_feature_names.extend(
             ["diner_review_cnt_category", "taste", "kind", "mood", "chip", "parking"]
         )
@@ -161,6 +164,54 @@ class DinerFeatureStore(BaseFeatureStore):
 
             self.engineered_feature_names.extend(list(one_hot_encoding_feat.columns))
 
+    def make_diner_category_meta_combined_with_h3(
+        self: Self,
+        category_column_for_meta: str,
+        h3_resolution: int,
+        **kwargs,
+    ) -> None:
+        """
+        Generates node meta combining category column and h3 index.
+        Here, h3 index indicates hexagon id where diner locates offered by uber.
+
+        Example of this fe
+        When set as
+        - category_column_for_meta: diner_category_middle
+        - h3_resolution: 9
+        two features are generated.
+        - metadata_id: `치킨_3ffafda3123`
+        - metadata_id_neighbors: [`치킨_3ffazxv78`, `치킨_3ffaqcz511`, `치킨_3ffavnzx321`]
+
+        For each diner, metas like `치킨_3ffafda3123` will be generated where `치킨` is diner_category_middle
+        and `3ffafda3123` is h3 index for that diner.
+        Also, this function generates metadata for neighboring hexagon.
+
+        Args:
+            category_column_for_meta (str): Categorical column name combined with h3 index.
+            h3_resolution (int): Resolution value for h3 index. Large values creates smaller hexagon.
+            **kwargs: Additional keyword arguments.
+        """
+        # get diner's h3_index
+        self.diner["h3_index"] = self.diner.apply(
+            lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], h3_resolution),
+            axis=1,
+        )
+        # get h3_index neighboring with diner's h3_index and concat with meta field
+        self.diner["metadata_id_neighbors"] = self.diner.apply(
+            lambda row: [
+                row[category_column_for_meta] + "_" + h3_index
+                for h3_index in get_hexagon_neighbors(row["h3_index"], k=1)
+            ],
+            axis=1,
+        )
+        # get current h3_index and concat with meta field
+        self.diner["metadata_id"] = self.diner.apply(
+            lambda row: row[category_column_for_meta] + "_" + row["h3_index"], axis=1
+        )
+        self.engineered_meta_feature_names.extend(
+            ["metadata_id", "metadata_id_neighbors"]
+        )
+
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
     def _extract_statistics(self: Self, prices: str) -> pd.Series:
         if not prices or any(pd.isna(prices)):  # 빈 리스트라면 NaN 반환
@@ -189,7 +240,7 @@ class DinerFeatureStore(BaseFeatureStore):
 
     # numpy 기반으로 점수 추출 최적화
     def _extract_scores_array(
-        self: Self, reviews: str, categories: list[tuple[str, str]]
+        self: Self, reviews: list[str], categories: list[tuple[str, str]]
     ) -> np.ndarray:
         # 카테고리 인덱스 매핑
         category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
@@ -201,9 +252,10 @@ class DinerFeatureStore(BaseFeatureStore):
         for i, review in enumerate(reviews):
             if any(pd.isna(review)):  # 결측치 예외 처리
                 continue
-
             try:
-                for cat, score in review:
+                for info in review:
+                    cat, score = ast.literal_eval(info)
+
                     if cat in category_map:
                         scores[i, category_map[cat]] = score
 
@@ -221,6 +273,16 @@ class DinerFeatureStore(BaseFeatureStore):
             Engineered features dataframe.
         """
         return self.diner[self.engineered_feature_names]
+
+    @property
+    def engineered_meta_features(self) -> pd.DataFrame:
+        """
+        Get engineered `meta` features only without original features with primary key.
+
+        Returns (pd.DataFrame):
+            Engineered features dataframe.
+        """
+        return self.diner[self.engineered_meta_feature_names]
 
 
 class UserFeatureStore(BaseFeatureStore):
@@ -253,7 +315,6 @@ class UserFeatureStore(BaseFeatureStore):
             how="left",
             on="diner_idx",
         )
-        self.diner = diner
         self.feature_methods = {
             "categorical_feature_count": self.calculate_categorical_feature_count,
             "user_mean_review_score": self.calculate_user_mean_review_score,
@@ -266,6 +327,17 @@ class UserFeatureStore(BaseFeatureStore):
         self.user = pd.DataFrame(
             {"reviewer_id": sorted(review["reviewer_id"].unique())}
         )
+        self.feature_dict = {
+            "한식": "korean",
+            "중식": "chinese",
+            "일식": "japanese",
+            "양식": "western",
+            "간식": "snack",
+            "아시아음식": "asian",
+            "패스트푸드": "fastfood",
+            "디저트": "dessert",
+            "카페": "cafe",
+        }
 
     def make_features(self: Self) -> None:
         """
@@ -293,6 +365,12 @@ class UserFeatureStore(BaseFeatureStore):
                 .unstack(fill_value=0)
                 .reset_index()
             )
+
+            category_feat.columns = [
+                self.feature_dict.get(col, 0) if col in self.feature_dict else col
+                for col in category_feat.columns
+            ]
+
             self.user = pd.merge(
                 left=self.user,
                 right=category_feat,

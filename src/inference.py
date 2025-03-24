@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 
 import hydra
@@ -9,7 +7,7 @@ from geopy.geocoders import Nominatim
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 
-from data import load_test_dataset
+from data.dataset import load_test_dataset
 from model.rank import build_model
 
 
@@ -67,8 +65,9 @@ def geocoding(address: str) -> list[float]:
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
     test, already_reviewed = load_test_dataset(
-        reviewer_id=cfg.user_name,
-        diner_engineered_feature_names=cfg.data.diner_engineered_feature_names,
+        cfg.user_name,
+        cfg.data.user_engineered_feature_names[0],
+        cfg.data.diner_engineered_feature_names[0],
     )
 
     user_lat, user_lon = geocoding(cfg.user_address)

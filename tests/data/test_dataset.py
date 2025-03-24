@@ -12,13 +12,23 @@ except ModuleNotFoundError:
 import pandas as pd
 
 from constant.evaluation.qualitative import QualitativeReviewerId
-from data import load_test_dataset
+from data.dataset import load_test_dataset
 
 
 def test_load_test_dataset():
     reviewer_id = QualitativeReviewerId.ROCKY.value
     test, already_reviewed = load_test_dataset(
-        reviewer_id=reviewer_id, feature_param_pair={"all_review_cnt": {}}
+        reviewer_id=reviewer_id,
+        user_feature_param_pair={
+            "categorical_feature_count": {
+                "categorical_feature_names": ["diner_category_large"]
+            }
+        },
+        diner_feature_param_pair={
+            "all_review_cnt": {},
+            "diner_review_tags": {},
+            "diner_menu_price": {},
+        },
     )
     assert test is not None
     assert already_reviewed is not None

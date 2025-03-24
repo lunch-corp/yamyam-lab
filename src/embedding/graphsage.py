@@ -7,7 +7,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from constant.device.device import DEVICE
 from embedding.base_embedding import BaseEmbedding
 from tools.generate_walks import precompute_probabilities
 from tools.sampling import uniform_sampling_without_replacement_from_pool
@@ -34,22 +33,48 @@ class SageLayer(nn.Module):
 class Model(BaseEmbedding):
     def __init__(
         self,
+        # parameters for base_embedding
         user_ids: Tensor,
         diner_ids: Tensor,
         top_k_values: List[int],
         graph: nx.Graph,
         embedding_dim: int,
+        walks_per_node: int,
+        num_negative_samples: int,
         num_nodes: int,
+        model_name: str,
+        device: str,
+        recommend_batch_size: int,
+        # parameters for graphsage
         num_layers: int,
         user_raw_features: torch.Tensor,
         diner_raw_features: torch.Tensor,
-        model_name: str,
         agg_func: str = "MEAN",
-        walks_per_node: int = 1,
         walk_length: int = 1,
-        num_negative_samples: int = 1,
         **kwargs,
     ):
+        """
+        Graphsage model which is inductive type.
+
+        Args:
+            user_ids (Tensor): User ids in data.
+            diner_ids (Tensor): Diner ids in data.
+            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
+            graph (nx.Graph): Networkx graph object generated from train data.
+            embedding_dim (int): Dimension of user / diner embedding vector.
+            walks_per_node (int): Number of generated walks for each node.
+            num_negative_samples (int): Number of negative samples for each node.
+            num_nodes (int): Total number of nodes.
+            model_name (str): Model name.
+            device (str): Device on which train is run. (cpu or cuda)
+            recommend_batch_size (int): Batch size when calculating validation metric.
+            num_layers (int): Number of sage layers.
+            user_raw_features (torch.Tensor): User raw features whose dimension should be matched with user_ids.
+            diner_raw_features (torch.Tensor): Diner raw features whose dimension should be matched with diner_ids.
+            agg_func (str): Aggregation function when combining neighbor embeddings from previous step.
+            walk_length (int): Length of walk.
+            **kwargs: Additional keyword arguments.
+        """
         super().__init__(
             user_ids=user_ids,
             diner_ids=diner_ids,
@@ -60,6 +85,8 @@ class Model(BaseEmbedding):
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
             model_name=model_name,
+            device=device,
+            recommend_batch_size=recommend_batch_size,
         )
         self.num_layers = num_layers
         self.user_raw_features = user_raw_features
@@ -259,8 +286,10 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Concatenated features with diner feature first and user feature following.
         """
-        user_features = self.user_feature_layer(self.user_raw_features.to(DEVICE))
-        diner_features = self.diner_feature_layer(self.diner_raw_features.to(DEVICE))
+        user_features = self.user_feature_layer(self.user_raw_features.to(self.device))
+        diner_features = self.diner_feature_layer(
+            self.diner_raw_features.to(self.device)
+        )
         return torch.concat([diner_features, user_features])  # diner index first
 
     def propagate_and_store_embedding(self, batch_nodes: Tensor):

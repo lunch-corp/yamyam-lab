@@ -3,36 +3,41 @@ import os
 import pickle
 import traceback
 from argparse import ArgumentParser
+from datetime import datetime
 
 import torch
 from torch.utils.data import DataLoader
 
 from candidate.near import NearCandidateGenerator
-from constant.candidate.near import MAX_DISTANCE_KM
-from constant.device.device import DEVICE
-from constant.evaluation.recommend import (
-    TOP_K_VALUES_FOR_CANDIDATE,
-    TOP_K_VALUES_FOR_PRED,
-)
 from constant.metric.metric import Metric, NearCandidateMetric
-from constant.preprocess.preprocess import MIN_REVIEWS
-from constant.save.file_name import FileName
 from preprocess.preprocess import (
     prepare_networkx_undirected_graph,
     train_test_split_stratify,
 )
 from tools.config import load_yaml
+from tools.google_drive import GoogleDriveManager
 from tools.logger import setup_logger
 from tools.parse_args import parse_args_embedding
 from tools.plot import plot_metric_at_k
+from tools.zip import zip_files_in_directory
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/data/embedding.yaml")
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
+CONFIG_PATH = os.path.join(ROOT_PATH, "./config/embedding/{model}.yaml")
+ZIP_PATH = os.path.join(ROOT_PATH, "./zip")
 
 
 def main(args: ArgumentParser.parse_args) -> None:
     os.makedirs(args.result_path, exist_ok=True)
-    logger = setup_logger(os.path.join(args.result_path, FileName.LOG.value))
-    config = load_yaml(CONFIG_PATH)
+    config = load_yaml(CONFIG_PATH.format(model=args.model))
+
+    # predefine config
+    device = config.training.torch.device
+    top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
+    top_k_values_for_candidate = config.training.evaluation.top_k_values_for_candidate
+    file_name = config.post_training.file_name
+    fe = config.preprocess.feature_engineering
+
+    logger = setup_logger(os.path.join(args.result_path, file_name.log))
 
     try:
         logger.info(f"embedding model: {args.model}")
@@ -59,13 +64,14 @@ def main(args: ArgumentParser.parse_args) -> None:
 
         data = train_test_split_stratify(
             test_size=args.test_ratio,
-            min_reviews=MIN_REVIEWS,
+            min_reviews=config.preprocess.data.min_review,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             is_graph_model=True,
+            use_metadata=args.use_metadata,
             category_column_for_meta=args.category_column_for_meta,
-            user_engineered_feature_names=config.user_engineered_feature_names,
-            diner_engineered_feature_names=config.diner_engineered_feature_names,
+            user_engineered_feature_names=fe.user_engineered_feature_names,
+            diner_engineered_feature_names=fe.diner_engineered_feature_names,
             test=args.test,
         )
         train_graph, val_graph = prepare_networkx_undirected_graph(
@@ -76,27 +82,30 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner=data["diner"],
             user_mapping=data["user_mapping"],
             diner_mapping=data["diner_mapping"],
-            meta_mapping=data["meta_mapping"],
+            meta_mapping=data["meta_mapping"] if args.use_metadata else None,
             weighted=args.weighted_edge,
             use_metadata=args.use_metadata,
         )
 
         # for qualitative eval
         pickle.dump(
-            data, open(os.path.join(args.result_path, FileName.DATA_OBJECT.value), "wb")
+            data, open(os.path.join(args.result_path, file_name.data_object), "wb")
         )
 
         num_nodes = data["num_users"] + data["num_diners"]
         if args.model == "metapath2vec":
             num_nodes += data["num_metas"]
-        top_k_values = TOP_K_VALUES_FOR_PRED + TOP_K_VALUES_FOR_CANDIDATE
+        top_k_values = (
+            config.training.evaluation.top_k_values_for_pred
+            + config.training.evaluation.top_k_values_for_candidate
+        )
 
         # import embedding module
         model_path = f"embedding.{args.model}"
         model_module = importlib.import_module(model_path).Model
         model = model_module(
-            user_ids=torch.tensor(list(data["user_mapping"].values())).to(DEVICE),
-            diner_ids=torch.tensor(list(data["diner_mapping"].values())).to(DEVICE),
+            user_ids=torch.tensor(list(data["user_mapping"].values())).to(device),
+            diner_ids=torch.tensor(list(data["diner_mapping"].values())).to(device),
             graph=train_graph,
             embedding_dim=args.embedding_dim,
             walk_length=args.walk_length,
@@ -107,17 +116,19 @@ def main(args: ArgumentParser.parse_args) -> None:
             p=args.p,
             top_k_values=top_k_values,
             model_name=args.model,
+            device=device,
+            recommend_batch_size=config.training.evaluation.recommend_batch_size,
             meta_path=args.meta_path,  # metapath2vec parameter
             num_layers=args.num_sage_layers,  # graphsage parameter
             user_raw_features=data["user_feature"],  # graphsage parameter
             diner_raw_features=data["diner_feature"],  # graphsage parameter
-        ).to(DEVICE)
+        ).to(device)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
         # get near 1km diner_ids
         candidate_generator = NearCandidateGenerator()
         near_diners = candidate_generator.get_near_candidates_for_all_diners(
-            max_distance_km=MAX_DISTANCE_KM
+            max_distance_km=config.training.near_candidate.max_distance_km
         )
 
         # convert diner_ids
@@ -143,7 +154,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             total_loss = 0
             for pos_rw, neg_rw in loader:
                 optimizer.zero_grad()
-                loss = model.loss(pos_rw.to(DEVICE), neg_rw.to(DEVICE))
+                loss = model.loss(pos_rw.to(device), neg_rw.to(device))
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
@@ -177,7 +188,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             ranked_precs = []
             candidate_recalls = []
 
-            for k in TOP_K_VALUES_FOR_PRED:
+            for k in top_k_values_for_pred:
                 # no candidate metric
                 map = round(model.metric_at_k[k][Metric.MAP.value], 5)
                 ndcg = round(model.metric_at_k[k][Metric.NDCG.value], 5)
@@ -209,7 +220,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
             logger.info(f"ranked_prec: {'|'.join(ranked_precs)}")
 
-            for k in TOP_K_VALUES_FOR_CANDIDATE:
+            for k in top_k_values_for_candidate:
                 recall = round(model.metric_at_k[k][Metric.RECALL.value], 5)
                 count = model.metric_at_k[k][Metric.COUNT.value]
                 logger.info(
@@ -240,17 +251,15 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             torch.save(
                 model.state_dict(),
-                str(os.path.join(args.result_path, FileName.WEIGHT.value)),
+                str(os.path.join(args.result_path, file_name.weight)),
             )
             pickle.dump(
                 model.tr_loss,
-                open(
-                    os.path.join(args.result_path, FileName.TRAINING_LOSS.value), "wb"
-                ),
+                open(os.path.join(args.result_path, file_name.training_loss), "wb"),
             )
             pickle.dump(
                 model.metric_at_k_total_epochs,
-                open(os.path.join(args.result_path, FileName.METRIC.value), "wb"),
+                open(os.path.join(args.result_path, file_name.metric), "wb"),
             )
             logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
 
@@ -259,7 +268,50 @@ def main(args: ArgumentParser.parse_args) -> None:
             metric=model.metric_at_k_total_epochs,
             tr_loss=model.tr_loss,
             parent_save_path=args.result_path,
+            top_k_values_for_pred=top_k_values_for_pred,
+            top_k_values_for_candidate=top_k_values_for_candidate,
         )
+
+        if args.save_candidate:
+            # generate candidates and zip related files
+            dt = datetime.now().strftime("%Y%m%d%H%M")
+            zip_path = os.path.join(ZIP_PATH, args.model, dt)
+            os.makedirs(zip_path, exist_ok=True)
+            candidates_df = model.generate_candidates_for_each_user(
+                top_k_value=config.post_training.candidate_generation.top_k
+            )
+            # save files to zip
+            pickle.dump(
+                data["user_mapping"],
+                open(os.path.join(zip_path, file_name.user_mapping), "wb"),
+            )
+            pickle.dump(
+                data["diner_mapping"],
+                open(os.path.join(zip_path, file_name.diner_mapping), "wb"),
+            )
+            candidates_df.to_parquet(
+                os.path.join(zip_path, file_name.candidate), index=False
+            )
+            # zip file
+            zip_files_in_directory(
+                dir_path=zip_path,
+                zip_file_name=f"{dt}.zip",
+                allowed_type=[".pkl", ".parquet"],
+                logger=logger,
+            )
+            # upload zip file to google drive
+            manager = GoogleDriveManager(
+                reusable_token_path=args.reusable_token_path,
+                reuse_auth_info=True,
+            )
+            file_id = manager.upload_candidates_result(
+                model_name=args.model,
+                file_path=os.path.join(zip_path, f"{dt}.zip"),
+            )
+            logger.info(
+                f"Successfully uploaded candidate results to google drive."
+                f"File id: {file_id}"
+            )
 
     except:
         logger.error(traceback.format_exc())
