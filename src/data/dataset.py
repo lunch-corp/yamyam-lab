@@ -79,7 +79,7 @@ def load_test_dataset(
     )
 
     # feature engineering
-    user_feature, diner_feature, _ = make_feature(
+    user_feature, diner_feature, diner_meta_feature = make_feature(
         review, diner, user_feature_param_pair, diner_feature_param_pair
     )
 
