@@ -1,1 +1,0 @@
-RESOLUTION = 9

@@ -1,1 +1,0 @@
-MAX_DISTANCE_KM = 1

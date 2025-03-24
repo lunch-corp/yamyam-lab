@@ -1,0 +1,45 @@
+preprocess:
+  data:
+    min_review: 3
+  feature_engineering:
+    diner_engineered_feature_names:
+      all_review_cnt: {}
+      diner_mean_review_score: {}
+      one_hot_encoding_categorical_features:
+        categorical_feature_name:
+          - diner_category_large
+    user_engineered_feature_names:
+      categorical_feature_count:
+        categorical_feature_names:
+          - diner_category_large
+      user_mean_review_score: {}
+training:
+  near_candidate:
+    max_distance_km: 1
+  torch:
+    device: cpu
+  evaluation:
+    recommend_batch_size: 1000
+    top_k_values_for_pred:
+      - 3
+      - 7
+      - 10
+      - 20
+    top_k_values_for_candidate:
+      - 100
+      - 300
+      - 500
+      - 1000
+      - 2000
+post_training:
+  file_name:
+    log: log.log
+    weight: weight.pt
+    training_loss: training_loss.pkl
+    metric: metric.pkl
+    data_object: data_object.pkl
+    user_mapping: user_mapping.pkl
+    diner_mapping: diner_mapping.pkl
+    candidate: candidate.parquet
+  candidate_generation:
+    top_k: 100

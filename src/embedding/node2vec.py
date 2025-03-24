@@ -9,59 +9,52 @@ from tools.generate_walks import precompute_probabilities
 
 
 class Model(BaseEmbedding):
-    r"""
-    This is a customized version of pytorch geometric implementation of node2vec.
-    It differs from pg implementation in 2 aspects.
-        - class initialization: Does not use any pyg-lib or torch-cluster.
-            Make random walks using explicit function.
-        - data structure: Uses networkx.Graph.
-
-    Original doc string starts here.
-    ----------------------------------
-    The Node2Vec model from the
-    `"node2vec: Scalable Feature Learning for Networks"
-    <https://arxiv.org/abs/1607.00653>`_ paper where random walks of
-    length :obj:`walk_length` are sampled in a given graph, and node embeddings
-    are learned via negative sampling optimization.
-
-    .. note::
-
-        For an example of using Node2Vec, see `examples/node2vec.py
-        <https://github.com/pyg-team/pytorch_geometric/blob/master/examples/
-        node2vec.py>`_.
-
-    Args:
-        graph (nx.Graph): Graph object.
-        embedding_dim (int): The size of each embedding vector.
-        walk_length (int): The walk length.
-        walks_per_node (int, optional): The number of walks to sample for each
-            node. (default: :obj:`1`)
-        p (float, optional): Likelihood of immediately revisiting a node in the
-            walk. (default: :obj:`1`)
-        q (float, optional): Control parameter to interpolate between
-            breadth-first strategy and depth-first strategy (default: :obj:`1`)
-        num_negative_samples (int, optional): The number of negative samples to
-            use for each positive sample. (default: :obj:`1`)
-        model_name (str): Name of model.
-    """
-
     def __init__(
         self,
+        # parameters for base_embedding
         user_ids: Tensor,
         diner_ids: Tensor,
+        top_k_values: List[int],
         graph: nx.Graph,
         embedding_dim: int,
-        walk_length: int,
+        walks_per_node: int,
+        num_negative_samples: int,
         num_nodes: int,
-        top_k_values: List[int],
         model_name: str,
-        walks_per_node: int = 1,
+        device: str,
+        recommend_batch_size: int,
+        # parameters for node2vec
+        walk_length: int,
         p: float = 1.0,
         q: float = 1.0,
-        num_negative_samples: int = 1,
         inference: bool = False,
         **kwargs,
     ):
+        """
+        This is a customized version of pytorch geometric implementation of node2vec.
+        It differs from pg implementation in 2 aspects.
+            - class initialization: Does not use any pyg-lib or torch-cluster.
+                Make random walks using explicit function.
+            - data structure: Uses networkx.Graph.
+
+        Args:
+            user_ids (Tensor): User ids in data.
+            diner_ids (Tensor): Diner ids in data.
+            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
+            graph (nx.Graph): Networkx graph object generated from train data.
+            embedding_dim (int): Dimension of user / diner embedding vector.
+            walks_per_node (int): Number of generated walks for each node.
+            num_negative_samples (int): Number of negative samples for each node.
+            num_nodes (int): Total number of nodes.
+            model_name (str): Model name.
+            device (str): Device on which train is run. (cpu or cuda)
+            recommend_batch_size (int): Batch size when calculating validation metric.
+            walk_length (int):
+            p (float): Likelihood of immediately revisiting a node in the walk.
+            q (float): Control parameter to interpolate between breadth-first strategy and depth-first strategy.
+            inference (bool): Indicator whether inference mode or not.
+            **kwargs: Additional keyword arguments.
+        """
         super().__init__(
             user_ids=user_ids,
             diner_ids=diner_ids,
@@ -72,6 +65,8 @@ class Model(BaseEmbedding):
             num_negative_samples=num_negative_samples,
             num_nodes=num_nodes,
             model_name=model_name,
+            device=device,
+            recommend_batch_size=recommend_batch_size,
         )
 
         self.walk_length = walk_length

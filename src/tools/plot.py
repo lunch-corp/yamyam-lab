@@ -5,10 +5,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from constant.evaluation.recommend import (
-    TOP_K_VALUES_FOR_CANDIDATE,
-    TOP_K_VALUES_FOR_PRED,
-)
 from constant.metric.metric import Metric, NearCandidateMetric
 
 sns.set_style("darkgrid")
@@ -18,6 +14,8 @@ def plot_metric_at_k(
     metric: Dict[int, Dict[str, Any]],
     tr_loss: List[float],
     parent_save_path: str,
+    top_k_values_for_pred: List[int],
+    top_k_values_for_candidate: List[int],
 ) -> None:
     """
     Draw metrics line plot @k at each epoch after training.
@@ -29,6 +27,8 @@ def plot_metric_at_k(
         metric (Dict[int, Dict[str, Any]]): metric object after training.
         tr_loss (List[float]): train loss value in each epoch.
         parent_save_path (str): parent save path which will be joined with metric name.
+        top_k_values_for_pred (List[int]): List of top k values for prediction metric.
+        top_k_values_for_candidate (List[int]): List of top k values for candidate generation metric.
     """
     pred_metrics = [
         Metric.MAP.value,
@@ -42,7 +42,7 @@ def plot_metric_at_k(
 
     for metric_name in pred_metrics:
         pred_metrics_df = pd.DataFrame()
-        for k in TOP_K_VALUES_FOR_PRED:
+        for k in top_k_values_for_pred:
             epochs = len(metric[k][metric_name])
             tmp = pd.DataFrame(
                 {
@@ -61,7 +61,7 @@ def plot_metric_at_k(
 
     for metric_name in candidate_metrics:
         candidate_metrics_df = pd.DataFrame()
-        for k in TOP_K_VALUES_FOR_CANDIDATE:
+        for k in top_k_values_for_candidate:
             epochs = len(metric[k][metric_name])
             tmp = pd.DataFrame(
                 {

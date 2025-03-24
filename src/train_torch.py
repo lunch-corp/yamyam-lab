@@ -8,20 +8,26 @@ import torch
 from torch import optim
 
 from candidate.near import NearCandidateGenerator
-from constant.candidate.near import MAX_DISTANCE_KM
-from constant.preprocess.preprocess import MIN_REVIEWS
-from constant.save.file_name import FileName
 from loss.custom import svd_loss
 from preprocess.preprocess import (
     prepare_torch_dataloader,
     train_test_split_stratify,
 )
+from tools.config import load_yaml
 from tools.logger import setup_logger
+
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
+CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/{model}.yaml")
 
 
 def main(args: ArgumentParser.parse_args):
     os.makedirs(args.result_path, exist_ok=True)
-    logger = setup_logger(os.path.join(args.result_path, FileName.LOG.value))
+    config = load_yaml(CONFIG_PATH.format(model=args.model))
+
+    # predefine config
+    file_name = config.post_training.file_name
+
+    logger = setup_logger(os.path.join(args.result_path, file_name.log))
 
     try:
         logger.info(f"model: {args.model}")
@@ -34,7 +40,7 @@ def main(args: ArgumentParser.parse_args):
         logger.info(f"patience for watching validation loss: {args.patience}")
         data = train_test_split_stratify(
             test_size=args.test_ratio,
-            min_reviews=MIN_REVIEWS,
+            min_reviews=config.preprocess.data.min_review,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             test=args.test,
@@ -58,7 +64,7 @@ def main(args: ArgumentParser.parse_args):
         # get near 1km diner_ids
         candidate_generator = NearCandidateGenerator()
         near_diners = candidate_generator.get_near_candidates_for_all_diners(
-            max_distance_km=MAX_DISTANCE_KM
+            max_distance_km=config.training.near_candidate.max_distance_km
         )
         # convert diner_ids
         diner_mapping = data["diner_mapping"]
@@ -163,7 +169,7 @@ def main(args: ArgumentParser.parse_args):
                 patience = args.patience
                 torch.save(
                     model.state_dict(),
-                    str(os.path.join(args.result_path, FileName.WEIGHT.value)),
+                    str(os.path.join(args.result_path, file_name.weight)),
                 )
                 logger.info(
                     f"Best validation: {best_loss}, Previous validation loss: {prev_best_loss}"
@@ -185,7 +191,7 @@ def main(args: ArgumentParser.parse_args):
 
             torch.save(
                 model.state_dict(),
-                str(os.path.join(args.result_path, FileName.WEIGHT.value)),
+                str(os.path.join(args.result_path, file_name.weight)),
             )
             logger.info("Save final model")
     except:

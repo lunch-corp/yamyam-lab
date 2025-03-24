@@ -1,1 +1,0 @@
-MIN_REVIEWS = 3
