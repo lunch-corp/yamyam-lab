@@ -41,8 +41,6 @@ class DinerFeatureStore(BaseFeatureStore):
             "one_hot_encoding_categorical_features": self.one_hot_encoding_categorical_features,
             "diner_category_meta_combined_with_h3": self.make_diner_category_meta_combined_with_h3,
             # "bayesian_score": self.calculate_bayesian_score,
-
-
         }
 
         for feat, arg in feature_param_pair.items():
@@ -226,7 +224,10 @@ class DinerFeatureStore(BaseFeatureStore):
             lambda row: row[category_column_for_meta] + "_" + row["h3_index"], axis=1
         )
         self.engineered_meta_feature_names.extend(
-            ["metadata_id", "metadata_id_neighbors"]
+            [
+                "metadata_id",
+                "metadata_id_neighbors",
+            ]
         )
 
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
