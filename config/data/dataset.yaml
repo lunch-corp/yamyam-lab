@@ -19,6 +19,7 @@ features:
   - chinese
   - korean
   - western
+category_column_for_meta: diner_category_large
 
 user_engineered_feature_names:
   - categorical_feature_count:

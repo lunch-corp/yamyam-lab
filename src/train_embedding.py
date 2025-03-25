@@ -10,10 +10,8 @@ from torch.utils.data import DataLoader
 
 from candidate.near import NearCandidateGenerator
 from constant.metric.metric import Metric, NearCandidateMetric
-from preprocess.preprocess import (
-    prepare_networkx_undirected_graph,
-    train_test_split_stratify,
-)
+from data.dataset import DatasetLoader
+from preprocess.preprocess import prepare_networkx_undirected_graph
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
 from tools.logger import setup_logger
@@ -62,18 +60,18 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"result path: {args.result_path}")
         logger.info(f"test: {args.test}")
 
-        data = train_test_split_stratify(
+        data_loader = DatasetLoader(
             test_size=args.test_ratio,
             min_reviews=config.preprocess.data.min_review,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             is_graph_model=True,
-            use_metadata=args.use_metadata,
             category_column_for_meta=args.category_column_for_meta,
             user_engineered_feature_names=fe.user_engineered_feature_names,
             diner_engineered_feature_names=fe.diner_engineered_feature_names,
             test=args.test,
         )
+        data = data_loader.load_train_dataset(use_metadata=args.use_metadata)
         train_graph, val_graph = prepare_networkx_undirected_graph(
             X_train=data["X_train"],
             y_train=data["y_train"],

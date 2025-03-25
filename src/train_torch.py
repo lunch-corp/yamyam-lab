@@ -8,11 +8,9 @@ import torch
 from torch import optim
 
 from candidate.near import NearCandidateGenerator
+from data.dataset import DatasetLoader
 from loss.custom import svd_loss
-from preprocess.preprocess import (
-    prepare_torch_dataloader,
-    train_test_split_stratify,
-)
+from preprocess.preprocess import prepare_torch_dataloader
 from tools.config import load_yaml
 from tools.logger import setup_logger
 
@@ -38,13 +36,15 @@ def main(args: ArgumentParser.parse_args):
         logger.info(f"number of factors for user / item embedding: {args.num_factors}")
         logger.info(f"test ratio: {args.test_ratio}")
         logger.info(f"patience for watching validation loss: {args.patience}")
-        data = train_test_split_stratify(
+
+        data_loader = DatasetLoader(
             test_size=args.test_ratio,
             min_reviews=config.preprocess.data.min_review,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             test=args.test,
         )
+        data = data_loader.load_train_dataset()
         train_dataloader, val_dataloader = prepare_torch_dataloader(
             data["X_train"], data["y_train"], data["X_val"], data["y_val"]
         )

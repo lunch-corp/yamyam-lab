@@ -1,41 +1,242 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
+import numpy as np
 import pandas as pd
+import torch
+from sklearn.model_selection import train_test_split
 
 from data.validator import DataValidator
+from preprocess.preprocess import (
+    meta_mapping,
+    preprocess_common,
+    reviewer_diner_mapping,
+)
+from store.feature import build_feature
 from tools.google_drive import ensure_data_files
 
 
-def load_dataset(test: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Load review, diner, and diner with raw category data, and optionally filter for pytest.
-    In this function, no other preprocessing logic is done but only loading data will be run.
+class DatasetLoader:
+    def __init__(
+        self,
+        test_size: float,
+        min_reviews: int,
+        user_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
+        diner_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
+        X_columns: List[str] = ["diner_idx", "reviewer_id"],
+        y_columns: List[str] = ["reviewer_review_score"],
+        random_state: int = 42,
+        stratify: str = "reviewer_id",
+        is_graph_model: bool = False,
+        category_column_for_meta: str = "diner_category_large",
+        test: bool = False,
+    ):
+        self.test_size = test_size
+        self.min_reviews = min_reviews
+        self.user_engineered_feature_names = user_engineered_feature_names
+        self.diner_engineered_feature_names = diner_engineered_feature_names
+        self.X_columns = X_columns
+        self.y_columns = y_columns
+        self.random_state = random_state
+        self.stratify = stratify
+        self.is_graph_model = is_graph_model
+        self.category_column_for_meta = category_column_for_meta
+        self.test = test
 
-    Args:
-        test (bool): When set true, subset of review data will be used.
+        self.data_paths = ensure_data_files()
 
-    Returns (Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]):
-        review, diner, diner with raw category in order.
-    """
-    data_paths = ensure_data_files()
+    def load_dataset(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Load and merge review, diner, and category data.
+        """
+        review = pd.read_csv(self.data_paths["review"])
+        reviewer = pd.read_csv(self.data_paths["reviewer"])
+        review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
-    review = pd.read_csv(data_paths["review"])
-    reviewer = pd.read_csv(data_paths["reviewer"])
+        diner = pd.read_csv(self.data_paths["diner"], low_memory=False)
+        diner_with_raw_category = pd.read_csv(self.data_paths["category"])
 
-    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
+        if self.test:
+            yongsan_diners = diner[
+                diner["diner_road_address"].str.startswith("서울 용산구", na=False)
+            ]["diner_idx"].unique()[:100]
+            review = review[review["diner_idx"].isin(yongsan_diners)]
 
-    diner = pd.read_csv(data_paths["diner"], low_memory=False)
-    diner_with_raw_category = pd.read_csv(data_paths["category"])
+        return review, diner, diner_with_raw_category
 
-    if test:
-        yongsan_diners = diner[
-            lambda x: x["diner_road_address"].str.startswith("서울 용산구", na=False)
-        ]["diner_idx"].unique()[:100]
-        review = review[
-            lambda x: x["diner_idx"].isin(yongsan_diners)
-        ]  # about 5000 rows
+    def create_target_column(self, review: pd.DataFrame) -> pd.DataFrame:
+        """
+        Create the target column for classification.
+        """
+        review["target"] = (
+            review["reviewer_review_score"] - review["reviewer_avg"] > 0.5
+        ).astype(int)
+        return review
 
-    return review, diner, diner_with_raw_category
+    def train_test_split_stratify(
+        self,
+        review: pd.DataFrame,
+        diner: pd.DataFrame,
+        diner_with_raw_category: pd.DataFrame,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Split data into train and validation sets, stratified by a specified column.
+        """
+
+        train, val = train_test_split(
+            review,
+            test_size=self.test_size,
+            random_state=self.random_state,
+            stratify=review[self.stratify],
+        )
+
+        assert np.array_equal(
+            np.sort(train["reviewer_id"].unique()), np.sort(val["reviewer_id"].unique())
+        )
+        return train, val
+
+    def load_train_dataset(
+        self, is_rank: bool = False, use_metadata: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Load and process training data.
+        """
+        # Load data
+        review, diner, diner_with_raw_category = self.load_dataset()
+
+        assert self.category_column_for_meta in diner_with_raw_category.columns
+
+        review, diner = preprocess_common(
+            review, diner, diner_with_raw_category, self.min_reviews
+        )
+
+        # Map reviewer and diner data
+        mapped_res = reviewer_diner_mapping(
+            review=review, diner=diner, is_graph_model=self.is_graph_model
+        )
+        review, diner = mapped_res["review"], mapped_res["diner"]
+        mapped_res = {
+            k: v for k, v in mapped_res.items() if k not in ["review", "diner"]
+        }
+
+        # Split data into train and validation
+        train, val = self.train_test_split_stratify(
+            review,
+            diner,
+            diner_with_raw_category,
+        )
+
+        # Feature engineering
+        user_feature, diner_feature, diner_meta_feature = build_feature(
+            review,
+            diner,
+            self.user_engineered_feature_names,
+            self.diner_engineered_feature_names,
+        )
+
+        if is_rank:
+            # Rank-specific feature merging
+            train, val = self.merge_rank_features(
+                train, val, user_feature, diner_feature, diner_meta_feature
+            )
+            return self.create_rank_dataset(train, val, mapped_res)
+
+        if use_metadata:
+            meta_mapping_info = meta_mapping(
+                diner=diner_meta_feature,
+                num_users=mapped_res["num_users"],
+                num_diners=mapped_res["num_diners"],
+            )
+            mapped_res.update(meta_mapping_info)
+
+        return self.create_graph_dataset(
+            train, val, user_feature, diner_feature, diner_meta_feature, mapped_res
+        )
+
+    def merge_rank_features(
+        self,
+        train: pd.DataFrame,
+        val: pd.DataFrame,
+        user_feature: pd.DataFrame,
+        diner_feature: pd.DataFrame,
+        diner_meta_feature: pd.DataFrame,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Merge rank-specific features to the train and validation sets.
+        """
+        train = train.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
+            subset=["reviewer_id", "diner_idx"]
+        )
+        train = train.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
+            subset=["reviewer_id", "diner_idx"]
+        )
+        train = train.merge(
+            diner_meta_feature, on="diner_idx", how="left"
+        ).drop_duplicates(subset=["reviewer_id", "diner_idx"])
+
+        val = val.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
+            subset=["reviewer_id", "diner_idx"]
+        )
+        val = val.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
+            subset=["reviewer_id", "diner_idx"]
+        )
+        val = val.merge(diner_meta_feature, on="diner_idx", how="left").drop_duplicates(
+            subset=["reviewer_id", "diner_idx"]
+        )
+
+        return train, val
+
+    def create_rank_dataset(
+        self, train: pd.DataFrame, val: pd.DataFrame, mapped_res: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Prepare the output for ranking tasks.
+        """
+        train = self.create_target_column(train)
+        val = self.create_target_column(val)
+
+        train = train.sort_values(by=["reviewer_id"])
+        val = val.sort_values(by=["reviewer_id"])
+
+        return {
+            "X_train": train.drop(columns=["target"]),
+            "y_train": train["target"],
+            "X_val": val.drop(columns=["target"]),
+            "y_val": val["target"],
+            **mapped_res,
+        }
+
+    def create_graph_dataset(
+        self,
+        train: pd.DataFrame,
+        val: pd.DataFrame,
+        user_feature: pd.DataFrame,
+        diner_feature: pd.DataFrame,
+        diner_meta_feature: pd.DataFrame,
+        mapped_res: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Prepare the standard output for model training.
+        """
+        return {
+            "X_train": torch.tensor(train[self.X_columns].values),
+            "y_train": torch.tensor(train[self.y_columns].values, dtype=torch.float32),
+            "X_val": torch.tensor(val[self.X_columns].values),
+            "y_val": torch.tensor(val[self.y_columns].values, dtype=torch.float32),
+            "diner": diner_meta_feature,
+            "user_feature": torch.tensor(
+                user_feature.sort_values(by="reviewer_id")
+                .drop("reviewer_id", axis=1)
+                .values,
+                dtype=torch.float32,
+            ),
+            "diner_feature": torch.tensor(
+                diner_feature.sort_values(by="diner_idx")
+                .drop("diner_idx", axis=1)
+                .values,
+                dtype=torch.float32,
+            ),
+            **mapped_res,
+        }
 
 
 def load_test_dataset(
@@ -52,8 +253,6 @@ def load_test_dataset(
         test: pd.DataFrame
         already_reviewed: list[str]
     """
-    # 순환 참조 방지
-    from preprocess.preprocess import make_feature
 
     # 필요한 데이터 다운로드 확인
     data_paths = ensure_data_files()
@@ -79,7 +278,7 @@ def load_test_dataset(
     )
 
     # feature engineering
-    user_feature, diner_feature, diner_meta_feature = make_feature(
+    user_feature, diner_feature, diner_meta_feature = build_feature(
         review, diner, user_feature_param_pair, diner_feature_param_pair
     )
 
