@@ -475,11 +475,17 @@ class UserFeatureStore(BaseFeatureStore):
         Calculate badge_scaled, date_scaled, score_scaled, and combined_score for each user.
 
         Args:
-            badge_range (tuple): The range to scale badge_level to (min, max)
-            date_range (tuple): The range to scale date_weight to (min, max)
-            score_range (tuple): The range to scale score_diff to (min, max)
-            decay_period (int): Date weight decay period (default: 730 days)
+            badge_range (tuple): The range to scale badge_level to (min, max).
+            date_range (tuple): The range to scale date_weight to (min, max).
+            score_range (tuple): The range to scale score_diff to (min, max).
+            decay_period (int): Date weight decay period (default: 1095 days).
+            badge_weight (float): Weight for badge_level (default: 0.3).
+            date_weight (float): Weight for date_weight (default: 0.2).
+            score_weight (float): Weight for score_diff (default: 0.5).
             **kwargs: Additional keyword arguments.
+
+        Returns:
+            None: This function does not return a value. Instead, it calculates and stores the scaled scores for each user.
         """
 
         # date_weight와 score_diff가 없는 경우 계산
