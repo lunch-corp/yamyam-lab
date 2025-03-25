@@ -1,4 +1,5 @@
 import ast
+import datetime as dt
 from typing import Any, Dict, List, Self
 
 import numpy as np
@@ -39,6 +40,7 @@ class DinerFeatureStore(BaseFeatureStore):
             "diner_mean_review_score": self.calculate_diner_mean_review_score,
             "one_hot_encoding_categorical_features": self.one_hot_encoding_categorical_features,
             "diner_category_meta_combined_with_h3": self.make_diner_category_meta_combined_with_h3,
+            # "bayesian_score": self.calculate_bayesian_score,
         }
 
         for feat, arg in feature_param_pair.items():
@@ -92,7 +94,14 @@ class DinerFeatureStore(BaseFeatureStore):
         # 결과를 DataFrame으로 변환 및 병합
         self.diner[["taste", "kind", "mood", "chip", "parking"]] = scores
         self.engineered_feature_names.extend(
-            ["diner_review_cnt_category", "taste", "kind", "mood", "chip", "parking"]
+            [
+                "diner_review_cnt_category",
+                "taste",
+                "kind",
+                "mood",
+                "chip",
+                "parking",
+            ]
         )
 
     def calculate_diner_price(self: Self, **kwargs) -> None:
@@ -114,7 +123,13 @@ class DinerFeatureStore(BaseFeatureStore):
             self.diner[col] = self.diner[col].fillna(self.diner[col].median())
 
         self.engineered_feature_names.extend(
-            ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
+            [
+                "min_price",
+                "max_price",
+                "mean_price",
+                "median_price",
+                "menu_count",
+            ]
         )
 
     def calculate_diner_mean_review_score(self: Self, **kwargs) -> None:
@@ -209,7 +224,10 @@ class DinerFeatureStore(BaseFeatureStore):
             lambda row: row[category_column_for_meta] + "_" + row["h3_index"], axis=1
         )
         self.engineered_meta_feature_names.extend(
-            ["metadata_id", "metadata_id_neighbors"]
+            [
+                "metadata_id",
+                "metadata_id_neighbors",
+            ]
         )
 
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
@@ -264,8 +282,52 @@ class DinerFeatureStore(BaseFeatureStore):
 
         return scores
 
+    def calculate_bayesian_score(self: Self, k: int = 5, **kwargs) -> None:
+        """
+        Calculate Bayesian average score for each diner.
+
+        Args:
+            k (int): Minimum guaranteed review count (or arbitrary choice).
+            **kwargs: Additional keyword arguments.
+        """
+        # Check if review has 'combined_score' column
+        if "combined_score" not in self.review.columns:
+            raise ValueError(
+                "'combined_score' column not found in review data. Please ensure reviews are properly processed."
+            )
+        # Group by diner_idx and calculate review count and mean combined score
+        grouped = (
+            self.review.groupby("diner_idx")
+            .agg(
+                review_count=("reviewer_id", "count"),
+                mean_combined_score=("combined_score", "mean"),
+            )
+            .reset_index()
+        )
+
+        # Calculate global mean of combined scores
+        mu = grouped["mean_combined_score"].mean()
+
+        # Apply Bayesian Average formula
+        grouped["bayesian_score"] = (
+            (grouped["mean_combined_score"] * grouped["review_count"]) + (mu * k)
+        ) / (grouped["review_count"] + k)
+
+        # Merge with diner dataframe
+        self.diner = pd.merge(
+            left=self.diner,
+            right=grouped[["diner_idx", "bayesian_score"]],
+            on="diner_idx",
+            how="left",
+        )
+
+        # Handle diners with no reviews
+        self.diner["bayesian_score"] = self.diner["bayesian_score"].fillna(0)
+
+        self.engineered_feature_names.append("bayesian_score")
+
     @property
-    def engineered_features(self) -> pd.DataFrame:
+    def engineered_features(self: Self) -> pd.DataFrame:
         """
         Get engineered features only without original features with primary key.
 
@@ -318,6 +380,7 @@ class UserFeatureStore(BaseFeatureStore):
         self.feature_methods = {
             "categorical_feature_count": self.calculate_categorical_feature_count,
             "user_mean_review_score": self.calculate_user_mean_review_score,
+            # "scaled_scores": self.calculate_scaled_scores,
         }
         for feat, arg in feature_param_pair.items():
             if feat not in self.feature_methods.keys():
@@ -397,6 +460,151 @@ class UserFeatureStore(BaseFeatureStore):
             on="reviewer_id",
         )
 
+    def calculate_scaled_scores(
+        self: Self,
+        badge_range: tuple = (0.1, 1.0),
+        date_range: tuple = (0.1, 1.0),
+        score_range: tuple = (-0.5, 1.0),
+        decay_period: int = 1095,
+        badge_weight: float = 0.3,
+        date_weight: float = 0.2,
+        score_weight: float = 0.5,
+        **kwargs,
+    ) -> None:
+        """
+        Calculate badge_scaled, date_scaled, score_scaled, and combined_score for each user.
+
+        Args:
+            badge_range (tuple): The range to scale badge_level to (min, max).
+            date_range (tuple): The range to scale date_weight to (min, max).
+            score_range (tuple): The range to scale score_diff to (min, max).
+            decay_period (int): Date weight decay period (default: 1095 days).
+            badge_weight (float): Weight for badge_level (default: 0.3).
+            date_weight (float): Weight for date_weight (default: 0.2).
+            score_weight (float): Weight for score_diff (default: 0.5).
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            None: This function does not return a value. Instead, it calculates and stores the scaled scores for each user.
+        """
+
+        # date_weight와 score_diff가 없는 경우 계산
+        if (
+            "date_weight" not in self.review.columns
+            or "score_diff" not in self.review.columns
+        ):
+            self._calculate_weighted_score(
+                decay_period=decay_period,
+            )
+
+        # 각 열의 최소, 최대값 계산
+        badge_min, badge_max = (
+            self.review["badge_level"].min(),
+            self.review["badge_level"].max(),
+        )
+        date_weight_min, date_weight_max = (
+            self.review["date_weight"].min(),
+            self.review["date_weight"].max(),
+        )
+        score_diff_min, score_diff_max = (
+            self.review["score_diff"].min(),
+            self.review["score_diff"].max(),
+        )
+
+        # 스케일링된 값 계산
+        self.review["badge_scaled"] = self.review["badge_level"].apply(
+            lambda x: min_max_scaling(
+                x, badge_min, badge_max, badge_range[0], badge_range[1]
+            )
+        )
+
+        self.review["date_scaled"] = self.review["date_weight"].apply(
+            lambda x: min_max_scaling(
+                x, date_weight_min, date_weight_max, date_range[0], date_range[1]
+            )
+        )
+
+        self.review["score_scaled"] = self.review["score_diff"].apply(
+            lambda x: min_max_scaling(
+                x, score_diff_min, score_diff_max, score_range[0], score_range[1]
+            )
+        )
+
+        # combined_score 계산 (badge_scaled 포함)
+        self.review["combined_score"] = (
+            (badge_weight * self.review["badge_scaled"])
+            + (date_weight * self.review["date_scaled"])
+            + (score_weight * self.review["score_scaled"])
+        )
+
+        # 사용자별로 평균 계산하여 사용자 특성으로 추가
+        scaled_features = (
+            self.review.groupby("reviewer_id")
+            .agg(
+                {
+                    "date_scaled": "mean",
+                    "score_scaled": "mean",
+                    "combined_score": "mean",
+                }
+            )
+            .reset_index()
+        )
+
+        self.user = pd.merge(
+            left=self.user,
+            right=scaled_features,
+            how="inner",
+            on="reviewer_id",
+        )
+
+    def _calculate_weighted_score(
+        self: Self,
+        decay_period: int = 1095,
+    ) -> None:
+        """
+        Calculate date_weight and score_diff for reviews if they don't exist.
+
+        Args:
+            decay_period (int): Date weight decay period in days
+        """
+
+        # 필수 컬럼 확인
+        required_columns = [
+            "badge_level",
+            "reviewer_review_score",
+            "reviewer_avg",
+            "reviewer_review_date",
+        ]
+        for col in required_columns:
+            if col not in self.review.columns:
+                raise ValueError(
+                    f"{col} not in review data columns. Required for weighted score calculation."
+                )
+
+        # 현재 날짜 설정
+        current_date = dt.datetime.now()
+
+        def _partly_calculate_weighted_score(row, today=current_date):
+            """
+            Calculate weighted_score to date-weight review scores
+
+            Returns:
+                Tuple of (date_weight, score_diff)
+            """
+            # 날짜 차이 계산
+            days_diff = (today - row["reviewer_review_date"]).days
+            date_weight = max(1 - max(0, days_diff - 90) / decay_period, 0.01)
+
+            # 사용자 평균과의 차이 계산
+            simple_score = row["reviewer_review_score"] - row["reviewer_avg"]
+
+            return (date_weight, simple_score)
+
+        # 리뷰 데이터에 가중치가 적용된 점수 계산
+        self.review[["date_weight", "score_diff"]] = self.review.apply(
+            _partly_calculate_weighted_score, axis=1, result_type="expand"
+        )
+
     @property
     def engineered_features(self: Self) -> pd.DataFrame:
         """
@@ -406,3 +614,26 @@ class UserFeatureStore(BaseFeatureStore):
             Engineered features dataframe.
         """
         return self.user
+
+
+def min_max_scaling(
+    value: float, min_val: float, max_val: float, range_min: float, range_max: float
+) -> float:
+    """
+    Scale a value to a specified range using min-max scaling.
+
+    Args:
+        value (float): The value to be scaled.
+        min_val (float): The minimum value in the original data.
+        max_val (float): The maximum value in the original data.
+        range_min (float): The minimum value of the target range.
+        range_max (float): The maximum value of the target range.
+
+    Returns:
+        float: The scaled value within the specified range.
+    """
+    if max_val - min_val == 0:  # Zero division 방지
+        return range_min
+    return ((value - min_val) / (max_val - min_val)) * (
+        range_max - range_min
+    ) + range_min
