@@ -2,18 +2,14 @@ import os
 from typing import Any, Dict, List, Tuple
 
 import networkx as nx
-import numpy as np
 import pandas as pd
 import torch
-from sklearn.model_selection import train_test_split
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
-from data.dataset import load_dataset
 from data.validator import DataValidator
 from preprocess.diner_transform import CategoryProcessor
-from store.feature import DinerFeatureStore, UserFeatureStore
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
@@ -221,184 +217,6 @@ def map_id_to_ascending_integer(
     mapping_info = {id_: i + start_number for i, id_ in enumerate(unique_ids)}
     data[id_column] = data[id_column].map(mapping_info)
     return mapping_info, data
-
-
-def make_feature(
-    review: pd.DataFrame,
-    diner: pd.DataFrame,
-    user_engineered_feature_names: Dict[str, Dict[str, Any]],
-    diner_engineered_feature_names: Dict[str, Dict[str, Any]],
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    # user feature engineering
-    user_fs = UserFeatureStore(
-        review=review,
-        diner=diner,
-        feature_param_pair=user_engineered_feature_names,
-    )
-    user_fs.make_features()
-    user_feature = user_fs.engineered_features
-
-    # diner feature engineering
-    diner_fs = DinerFeatureStore(
-        review=review,
-        diner=diner,
-        feature_param_pair=diner_engineered_feature_names,
-    )
-    diner_fs.make_features()
-    diner_feature = diner_fs.engineered_features
-    diner_meta_feature = diner_fs.engineered_meta_features
-    return user_feature, diner_feature, diner_meta_feature
-
-
-def create_target_column(review: pd.DataFrame) -> pd.DataFrame:
-    """
-    Create the target column for classification.
-    """
-    review["target"] = np.where(
-        (review["reviewer_review_score"] - review["reviewer_avg"] > 0.5),
-        1,
-        0,
-    )
-    return review
-
-
-def train_test_split_stratify(
-    test_size: float,
-    min_reviews: int,
-    user_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
-    diner_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
-    X_columns: List[str] = ["diner_idx", "reviewer_id"],
-    y_columns: List[str] = ["reviewer_review_score"],
-    random_state: int = 42,
-    stratify: str = "reviewer_id",
-    is_graph_model: bool = False,
-    use_metadata: bool = False,
-    category_column_for_meta: str = "diner_category_large",
-    test: bool = False,
-    is_rank: bool = False,
-) -> Dict[str, Any]:
-    """
-    Split review data stratifying by `stratify` column.
-    This function aims for using consistent train / validation dataset across coders
-    and ensures that each reviewer in validation is included in train dataset.
-
-    Args:
-        test_size (float): Ratio of test dataset.
-        min_reviews (int): Minimum number of reviews for each reviewer.
-        diner_engineered_feature_names (Dict[str, Dict[str, Any]]): Key is name of engineered feature and
-            values are its corresponding parameters.
-        X_columns (List[str]): Column names for model feature.
-        y_columns (List[str]): Column names for target value.
-        random_state (int): Random seed for reproducibility.
-        stratify (str): Reference column when stratifying review data.
-        is_graph_model (bool): Indicator whether using graph based model or not.
-            When set true, all the mapped index should be unique in ascending order.
-        use_metadata (bool): Indicator whether using metadata or not. (for metapath2vec)
-        category_column_for_meta (str): Category column name which will be used to generate meta for each node.
-        test (bool): Indicator whether under pytest. when set true, use part of total dataset.
-
-    Returns (Dict[str, Any]):
-        Dataset, statistics, and mapping information which could be used when training model.
-    """
-    # load data
-    review, diner, diner_with_raw_category = load_dataset(test=test)
-
-    assert category_column_for_meta in diner_with_raw_category.columns
-    review, diner = preprocess_common(
-        review=review,
-        diner=diner,
-        diner_with_raw_category=diner_with_raw_category,
-        min_reviews=min_reviews,
-    )
-
-    mapped_res = reviewer_diner_mapping(
-        review=review,
-        diner=diner,
-        is_graph_model=is_graph_model,
-    )
-
-    review = mapped_res.get("review")
-    diner = mapped_res.get("diner")
-    mapped_res = {k: v for k, v in mapped_res.items() if k not in ["review", "diner"]}
-
-    train, val = train_test_split(
-        review,
-        test_size=test_size,
-        random_state=random_state,
-        stratify=review[stratify],
-    )
-
-    # check whether reviewers from train is equivalent with reviewers from val
-    assert np.array_equal(
-        np.sort(train["reviewer_id"].unique()), np.sort(val["reviewer_id"].unique())
-    )
-    # TODO: check whether diners from train is equivalent with diners from val
-
-    # feature engineering using only train data
-    user_feature, diner_feature, diner_meta_feature = make_feature(
-        review=train,
-        diner=diner,
-        user_engineered_feature_names=user_engineered_feature_names,
-        diner_engineered_feature_names=diner_engineered_feature_names,
-    )
-
-    if is_rank:
-        # merge diner data
-        train = train.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
-        train = train.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
-
-        val = val.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
-        val = val.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
-
-        # Create target column
-        train = create_target_column(train)
-        val = create_target_column(val)
-
-        train = train.sort_values(by=[stratify])
-        val = val.sort_values(by=[stratify])
-
-        return {
-            "X_train": train.drop(columns=["target"]),
-            "y_train": train["target"],
-            "X_val": val.drop(columns=["target"]),
-            "y_val": val["target"],
-            **mapped_res,
-        }
-
-    if use_metadata:
-        meta_mapping_info = meta_mapping(
-            diner=diner_meta_feature,
-            num_users=mapped_res.get("num_users"),
-            num_diners=mapped_res.get("num_diners"),
-        )
-        mapped_res = {**mapped_res, **meta_mapping_info}
-
-    return {
-        "X_train": torch.tensor(train[X_columns].values),
-        "y_train": torch.tensor(train[y_columns].values, dtype=torch.float32),
-        "X_val": torch.tensor(val[X_columns].values),
-        "y_val": torch.tensor(val[y_columns].values, dtype=torch.float32),
-        "diner": diner_meta_feature,
-        "user_feature": torch.tensor(
-            user_feature.sort_values(by="reviewer_id")
-            .drop("reviewer_id", axis=1)
-            .values,
-            dtype=torch.float32,
-        ),
-        "diner_feature": torch.tensor(
-            diner_feature.sort_values(by="diner_idx").drop("diner_idx", axis=1).values,
-            dtype=torch.float32,
-        ),
-        **mapped_res,
-    }
 
 
 def prepare_torch_dataloader(
