@@ -71,7 +71,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner_engineered_feature_names=fe.diner_engineered_feature_names,
             test=args.test,
         )
-        data = data_loader.load_train_dataset(use_metadata=args.use_metadata)
+        data = data_loader.prepare_train_val_dataset(use_metadata=args.use_metadata)
         train_graph, val_graph = prepare_networkx_undirected_graph(
             X_train=data["X_train"],
             y_train=data["y_train"],

@@ -44,7 +44,7 @@ def main(args: ArgumentParser.parse_args):
             y_columns=["reviewer_review_score"],
             test=args.test,
         )
-        data = data_loader.load_train_dataset()
+        data = data_loader.prepare_train_val_dataset()
         train_dataloader, val_dataloader = prepare_torch_dataloader(
             data["X_train"], data["y_train"], data["X_val"], data["y_val"]
         )

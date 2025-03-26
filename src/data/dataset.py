@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Self, Tuple
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ from tools.google_drive import ensure_data_files
 
 class DatasetLoader:
     def __init__(
-        self,
+        self: Self,
         test_size: float,
         min_reviews: int,
         user_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
@@ -44,9 +44,12 @@ class DatasetLoader:
 
         self.data_paths = ensure_data_files()
 
-    def load_dataset(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def load_dataset(self: Self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Load and merge review, diner, and category data.
+
+        Returns (Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]):
+            review, diner, diner_with_raw_category
         """
         review = pd.read_csv(self.data_paths["review"])
         reviewer = pd.read_csv(self.data_paths["reviewer"])
@@ -63,7 +66,7 @@ class DatasetLoader:
 
         return review, diner, diner_with_raw_category
 
-    def create_target_column(self, review: pd.DataFrame) -> pd.DataFrame:
+    def create_target_column(self: Self, review: pd.DataFrame) -> pd.DataFrame:
         """
         Create the target column for classification.
         """
@@ -73,13 +76,16 @@ class DatasetLoader:
         return review
 
     def train_test_split_stratify(
-        self,
-        review: pd.DataFrame,
-        diner: pd.DataFrame,
-        diner_with_raw_category: pd.DataFrame,
+        self: Self, review: pd.DataFrame
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Split data into train and validation sets, stratified by a specified column.
+
+        Args:
+            review: pd.DataFrame
+
+        Returns (Tuple[pd.DataFrame, pd.DataFrame]):
+            train, val
         """
 
         train, val = train_test_split(
@@ -94,11 +100,18 @@ class DatasetLoader:
         )
         return train, val
 
-    def load_train_dataset(
-        self, is_rank: bool = False, use_metadata: bool = False
+    def prepare_train_val_dataset(
+        self: Self, is_rank: bool = False, use_metadata: bool = False
     ) -> Dict[str, Any]:
         """
         Load and process training data.
+
+        Args:
+            is_rank: bool
+            use_metadata: bool
+
+        Returns (Dict[str, Any]):
+            A dictionary containing the training and validation sets.
         """
         # Load data
         review, diner, diner_with_raw_category = self.load_dataset()
@@ -119,11 +132,7 @@ class DatasetLoader:
         }
 
         # Split data into train and validation
-        train, val = self.train_test_split_stratify(
-            review,
-            diner,
-            diner_with_raw_category,
-        )
+        train, val = self.train_test_split_stratify(review)
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
@@ -138,6 +147,7 @@ class DatasetLoader:
             train, val = self.merge_rank_features(
                 train, val, user_feature, diner_feature, diner_meta_feature
             )
+
             return self.create_rank_dataset(train, val, mapped_res)
 
         if use_metadata:
@@ -153,7 +163,7 @@ class DatasetLoader:
         )
 
     def merge_rank_features(
-        self,
+        self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
         user_feature: pd.DataFrame,
@@ -162,6 +172,16 @@ class DatasetLoader:
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Merge rank-specific features to the train and validation sets.
+
+        Args:
+            train: pd.DataFrame
+            val: pd.DataFrame
+            user_feature: pd.DataFrame
+            diner_feature: pd.DataFrame
+            diner_meta_feature: pd.DataFrame
+
+        Returns Tuple[pd.DataFrame, pd.DataFrame]:
+            tuple: A tuple containing the training and validation sets
         """
         train = train.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
@@ -186,10 +206,18 @@ class DatasetLoader:
         return train, val
 
     def create_rank_dataset(
-        self, train: pd.DataFrame, val: pd.DataFrame, mapped_res: Dict[str, Any]
+        self: Self, train: pd.DataFrame, val: pd.DataFrame, mapped_res: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Prepare the output for ranking tasks.
+
+        Args:
+            train: pd.DataFrame
+            val: pd.DataFrame
+            mapped_res: Dict[str, Any]
+
+        Returns (Dict[str, Any]):
+            A dictionary containing the training and validation sets.
         """
         train = self.create_target_column(train)
         val = self.create_target_column(val)
@@ -206,7 +234,7 @@ class DatasetLoader:
         }
 
     def create_graph_dataset(
-        self,
+        self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
         user_feature: pd.DataFrame,
@@ -215,7 +243,18 @@ class DatasetLoader:
         mapped_res: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        Prepare the standard output for model training.
+        Prepare the standard output for graph embedding.
+
+        Args:
+            train: pd.DataFrame
+            val: pd.DataFrame
+            user_feature: pd.DataFrame
+            diner_feature: pd.DataFrame
+            diner_meta_feature: pd.DataFrame
+            mapped_res: Dict[str, Any]
+
+        Returns (Dict[str, Any]):
+            A dictionary containing the training and validation
         """
         return {
             "X_train": torch.tensor(train[self.X_columns].values),
@@ -243,15 +282,16 @@ def load_test_dataset(
     reviewer_id: int,
     user_feature_param_pair: Dict[str, Any],
     diner_feature_param_pair: Dict[str, Any],
-) -> tuple[pd.DataFrame, list[str]]:
+) -> Tuple[pd.DataFrame, list[str]]:
     """
     Load test dataset for inference
-    params:
+    Args:
         reviewer_id: int
+        user_feature_param_pair: dict
+        diner_feature_param_pair: dict
 
-    return:
-        test: pd.DataFrame
-        already_reviewed: list[str]
+    Returns (Tuple[pd.DataFrame, list[str]]):
+        test, already_reviewed
     """
 
     # 필요한 데이터 다운로드 확인

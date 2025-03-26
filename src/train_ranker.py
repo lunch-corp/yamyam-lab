@@ -17,7 +17,7 @@ def main(cfg: DictConfig):
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
     )
-    data = data_loader.load_train_dataset(is_rank=True)
+    data = data_loader.prepare_train_val_dataset(is_rank=True)
 
     X_train, y_train, X_test, y_test = (
         data["X_train"],
