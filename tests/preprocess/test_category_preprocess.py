@@ -16,7 +16,7 @@ CONFIG_PATH = os.path.join(ROOT_PATH, "./config/data/category_mappings.yaml")
 
 def test_category_preprocess():
     """
-    Test whether category preprocessing is correctly done or not.
+    Test if category preprocessing is correctly done or not.
     """
     data_paths = ensure_data_files()
     diner_with_raw_category = pd.read_csv(data_paths["category"])
