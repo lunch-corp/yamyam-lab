@@ -42,6 +42,7 @@ class CategoryProcessor:
         self.category_depth: List[List[str]] = [
             ["detail", "small"],
             ["small", "middle"],
+            ["middle", "large"],
         ]
 
     def _load_category_mappings(self) -> Dict[str, Any]:
@@ -74,9 +75,9 @@ class CategoryProcessor:
             CategoryProcessor: 연쇄 호출이 가능한 self.
         """
         return (
-            self.process_lowering_categories()
+            self.process_chicken_categories()
+            .process_lowering_categories()
             .process_partly_lowering_categories()
-            .process_chicken_categories()
         )
 
     def process_lowering_categories(self) -> Self:
@@ -145,7 +146,6 @@ class CategoryProcessor:
             CategoryProcessor: 연쇄 호출이 가능한 self.
         """
         chicken_config: Dict[str, Any] = self.mappings["chicken_category"]
-
         target_rows: pd.Series = self.df["diner_category_large"].isin(
             target_categories
         ) & (
@@ -183,7 +183,7 @@ class CategoryProcessor:
 
         if target_category == "diner_category_middle":
             # 중분류 변경 시 소분류→상세분류 이동만 수행
-            category_depth = self.category_depth[:1]
+            category_depth = self.category_depth[:2]
         else:
             category_depth = self.category_depth
 
