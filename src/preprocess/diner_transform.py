@@ -162,8 +162,8 @@ class CategoryProcessor:
         grilled_chicken: List[str] = chicken_config["구이"]
         is_grilled: pd.Series = self.df["diner_category_middle"].isin(grilled_chicken)
 
-        self.df.loc[target_rows & is_grilled, "diner_category_middle"] = "구운치킨"
-        self.df.loc[target_rows & ~is_grilled, "diner_category_middle"] = "프라이드치킨"
+        self.df.loc[target_rows & is_grilled, "diner_category_middle"] = "구이"
+        self.df.loc[target_rows & ~is_grilled, "diner_category_middle"] = "프라이드"
 
         return self
 
