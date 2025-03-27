@@ -30,6 +30,22 @@ class DatasetLoader:
         category_column_for_meta: str = "diner_category_large",
         test: bool = False,
     ):
+        """
+        Initialize the DatasetLoader class.
+
+        Args:
+            test_size: float
+            min_reviews: int
+            user_engineered_feature_names: Dict[str, Dict[str, Any]]
+            diner_engineered_feature_names: Dict[str, Dict[str, Any]]
+            X_columns: List[str]
+            y_columns: List[str]
+            random_state: int
+            stratify: str
+            is_graph_model: bool
+            category_column_for_meta: str
+            test: bool
+        """
         self.test_size = test_size
         self.min_reviews = min_reviews
         self.user_engineered_feature_names = user_engineered_feature_names
