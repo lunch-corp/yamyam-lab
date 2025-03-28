@@ -127,7 +127,14 @@ def check_required_files() -> bool:
     Returns:
         bool: 모든 필요한 파일이 존재하면 True, 아니면 False
     """
-    required_files = ["diner.csv", "review.csv", "reviewer.csv"]
+    required_files = [
+        "diner.csv",
+        "review.csv",
+        "reviewer.csv",
+        "candidate.parquet",
+        "user_mapping.pkl",
+        "diner_mapping.pkl",
+    ]
     data_dir = os.path.join(ABS_PATH, "data")
 
     if not os.path.exists(data_dir):
