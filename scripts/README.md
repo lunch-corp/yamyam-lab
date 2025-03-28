@@ -4,6 +4,11 @@
 
 ## Candidate scripts
 
+| Python script                                  | Description                                       |
+|------------------------------------------------|---------------------------------------------------|
+| scripts/candidate/create_google_drive_token.py | Used when creating token.json in ci               |
+| scripts/candidate/download_candidate_result.py | Used when downloading candidate generation result |
+
 ### How to download candidate result
 
 Place credential file to authenticate google drive api to `credentials/` directory.

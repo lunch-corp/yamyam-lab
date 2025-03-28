@@ -93,6 +93,6 @@ jobs:
             --reusable_token_path "credentials/token.json"
           ls candidates/node2vec
 
-      # - name: Run pytest
-      #   run: |
-      #     poetry run pytest
+      - name: Run pytest
+        run: |
+          poetry run pytest
