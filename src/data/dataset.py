@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Dict, List, Self, Tuple
 
 import numpy as np
@@ -59,6 +60,7 @@ class DatasetLoader:
         self.test = test
 
         self.data_paths = ensure_data_files()
+        self.candidate_paths = Path("candidates/node2vec")
 
     def load_dataset(self: Self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -265,9 +267,9 @@ class DatasetLoader:
         """
         Load candidate dataset.
         """
-        candidate = pd.read_parquet(self.data_paths["candidate"])
-        user_mapping = pd.read_pickle(self.data_paths["user_mapping"])
-        diner_mapping = pd.read_pickle(self.data_paths["diner_mapping"])
+        candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
+        user_mapping = pd.read_pickle(self.candidate_paths / "user_mapping.pkl")
+        diner_mapping = pd.read_pickle(self.candidate_paths / "diner_mapping.pkl")
 
         candidate["reviewer_id"] = candidate["user_id"].copy()
         candidate["diner_idx"] = candidate["diner_id"].copy()
