@@ -87,7 +87,7 @@ jobs:
 
       - name: Download latest node2vec candidate generation result
         run: |
-          poetry python3 scripts/candidate/download_candidate_result.py \
+          poetry run python3 scripts/candidate/download_candidate_result.py \
             --model_name "node2vec" \
             --latest \
             --reusable_token_path "credentials/token.json"

@@ -13,7 +13,7 @@ Refer to [this discussion](https://github.com/LearningnRunning/yamyam-lab/discus
 Run following command depending on the candidate generator model you want.
 
 ```bash
-$ python3 scripts/candidate/download_candidate_result.py \
+$ poetry run python3 scripts/candidate/download_candidate_result.py \
   --model_name "node2vec" \
   --latest \
   --credential_file_path_from_gcloud_console "PATH/TO/CREDENTIALS.json" \
