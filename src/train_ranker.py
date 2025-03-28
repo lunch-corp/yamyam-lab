@@ -79,13 +79,6 @@ def main(cfg: DictConfig):
                 liked_items=np.array(liked_items), reco_items=reco_items[:K]
             )
 
-            # Debug information for first few users
-            if user == user_predictions.index[0]:
-                print(f"\nDebug for user {user}:")
-                print(f"Liked items: {liked_items}")
-                print(f"Recommended items: {reco_items[:K]}")
-                print(f"Calculated metrics: {metric}")
-
             metric_at_K[K]["map"] += metric["ap"]
             metric_at_K[K]["ndcg"] += metric["ndcg"]
             metric_at_K[K]["count"] += 1
