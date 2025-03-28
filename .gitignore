@@ -28,6 +28,7 @@ tests/model/result/
 credentials/
 
 candidates/
+!candidates/node2vec/.gitkeep
 
 zip/
 
