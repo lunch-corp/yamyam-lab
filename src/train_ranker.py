@@ -23,7 +23,7 @@ def main(cfg: DictConfig):
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
     )
     data, candidates, user_mapping, _ = data_loader.prepare_train_val_dataset(
-        is_rank=True
+        is_rank=True, is_candidate_dataset=True
     )
 
     # mapping reverse
