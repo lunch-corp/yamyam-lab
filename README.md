@@ -162,7 +162,7 @@ For detail description of each metric, please refer to [discussion](https://gith
 
 | Candidate model | number of candidates | Reranking model | Task | mAP@3        | mAP@7   | mAP@10     | mAP@20     | NDCG@3      | NDCG@7 | NDCG@10         | NDCG@20  |
 | --------------- | -------------------- | --------------- | ---- |--------------|---------|------------|------------|-------------|--------|-----------------|----------|
-| node2vec        | 100                | lightgbm ranker | Ranker  |  0.00086       | 0.0011       | 0.0010       | 0.0013       | 0.0031     | 0.0058     | 0.0072     | 0.0126      |
+| node2vec        | 100                | lightgbm ranker | Ranker  |  0.00083       | 0.0011       | 0.0011       | 0.0014       | 0.0031     | 0.0060     | 0.0077     | **0.0136**     |
 
 ---
 
