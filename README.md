@@ -156,14 +156,13 @@ For detail description of each metric, please refer to [discussion](https://gith
 | SVD             | Regression            | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
 | node2vec        | Unsupervised learning | 0.00515   | 0.00624   | 0.00666   | 0.0073     | 0.00791 | 0.00969 | 0.0108  | 0.01319   |
 | metapath2vec    | Unsupervised learning | 0.0001    | 0.00013   | 0.00014   | 0.00017    | 0.00016 | 0.00022 | 0.00027 | 0.00039   |
-| lightgbm ranker | Supervised learning | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
 
 
 ### Ranking performance results with two step
 
 | Candidate model | number of candidates | Reranking model | Task | mAP@3        | mAP@7   | mAP@10     | mAP@20     | NDCG@3      | NDCG@7 | NDCG@10         | NDCG@20  |
 | --------------- | -------------------- | --------------- | ---- |--------------|---------|------------|------------|-------------|--------|-----------------|----------|
-| node2vec        | TBD                  | lightgbm ranker | TBD  | TBD          | TBD     | TBD        | TBD        | TBD         | TBD    | TBD             | TBD      |
+| node2vec        | 100                | lightgbm ranker | Ranker  |  0.00086       | 0.0011       | 0.0010       | 0.0013       | 0.0031     | 0.0058     | 0.0072     | 0.0126      |
 
 ---
 

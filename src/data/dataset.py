@@ -163,8 +163,15 @@ class DatasetLoader:
             train, val = self.merge_rank_features(
                 train, val, user_feature, diner_feature, diner_meta_feature
             )
-
-            return self.create_rank_dataset(train, val, mapped_res)
+            candidates, user_mapping, diner_mapping = self.load_candidate_dataset(
+                user_feature, diner_feature, diner_meta_feature
+            )
+            return (
+                self.create_rank_dataset(train, val, mapped_res),
+                candidates,
+                user_mapping,
+                diner_mapping,
+            )
 
         if use_metadata:
             meta_mapping_info = meta_mapping(
@@ -248,6 +255,28 @@ class DatasetLoader:
             "y_val": val["target"],
             **mapped_res,
         }
+
+    def load_candidate_dataset(
+        self: Self,
+        user_feature: pd.DataFrame,
+        diner_feature: pd.DataFrame,
+        diner_meta_feature: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """
+        Load candidate dataset.
+        """
+        candidate = pd.read_parquet(self.data_paths["candidate"])
+        user_mapping = pd.read_pickle(self.data_paths["user_mapping"])
+        diner_mapping = pd.read_pickle(self.data_paths["diner_mapping"])
+
+        candidate["reviewer_id"] = candidate["user_id"].copy()
+        candidate["diner_idx"] = candidate["diner_id"].copy()
+
+        candidate = candidate.merge(user_feature, on="reviewer_id", how="left")
+        candidate = candidate.merge(diner_feature, on="diner_idx", how="left")
+        candidate = candidate.merge(diner_meta_feature, on="diner_idx", how="left")
+
+        return candidate, user_mapping, diner_mapping
 
     def create_graph_dataset(
         self: Self,

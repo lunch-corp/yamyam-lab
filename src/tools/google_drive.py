@@ -169,7 +169,12 @@ def get_file_paths(directory_path: str) -> Dict[str, str]:
     result = {}
     path = Path(directory_path)
 
-    for file_path in path.glob("*.csv"):
+    # 모든 파일 확장자 매칭을 위한 패턴
+    for file_path in path.glob("*"):
+        # csv, parquet, pkl 파일만 처리
+        if file_path.suffix.lower() not in [".csv", ".parquet", ".pkl"]:
+            continue
+
         file_name = file_path.stem
         base_name = re.sub(r"_\d{8}", "", file_name)  # 날짜 부분 제거
 
@@ -193,7 +198,6 @@ def get_file_paths(directory_path: str) -> Dict[str, str]:
                 base_name = "category"
 
             result[base_name] = str(new_file_path.absolute())
-
     return result
 
 

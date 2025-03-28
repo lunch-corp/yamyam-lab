@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import hydra
+import numpy as np
 from omegaconf import DictConfig
+from prettytable import PrettyTable
+from tqdm import tqdm
 
 from data.dataset import DatasetLoader
+from evaluation.metric import ranking_metrics_at_k
 from model.rank import build_model
+from tools.utils import safe_divide
 
 
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")
@@ -17,14 +22,23 @@ def main(cfg: DictConfig):
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
     )
-    data = data_loader.prepare_train_val_dataset(is_rank=True)
+    data, candidates, user_mapping, _ = data_loader.prepare_train_val_dataset(
+        is_rank=True
+    )
 
+    # mapping reverse
     X_train, y_train, X_test, y_test = (
         data["X_train"],
         data["y_train"],
         data["X_val"],
         data["y_val"],
     )
+
+    reviewer_mapping = {v: k for k, v in data["user_mapping"].items()}
+    candidate_mapping = {v: k for k, v in user_mapping.items()}
+
+    X_test["reviewer_id"] = X_test["reviewer_id"].map(reviewer_mapping)
+    candidates["reviewer_id"] = candidates["reviewer_id"].map(candidate_mapping)
 
     # train model
     trainer = build_model(cfg)
@@ -34,6 +48,68 @@ def main(cfg: DictConfig):
 
     # save model
     trainer.save_model()
+
+    # candidate predictions
+    predictions = trainer.predict(candidates[cfg.data.features])
+
+    # Group predictions by user
+    candidates["pred_score"] = predictions
+    candidates = candidates.sort_values(by="pred_score", ascending=False)
+    user_predictions = candidates.groupby("reviewer_id")["diner_idx"].apply(np.array)
+
+    # Calculate metrics
+    metric_at_K = {K: {"map": 0, "ndcg": 0, "count": 0} for K in [3, 5, 7, 10, 20]}
+
+    # Get ground truth from valid data
+    test_liked_items = X_test.groupby("reviewer_id")["diner_idx"].apply(np.array)
+
+    # Calculate metrics for each user
+    for user in tqdm(user_predictions.index):
+        if user not in test_liked_items:
+            continue
+
+        liked_items = test_liked_items[user]
+        reco_items = user_predictions[user]
+
+        for K in metric_at_K.keys():
+            if len(liked_items) < K:
+                continue
+
+            metric = ranking_metrics_at_k(
+                liked_items=np.array(liked_items), reco_items=reco_items[:K]
+            )
+
+            # Debug information for first few users
+            if user == user_predictions.index[0]:
+                print(f"\nDebug for user {user}:")
+                print(f"Liked items: {liked_items}")
+                print(f"Recommended items: {reco_items[:K]}")
+                print(f"Calculated metrics: {metric}")
+
+            metric_at_K[K]["map"] += metric["ap"]
+            metric_at_K[K]["ndcg"] += metric["ndcg"]
+            metric_at_K[K]["count"] += 1
+
+    # Average metrics
+    for K in metric_at_K:
+        metric_at_K[K]["map"] = safe_divide(
+            numerator=metric_at_K[K]["map"], denominator=metric_at_K[K]["count"]
+        )
+        metric_at_K[K]["ndcg"] = safe_divide(
+            numerator=metric_at_K[K]["ndcg"], denominator=metric_at_K[K]["count"]
+        )
+
+    # Print results using PrettyTable
+    table = PrettyTable()
+    table.field_names = ["K", "MAP", "NDCG"]
+
+    for K in metric_at_K:
+        table.add_row(
+            [K, f"{metric_at_K[K]['map']:.8f}", f"{metric_at_K[K]['ndcg']:.8f}"]
+        )
+
+    print("\nEvaluation Results:")
+    print(table)
 
     # plot feature importance
     trainer.plot_feature_importance()
