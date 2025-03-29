@@ -148,7 +148,7 @@ def diner_analysis_page():
                     {"lat": [diner_info["diner_lat"]], "lon": [diner_info["diner_lon"]]}
                 )
             )
-        st.write(diner_info["diner_address"])
+        st.write(diner_info["diner_road_address"])
 
 
 if __name__ == "__main__":

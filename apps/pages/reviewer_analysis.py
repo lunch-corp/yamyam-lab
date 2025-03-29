@@ -112,14 +112,12 @@ def reviewer_analysis_page():
                         "diner_name",
                         "diner_category_small",
                         "diner_category_detail",
-                        "diner_url",
                         "diner_review_cnt",
                         "diner_blog_review_cnt",
                         "diner_review_avg",
                         "bayesian_score",
                         "reviewer_review_score",
                         "reviewer_review_date",
-                        "score_diff",
                     ]
                 ]
             )
