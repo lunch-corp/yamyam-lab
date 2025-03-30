@@ -33,9 +33,10 @@ def test_loader_dataset():
             "diner_review_tags": {},
             "diner_menu_price": {},
         },
+        test=True,
     )
-
     data = data_loader.prepare_train_val_dataset()
+
     assert data["X_train"].shape[0] > 10000
     assert data["X_val"].shape[0] > 10000
     assert data["y_train"].shape[0] > 10000
@@ -45,7 +46,9 @@ def test_loader_dataset():
     assert data["diner_mapping"] is not None
     assert data["user_mapping"] is not None
 
-    rank_data = data_loader.prepare_train_val_dataset(is_rank=True)
+    rank_data = data_loader.prepare_train_val_dataset(
+        is_rank=True, is_candidate_dataset=True
+    )
 
     assert rank_data["X_train"].shape[0] > 10000
     assert rank_data["X_val"].shape[0] > 10000
