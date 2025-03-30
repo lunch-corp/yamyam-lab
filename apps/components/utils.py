@@ -21,8 +21,6 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     # # 필요한 파일 다운로드 확인
     data_paths = ensure_data_files()
 
-    print(data_paths)
-
     # 식당 데이터 로드 및 형변환
     diner = pd.read_csv(data_paths["diner"])
 
