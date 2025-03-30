@@ -300,6 +300,15 @@ class DatasetLoader:
         """
         Load candidate dataset.
         """
+        if self.test:
+            # 필요한 컬럼만 읽어서 메모리 사용량 줄이기
+            columns = ["user_id", "diner_id"]
+            candidate = pd.read_parquet(
+                self.candidate_paths / "candidate.parquet",
+                columns=columns,
+                engine="pyarrow",
+            ).head(100)
+
         candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
         candidate_user_mapping = pd.read_pickle(
             self.candidate_paths / "user_mapping.pkl"

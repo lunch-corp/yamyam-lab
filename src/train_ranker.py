@@ -21,6 +21,7 @@ def main(cfg: DictConfig):
         category_column_for_meta=cfg.data.category_column_for_meta,
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
+        test=cfg.data.test,
     )
     data, candidates, user_mapping, _ = data_loader.prepare_train_val_dataset(
         is_rank=True, is_candidate_dataset=True

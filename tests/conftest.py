@@ -16,6 +16,7 @@ class DataConfig:
     category_column_for_meta: str
     user_engineered_feature_names: List[Dict[str, Any]]
     diner_engineered_feature_names: List[Dict[str, Any]]
+    test: bool = True
 
 
 @dataclass
