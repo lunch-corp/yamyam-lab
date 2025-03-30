@@ -53,7 +53,7 @@ def main(cfg: DictConfig):
     trainer.save_model()
 
     # candidate predictions
-    batch_size = 1000
+    batch_size = 10000
     predictions = []
 
     for i in tqdm(range(0, len(candidates), batch_size)):

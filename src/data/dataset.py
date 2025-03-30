@@ -308,14 +308,23 @@ class DatasetLoader:
                 columns=columns,
                 engine="pyarrow",
             ).head(100)
+            # test 모드일 때는 매핑 파일도 일부만 읽기
+            candidate_user_mapping = {}
+            candidate_diner_mapping = {}
 
-        candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
-        candidate_user_mapping = pd.read_pickle(
-            self.candidate_paths / "user_mapping.pkl"
-        )
-        candidate_diner_mapping = pd.read_pickle(
-            self.candidate_paths / "dimer_mapping.pkl"
-        )
+            # 후보군 데이터셋의 user_id와 diner_id만 매핑에 포함
+            for _, row in candidate.iterrows():
+                candidate_user_mapping[row["user_id"]] = row["user_id"]
+                candidate_diner_mapping[row["diner_id"]] = row["diner_id"]
+
+        else:
+            candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
+            candidate_user_mapping = pd.read_pickle(
+                self.candidate_paths / "user_mapping.pkl"
+            )
+            candidate_diner_mapping = pd.read_pickle(
+                self.candidate_paths / "dimer_mapping.pkl"
+            )
 
         candidate["reviewer_id"] = candidate["user_id"].copy()
         candidate["diner_idx"] = candidate["diner_id"].copy()
