@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import gdown
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
@@ -264,6 +265,15 @@ class GoogleDriveManager:
             creds = Credentials.from_authorized_user_file(
                 self.reusable_token_path, self.SCOPES
             )
+
+            # Check if the credentials are expired and refresh if needed
+            if creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+
+                # Save the refreshed credentials
+                dir_name = os.path.join(ROOT_PATH, "credentials")
+                with open(os.path.join(dir_name, "token.json"), "w") as token:
+                    token.write(creds.to_json())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
                 self.credential_file_path_from_gcloud_console, self.SCOPES

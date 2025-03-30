@@ -4,6 +4,11 @@
 
 ## Candidate scripts
 
+| Python script                                  | Description                                       |
+|------------------------------------------------|---------------------------------------------------|
+| scripts/candidate/create_google_drive_token.py | Used when creating token.json in ci               |
+| scripts/candidate/download_candidate_result.py | Used when downloading candidate generation result |
+
 ### How to download candidate result
 
 Place credential file to authenticate google drive api to `credentials/` directory.
@@ -13,7 +18,7 @@ Refer to [this discussion](https://github.com/LearningnRunning/yamyam-lab/discus
 Run following command depending on the candidate generator model you want.
 
 ```bash
-$ python3 scripts/candidate/download_candidate_result.py \
+$ poetry run python3 scripts/candidate/download_candidate_result.py \
   --model_name "node2vec" \
   --latest \
   --credential_file_path_from_gcloud_console "PATH/TO/CREDENTIALS.json" \

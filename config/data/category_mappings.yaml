@@ -3,9 +3,13 @@
 lowering_large_categories:
   기타:
     - 퓨전요리
-    - 뷔페 
+    - 뷔페
     - 푸드코트
     - 구내식당
+    - 유아
+    - 여가시설
+    - 식품판매
+    - 전문대행
   일식:
     - 철판요리
   양식:
@@ -21,7 +25,7 @@ lowering_large_categories:
 
 partly_lowering_large_categories:
   양식:
-    lowering_large_categories: 
+    lowering_large_categories:
       - 패스트푸드
     partly_lowering_large_category: 패스트푸드
     partly_lowering_middle_categories:
