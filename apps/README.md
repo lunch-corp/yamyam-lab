@@ -8,15 +8,15 @@
 1. 리뷰어 분석: 개별 리뷰어의 리뷰 패턴과 선호도 분석
 2. 식당 분석: 개별 식당의 상세 정보와 리뷰 트렌드 분석
 3. 카테고리 분석: 식당 카테고리별 통계와 트렌드 분석
-4. 필요한 패키지 설치
-```bash
-pip install -r requirements.txt
-```
+
+## 환경 설정
+
+환경 설정은 root에 있는 README.md을 참고해주세요. `pyproject.toml`에 `streamlit` 관련 패키지도 포함되어 있습니다.
 
 ## 실행 방법
 
 ```bash
-streamlit run apps/main.py
+poetry run streamlit run apps/main.py
 ```
 
 ## 기능 설명
@@ -37,5 +37,3 @@ streamlit run apps/main.py
 - 계층적 카테고리 분석
 - 카테고리별 통계
 - 트렌드 분석
-
-

@@ -2,68 +2,67 @@
 
 ### diner.csv
 
-| 컬럼명                     | 설명                                         |
-| -------------------------- | -------------------------------------------- |
-| diner_idx                  | 음식점 고유 식별자                           |
-| diner_name                 | 음식점 이름                                  |
-| diner_category_large       | 대분류 카테고리                              |
-| diner_category_middle      | 중분류 카테고리                              |
-| diner_category_small       | 소분류 카테고리                              |
-| diner_category_detail      | 상세 카테고리                                |
-| diner_tag                  | 음식점별 특징 (혼밥, 혼술, 제로페이 등)      |
-| diner_menu                 | 메뉴 정보                                    |
-| diner_menu_name            | 메뉴 이름                                    |
-| diner_menu_price           | 메뉴 가격                                    |
-| diner_review_cnt           | 리뷰 수                                      |
-| diner_blog_review_cnt      | 블로그 리뷰 수                               |
-| diner_review_avg           | 평균 평점                                    |
-| diner_review_tags          | 리뷰 태그                                    |
-| diner_address              | 주소                                         |
-| diner_phone                | 전화번호                                     |
-| diner_lat                  | 위도                                         |
-| diner_lon                  | 경도                                         |
-| diner_url                  | 음식점 URL                                   |
-| diner_open_time            | 영업 시간                                    |
-| diner_address_constituency | 행정구역                                     |
-| real_good_review_cnt       | 긍정적 리뷰 수                               |
-| real_bad_review_cnt        | 부정적 리뷰 수                               |
-| all_review_cnt             | 전체 리뷰 수                                 |
-| real_good_review_percent   | 긍정적 리뷰 비율                             |
-| real_bad_review_percent    | 부정적 리뷰 비율                             |
-| is_small_category_missing  | 소분류 카테고리 누락 여부(0: null이었던 row) |
-| bayesian_score             | 베이지안 조정 점수                           |
-| rank                       | 음식점 랭킹                                  |
+| 컬럼명                          | 설명                             |
+| -------------------------------| -------------------------------|
+| diner_idx                      | 음식점 고유 식별자                  |
+| diner_name                     | 음식점 이름                       |
+| diner_tag                      | 음식점별 특징 (혼밥, 혼술, 제로페이 등) |
+| diner_menu_name                | 메뉴 이름                         |
+| diner_menu_price               | 메뉴 가격                         |
+| diner_review_cnt               | 리뷰 수                          |
+| diner_review_avg               | 평균 평점                         |
+| diner_blog_review_cnt          | 블로그 리뷰 수                     |
+| diner_review_tags              | 리뷰 태그                         |
+| diner_road_address             | 도로명 주소                        |
+| diner_num_address              | 지번 주소                         |
+| diner_phone                    | 전화번호                          |
+| diner_lat                      | 위도                             |
+| diner_lon                      | 경도                             |
+| diner_open_time                | 영업 시간                         |
+| diner_open_time_titles         | 영업 시간 제목                     |
+| diner_open_time_hours          | 영업 시간                         |
+| diner_open_time_off_days_title | 휴무일 제목                        |
+| diner_open_time_off_days_hours | 휴뮤일 시간                        |
+| bayesian_score                 | 베이지안 조정 점수                   |
+
+---
+
+### diner_category_raw.csv
+
+| 컬럼명                           | 설명                     |
+| -------------------------------| ------------------------|
+| diner_idx                      | 음식점 고유 식별자           |
+| industry_category              | 산업 카테고리 (음식점으로 동일) |
+| diner_category_large           | large 카테고리             |
+| diner_category_middle          | middle 카테고리            |
+| diner_category_small           | small 카테고리             |
+| diner_category_detail          | detail 카테고리            |
 
 ---
 
 ### review.csv
 
-| 컬럼명                | 설명                                          |
-| --------------------- | --------------------------------------------- |
-| diner_idx             | 리뷰가 작성된 음식점 고유 식별자              |
-| review_id             | 리뷰 고유 식별자                              |
-| reviewer_id           | 리뷰어 고유 식별자                            |
-| reviewer_review_score | 리뷰 평점                                     |
-| reviewer_review       | 리뷰 내용                                     |
-| reviewer_review_date  | 리뷰 작성 날짜                                |
-| date_weight           | 날짜 가중치 (리뷰 날짜 기반으로 가중치 부여)  |
-| date_scaled           | 날짜 기반으로 스케일링된 값                   |
-| score_scaled          | 평점 기반으로 스케일링된 값                   |
-| combined_score        | 조합 점수 (날짜 및 평점의 가중치를 반영한 값) |
+| 컬럼명                | 설명                        |
+| --------------------- | -------------------------|
+| diner_idx             | 리뷰가 작성된 음식점 고유 식별자 |
+| review_id             | 리뷰 고유 식별자             |
+| reviewer_id           | 리뷰어 고유 식별자           |
+| reviewer_review_score | 리뷰 평점                  |
+| reviewer_review       | 리뷰 내용                  |
+| reviewer_review_date  | 리뷰 작성 날짜              |
 
 ---
 
 ### reviewer.csv
 
-| 컬럼명                        | 설명                                   |
-| ----------------------------- | -------------------------------------- |
-| reviewer_id                   | 리뷰어 고유 식별자                     |
-| reviewer_avg                  | 리뷰어의 평균 평점                     |
-| reviewer_review_cnt           | 리뷰어가 작성한 총 평점 수             |
-| reviewer_collected_review_cnt | 리뷰어가 작성한 평점 중 수집한 평점 수 |
-| badge_grade                   | 리뷰어의 배지 등급                     |
-| badge_level                   | 리뷰어의 배지 레벨                     |
-| reviewer_user_name            | 리뷰어의 공개 닉네임/사용자명          |
+| 컬럼명                        | 설명                      |
+| ----------------------------- | -----------------------|
+| reviewer_id                   | 리뷰어 고유 식별자          |
+| reviewer_avg                  | 리뷰어의 평균 평점          |
+| reviewer_review_cnt           | 리뷰어가 작성한 총 평점 수    |
+| badge_grade                   | 리뷰어의 배지 등급          |
+| badge_level                   | 리뷰어의 배지 레벨          |
+| reviewer_user_name            | 리뷰어의 공개 닉네임/사용자명  |
 
 ## 부가설명
 - **`diner_tag`**: 음식점별 특징을 나타내며, 혼밥, 혼술, 제로페이 등 태그를 포함합니다.

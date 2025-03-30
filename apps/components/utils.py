@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from src.preprocess.diner_transform import CategoryProcessor
 from src.tools.google_drive import ensure_data_files
 
 # 프로젝트 루트 디렉토리를 Python path에 추가
@@ -23,6 +24,13 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     # 식당 데이터 로드 및 형변환
     diner = pd.read_csv(data_paths["diner"])
 
+    # category 데이터 로드 및 전처리 후 기존 diner와 merge
+    diner_category_raw = pd.read_csv(data_paths["category"])
+    diner_category_preprocessed = CategoryProcessor(diner_category_raw).process_all().df
+    diner = pd.merge(
+        left=diner, right=diner_category_preprocessed, on="diner_idx", how="left"
+    )
+
     # 숫자형 컬럼
     numeric_cols_diner = [
         "diner_idx",
@@ -31,13 +39,7 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         "diner_review_avg",
         "diner_lat",
         "diner_lon",
-        "real_good_review_cnt",
-        "real_bad_review_cnt",
-        "all_review_cnt",
-        "real_good_review_percent",
-        "real_bad_review_percent",
         "bayesian_score",
-        "rank",
     ]
     diner[numeric_cols_diner] = diner[numeric_cols_diner].apply(
         pd.to_numeric, errors="coerce"
@@ -50,21 +52,16 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         "diner_category_middle",
         "diner_category_small",
         "diner_category_detail",
-        "diner_address",
+        "diner_road_address",
+        "diner_num_address",
         "diner_phone",
-        "diner_url",
         "diner_open_time",
-        "diner_address_constituency",
     ]
     diner[string_cols_diner] = diner[string_cols_diner].astype(str)
-
-    # 불리언 컬럼
-    diner["is_small_category_missing"] = diner["is_small_category_missing"].astype(bool)
 
     # 리스트형 컬럼들
     list_cols_diner = [
         "diner_tag",
-        "diner_menu",
         "diner_menu_name",
         "diner_menu_price",
         "diner_review_tags",
@@ -92,6 +89,7 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         "diner_idx",
         "review_id",
         "reviewer_id",
+        "reviewer_review",
         "reviewer_review_date",
         "reviewer_review_score",
     ]
@@ -113,8 +111,8 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         {
             "diner_open_time": "",
             "diner_phone": "",
-            "diner_url": "",
-            "diner_address_constituency": "",
+            "diner_road_address": "",
+            "diner_num_address": "",
         }
     )
 
