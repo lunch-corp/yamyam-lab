@@ -54,14 +54,14 @@ def main(cfg: DictConfig):
 
     # candidate predictions
     batch_size = 10000
-    predictions = []
+    num_batches = (len(candidates) + batch_size - 1) // batch_size
+    predictions = np.zeros(len(candidates))
 
-    for i in tqdm(range(0, len(candidates), batch_size)):
-        batch = candidates[cfg.data.features].iloc[i : i + batch_size]
-        batch_predictions = trainer.predict(batch)
-        predictions.extend(batch_predictions)
-
-    predictions = np.array(predictions)
+    for i in tqdm(range(num_batches)):
+        start_idx = i * batch_size
+        end_idx = min((i + 1) * batch_size, len(candidates))
+        batch = candidates[cfg.data.features].iloc[start_idx:end_idx]
+        predictions[start_idx:end_idx] = trainer.predict(batch)
 
     # Group predictions by user
     candidates["pred_score"] = predictions
@@ -69,7 +69,7 @@ def main(cfg: DictConfig):
     user_predictions = candidates.groupby("reviewer_id")["diner_idx"].apply(np.array)
 
     # Calculate metrics
-    metric_at_K = {K: {"map": 0, "ndcg": 0, "count": 0} for K in [3, 5, 7, 10, 20]}
+    metric_at_K = {K: {"map": 0, "ndcg": 0, "count": 0} for K in [3, 7, 10, 20]}
 
     # Get ground truth from valid data
     test_liked_items = X_test.groupby("reviewer_id")["diner_idx"].apply(np.array)
@@ -95,6 +95,9 @@ def main(cfg: DictConfig):
             metric_at_K[K]["count"] += 1
 
     # Average metrics
+    table = PrettyTable()
+    table.field_names = ["K", "MAP", "NDCG"]
+
     for K in metric_at_K:
         metric_at_K[K]["map"] = safe_divide(
             numerator=metric_at_K[K]["map"], denominator=metric_at_K[K]["count"]
@@ -102,12 +105,6 @@ def main(cfg: DictConfig):
         metric_at_K[K]["ndcg"] = safe_divide(
             numerator=metric_at_K[K]["ndcg"], denominator=metric_at_K[K]["count"]
         )
-
-    # Print results using PrettyTable
-    table = PrettyTable()
-    table.field_names = ["K", "MAP", "NDCG"]
-
-    for K in metric_at_K:
         table.add_row(
             [K, f"{metric_at_K[K]['map']:.8f}", f"{metric_at_K[K]['ndcg']:.8f}"]
         )
