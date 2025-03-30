@@ -25,7 +25,7 @@ def main(cfg: DictConfig):
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
         test=cfg.data.test,
     )
-    data, candidates, user_mapping, _ = data_loader.prepare_train_val_dataset(
+    data = data_loader.prepare_train_val_dataset(
         is_rank=True, is_candidate_dataset=True
     )
 
@@ -37,8 +37,9 @@ def main(cfg: DictConfig):
         data["y_val"],
     )
 
+    candidates = data["candidates"]
     reviewer_mapping = {v: k for k, v in data["user_mapping"].items()}
-    candidate_mapping = {v: k for k, v in user_mapping.items()}
+    candidate_mapping = {v: k for k, v in data["candidate_user_mapping"].items()}
 
     X_test["reviewer_id"] = X_test["reviewer_id"].map(reviewer_mapping)
     candidates["reviewer_id"] = candidates["reviewer_id"].map(candidate_mapping)

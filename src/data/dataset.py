@@ -184,12 +184,13 @@ class DatasetLoader:
             # 후보군 생성 모델과 재순위화 모델의 사용자 ID 매핑 검증
             self._validate_user_mappings(candidate_user_mapping, user_mapping)
 
-            return (
-                self.create_rank_dataset(train, val, mapped_res),
-                candidates,
-                candidate_user_mapping,
-                candidate_diner_mapping,
-            )
+            # dat
+            data = self.create_rank_dataset(train, val, mapped_res)
+            data["candidates"] = candidates
+            data["candidate_user_mapping"] = candidate_user_mapping
+            data["candidate_diner_mapping"] = candidate_diner_mapping
+
+            return data
 
         if use_metadata:
             meta_mapping_info = meta_mapping(
