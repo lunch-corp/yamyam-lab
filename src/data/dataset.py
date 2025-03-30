@@ -1,3 +1,5 @@
+import os
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Self, Tuple
 
@@ -176,6 +178,17 @@ class DatasetLoader:
                 return self.create_rank_dataset(train, val, mapped_res)
 
             # 후보군 데이터셋 로드
+            # 후보군 데이터셋이 없는 경우 zip 파일 압축 해제
+            if not os.path.exists(self.candidate_paths / "candidate.parquet"):
+                zip_path = os.path.join(self.candidate_paths, "202503241559.zip")
+
+                if not os.path.exists(zip_path):
+                    raise FileNotFoundError("candidate.zip 파일을 찾을 수 없습니다.")
+
+                os.makedirs(self.candidate_paths, exist_ok=True)
+                with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                    zip_ref.extractall(self.candidate_paths)
+
             candidates, candidate_user_mapping, candidate_diner_mapping = (
                 self.load_candidate_dataset(
                     user_feature, diner_feature, diner_meta_feature
@@ -306,7 +319,7 @@ class DatasetLoader:
             self.candidate_paths / "user_mapping.pkl"
         )
         candidate_diner_mapping = pd.read_pickle(
-            self.candidate_paths / "diner_mapping.pkl"
+            self.candidate_paths / "dimer_mapping.pkl"
         )
 
         candidate["reviewer_id"] = candidate["user_id"].copy()
