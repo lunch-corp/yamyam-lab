@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import hydra
 import numpy as np
 from omegaconf import DictConfig
@@ -51,7 +53,15 @@ def main(cfg: DictConfig):
     trainer.save_model()
 
     # candidate predictions
-    predictions = trainer.predict(candidates[cfg.data.features])
+    batch_size = 10000
+    predictions = []
+
+    for i in tqdm(range(0, len(candidates), batch_size)):
+        batch = candidates[cfg.data.features].iloc[i : i + batch_size]
+        batch_predictions = trainer.predict(batch)
+        predictions.extend(batch_predictions)
+
+    predictions = np.array(predictions)
 
     # Group predictions by user
     candidates["pred_score"] = predictions
@@ -102,8 +112,8 @@ def main(cfg: DictConfig):
             [K, f"{metric_at_K[K]['map']:.8f}", f"{metric_at_K[K]['ndcg']:.8f}"]
         )
 
-    print("\nEvaluation Results:")
-    print(table)
+    logging.info("\nEvaluation Results\n")
+    logging.info(table)
 
     # plot feature importance
     trainer.plot_feature_importance()

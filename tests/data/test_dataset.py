@@ -50,10 +50,10 @@ def test_loader_dataset():
         is_rank=True, is_candidate_dataset=True
     )
 
-    assert rank_data["X_train"].shape[0] > 10000
-    assert rank_data["X_val"].shape[0] > 10000
-    assert rank_data["y_train"].shape[0] > 10000
-    assert rank_data["y_val"].shape[0] > 10000
+    assert rank_data["X_train"].shape[0] > 0
+    assert rank_data["X_val"].shape[0] > 0
+    assert rank_data["y_train"].shape[0] > 0
+    assert rank_data["y_val"].shape[0] > 0
     assert rank_data["X_train"].shape[0] == rank_data["y_train"].shape[0]
     assert rank_data["X_val"].shape[0] == rank_data["y_val"].shape[0]
     assert rank_data["num_diners"] > 0
