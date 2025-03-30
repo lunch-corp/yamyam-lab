@@ -46,8 +46,8 @@ def test_loader_dataset():
     assert data["diner_mapping"] is not None
     assert data["user_mapping"] is not None
 
-    rank_data = data_loader.prepare_train_val_dataset(
-        is_rank=True, is_candidate_dataset=True
+    rank_data, candidates, candidate_user_mapping, candidate_diner_mapping = (
+        data_loader.prepare_train_val_dataset(is_rank=True, is_candidate_dataset=True)
     )
 
     assert rank_data["X_train"].shape[0] > 0
@@ -60,6 +60,10 @@ def test_loader_dataset():
     assert rank_data["num_users"] > 0
     assert rank_data["diner_mapping"] is not None
     assert rank_data["user_mapping"] is not None
+    assert isinstance(candidates, pd.DataFrame)
+    assert len(candidates) > 0
+    assert isinstance(candidate_user_mapping, dict)
+    assert isinstance(candidate_diner_mapping, dict)
 
 
 def test_load_test_dataset():

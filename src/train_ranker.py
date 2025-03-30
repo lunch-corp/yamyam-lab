@@ -53,7 +53,7 @@ def main(cfg: DictConfig):
     trainer.save_model()
 
     # candidate predictions
-    batch_size = 10000
+    batch_size = 100000
     num_batches = (len(candidates) + batch_size - 1) // batch_size
     predictions = np.zeros(len(candidates))
 
@@ -109,8 +109,7 @@ def main(cfg: DictConfig):
             [K, f"{metric_at_K[K]['map']:.8f}", f"{metric_at_K[K]['ndcg']:.8f}"]
         )
 
-    logging.info("\nEvaluation Results\n")
-    logging.info(table)
+    logging.info(f"\nEvaluation Results\n{table}")
 
     # plot feature importance
     trainer.plot_feature_importance()
