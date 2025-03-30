@@ -413,6 +413,14 @@ class GoogleDriveManager:
                 print(f"Download progress: {int(status.progress() * 100)}%")
 
         print(f"File downloaded to: {file_path}")
+
+        # 압축 파일인 경우 압축 해제
+        if file_path.endswith(".zip"):
+            extract_path = os.path.dirname(file_path)
+            with zipfile.ZipFile(file_path, "r") as zip_ref:
+                zip_ref.extractall(extract_path)
+            print(f"파일이 {extract_path}에 압축 해제되었습니다.")
+
         return file_path
 
     def download_candidates_result(
