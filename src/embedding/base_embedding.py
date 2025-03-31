@@ -287,13 +287,6 @@ class BaseEmbedding(nn.Module):
                     top_k_values=top_k_values,
                 )
 
-                self.calculate_near_candidate_metric(
-                    user_ids=batch_users,
-                    scores=scores,
-                    nearby_candidates=nearby_candidates,
-                    top_k_values=top_k_values,
-                )
-
                 start += self.recommend_batch_size
 
         for k in top_k_values:
@@ -324,36 +317,10 @@ class BaseEmbedding(nn.Module):
                 self.metric_at_k[k][Metric.RECALL.value]
             )
 
-            # save ranked_prec
-            self.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value] = safe_divide(
-                numerator=self.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value],
-                denominator=self.metric_at_k[k][
-                    NearCandidateMetric.RANKED_PREC_COUNT.value
-                ],
-            )
-            self.metric_at_k_total_epochs[k][
-                NearCandidateMetric.RANKED_PREC.value
-            ].append(self.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value])
-
-            # save near recall
-            self.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value] = safe_divide(
-                numerator=self.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value],
-                denominator=self.metric_at_k[k][NearCandidateMetric.RECALL_COUNT.value],
-            )
-            self.metric_at_k_total_epochs[k][
-                NearCandidateMetric.NEAR_RECALL.value
-            ].append(self.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value])
-
             # save count
             self.metric_at_k_total_epochs[k][Metric.COUNT.value] = self.metric_at_k[k][
                 Metric.COUNT.value
             ]
-            self.metric_at_k_total_epochs[k][
-                NearCandidateMetric.RANKED_PREC_COUNT.value
-            ] = self.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT.value]
-            self.metric_at_k_total_epochs[k][NearCandidateMetric.RECALL_COUNT.value] = (
-                self.metric_at_k[k][NearCandidateMetric.RECALL_COUNT.value]
-            )
 
     def calculate_no_candidate_metric(
         self,

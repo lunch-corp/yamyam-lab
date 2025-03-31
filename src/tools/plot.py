@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from constant.metric.metric import Metric, NearCandidateMetric
+from constant.metric.metric import Metric
 
 sns.set_style("darkgrid")
 
@@ -33,10 +33,8 @@ def plot_metric_at_k(
     pred_metrics = [
         Metric.MAP.value,
         Metric.NDCG.value,
-        NearCandidateMetric.RANKED_PREC.value,
     ]
     candidate_metrics = [
-        NearCandidateMetric.NEAR_RECALL.value,
         Metric.RECALL.value,
     ]
 
