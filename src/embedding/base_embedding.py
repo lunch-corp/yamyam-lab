@@ -178,7 +178,6 @@ class BaseEmbedding(nn.Module):
         X_train: Tensor,
         X_val: Tensor,
         top_k_values: List[int],
-        nearby_candidates: Dict[int, list],
         filter_already_liked: bool = True,
     ) -> None:
         """
@@ -198,7 +197,6 @@ class BaseEmbedding(nn.Module):
              X_train (Tensor): number of reviews x (diner_id, reviewer_id) in train dataset.
              X_val (Tensor): number of reviews x (diner_id, reviewer_id) in val dataset.
              top_k_values (List[int]): a list of k values.
-             nearby_candidates (Dict[int, List[int]]): near diners around ref diners with 1km.
              epoch (int): current epoch.
              filter_already_liked (bool): whether filtering pre-liked diner in train dataset or not.
         """
@@ -220,10 +218,6 @@ class BaseEmbedding(nn.Module):
         max_k = max(top_k_values)
         start = 0
         diner_embeds = self.get_embedding(self.diner_ids)
-
-        # store true diner id visited by user in validation dataset
-        # self.train_liked = convert_tensor(X_train, list)
-        # self.val_liked = convert_tensor(X_val, list)
 
         self.train_liked_series = (
             pd.DataFrame(X_train, columns=["diner_idx", "reviewer_id"])
@@ -335,19 +329,12 @@ class BaseEmbedding(nn.Module):
         could be given regardless of user's location and diner's location
 
         Args:
-             user_ids (Tensor): batch of user ids.
-             top_k_id (Tensor): diner_id whose score is under max_k ranked score.
-             top_k_values (List[int]): a list of k values.
+             top_k_id (NDArray): Diner_id whose score is under max_k ranked score. (two dimensional array)
+             liked_items (NDArray): Item ids liked by users. (two dimensional array)
+             top_k_values (List[int]): A list of k values.
         """
 
-        # TODO: change for loop to more efficient program
-        # calculate metric
-        # for i, user_id in enumerate(user_ids):
-        #     user_id = user_id.item()
-        #     val_liked_item_id = np.array(self.val_liked[user_id])
-
         batch_num_users = liked_items.shape[0]
-        # liked_items = liked_items.detach().cpu().numpy()
 
         for k in top_k_values:
             pred_liked_item_id = top_k_id[:, :k]

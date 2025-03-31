@@ -101,10 +101,10 @@ def fully_vectorized_ranking_metrics_at_k(
     This implementation uses pure NumPy operations without any loops.
 
     Args:
-        liked_items: 2D array of shape [n_users, n_liked_items] where each row contains liked items for one user
-        reco_items: 2D array of shape [n_users, K] where each row contains recommended items for one user
+        liked_items (NDArray): 2D array of shape [n_users, n_liked_items] where each row contains liked items for one user
+        reco_items (NDArray): 2D array of shape [n_users, K] where each row contains recommended items for one user
 
-    Returns:
+    Returns (Dict[str, NDArray]):
         Dictionary of metrics (AP, NDCG, RECALL) where each value is an array
         with one entry per user
     """
