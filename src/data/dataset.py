@@ -171,6 +171,7 @@ class DatasetLoader:
                 train, val, user_feature, diner_feature, diner_meta_feature
             )
             user_mapping = mapped_res["user_mapping"]
+            diner_mapping = mapped_res["diner_mapping"]
 
             if not is_candidate_dataset:
                 return self.create_rank_dataset(train, val, mapped_res)
@@ -182,7 +183,12 @@ class DatasetLoader:
             )
 
             # 후보군 생성 모델과 재순위화 모델의 사용자 ID 매핑 검증
-            self._validate_user_mappings(candidate_user_mapping, user_mapping)
+            self._validate_user_mappings(
+                candidate_user_mapping=candidate_user_mapping,
+                candidate_diner_mapping=candidate_diner_mapping,
+                user_mapping=user_mapping,
+                diner_mapping=diner_mapping,
+            )
 
             # dat
             data = self.create_rank_dataset(train, val, mapped_res)
@@ -207,19 +213,35 @@ class DatasetLoader:
     def _validate_user_mappings(
         self: Self,
         candidate_user_mapping: Dict[str, Any],
+        candidate_diner_mapping: Dict[str, Any],
         user_mapping: Dict[str, Any],
+        diner_mapping: Dict[str, Any],
     ) -> None:
         """
         Validate user mappings between candidate generation and reranking models.
         """
-        # 매핑 검증
-        if not set(candidate_user_mapping.keys()).issubset(set(user_mapping.keys())):
-            missing_users = set(candidate_user_mapping.keys()) - set(
-                user_mapping.keys()
-            )
-            raise ValueError(
-                f"후보군 생성 모델의 사용자 ID {missing_users}가 재순위화 모델의 매핑에 없습니다."
-            )
+        # validates user mapping
+        for cand_asis_id, cand_tobe_id in candidate_user_mapping.items():
+            if cand_tobe_id != user_mapping[cand_asis_id]:
+                raise ValueError(
+                    f"For original user_id={cand_asis_id}, expected {cand_tobe_id} but got {user_mapping[cand_asis_id]}."
+                )
+
+        # validates diner mapping
+        for cand_asis_id, cand_tobe_id in candidate_diner_mapping.items():
+            if cand_tobe_id != diner_mapping[cand_asis_id]:
+                raise ValueError(
+                    f"For original diner_id={cand_asis_id}, expected {cand_tobe_id} but got {diner_mapping[cand_asis_id]}."
+                )
+
+        # # 매핑 검증
+        # if not set(candidate_user_mapping.keys()).issubset(set(user_mapping.keys())):
+        #     missing_users = set(candidate_user_mapping.keys()) - set(
+        #         user_mapping.keys()
+        #     )
+        #     raise ValueError(
+        #         f"후보군 생성 모델의 사용자 ID {missing_users}가 재순위화 모델의 매핑에 없습니다."
+        #     )
 
     def merge_rank_features(
         self: Self,
@@ -333,6 +355,18 @@ class DatasetLoader:
                 self.candidate_paths / "dimer_mapping.pkl"
             )
 
+        num_diners = len(candidate_diner_mapping)
+        min_user_id = min(list(candidate_user_mapping.values()))
+        if num_diners != min_user_id:
+            raise ValueError(
+                "Mapping ids may not be unique in candidate generation models and should be checked."
+            )
+        # convert to mapping logic used in ranking model
+        candidate_user_mapping_convert = {}
+        for asis_id, tobe_id in candidate_user_mapping.items():
+            candidate_user_mapping_convert[asis_id] = tobe_id - num_diners
+        candidate["user_id"] = candidate["user_id"] - num_diners
+
         candidate["reviewer_id"] = candidate["user_id"].copy()
         candidate["diner_idx"] = candidate["diner_id"].copy()
 
@@ -340,7 +374,7 @@ class DatasetLoader:
         candidate = candidate.merge(diner_feature, on="diner_idx", how="left")
         candidate = candidate.merge(diner_meta_feature, on="diner_idx", how="left")
 
-        return candidate, candidate_user_mapping, candidate_diner_mapping
+        return candidate, candidate_user_mapping_convert, candidate_diner_mapping
 
     def create_graph_dataset(
         self: Self,
