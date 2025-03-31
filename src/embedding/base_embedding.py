@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from collections import defaultdict
 from typing import Dict, List, Tuple, Union
 
 import networkx as nx
@@ -7,7 +6,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from line_profiler import profile
 from numpy.typing import NDArray
 from torch import Tensor
 from torch.nn import Embedding
@@ -16,7 +14,7 @@ from torch.utils.data import DataLoader
 from constant.metric.metric import Metric, NearCandidateMetric
 from evaluation.metric import fully_vectorized_ranking_metrics_at_k, ranked_precision
 from tools.generate_walks import generate_walks
-from tools.utils import convert_tensor, safe_divide
+from tools.utils import safe_divide
 
 
 class BaseEmbedding(nn.Module):
@@ -175,7 +173,6 @@ class BaseEmbedding(nn.Module):
 
         return rw
 
-    @profile
     def recommend_all(
         self,
         X_train: Tensor,
@@ -225,14 +222,35 @@ class BaseEmbedding(nn.Module):
         diner_embeds = self.get_embedding(self.diner_ids)
 
         # store true diner id visited by user in validation dataset
-        self.train_liked = convert_tensor(X_train, list)
-        self.val_liked = convert_tensor(X_val, list)
+        # self.train_liked = convert_tensor(X_train, list)
+        # self.val_liked = convert_tensor(X_val, list)
 
-        # for batch inference, group user_ids with same number of liked_items_count
-        liked_items_count2user_ids = defaultdict(list)
-        for user_id, liked_items in self.val_liked.items():
-            liked_items_count = len(liked_items)
-            liked_items_count2user_ids[liked_items_count].append(user_id)
+        self.train_liked_series = (
+            pd.DataFrame(X_train, columns=["diner_idx", "reviewer_id"])
+            .groupby("reviewer_id")["diner_idx"]
+            .apply(np.array)
+        )
+        self.train_liked = (
+            self.train_liked_series.to_frame()
+            .reset_index()
+            .assign(num_liked_items=lambda df: df["diner_idx"].apply(len))
+        )
+        self.val_liked_series = (
+            pd.DataFrame(X_val, columns=["diner_idx", "reviewer_id"])
+            .groupby("reviewer_id")["diner_idx"]
+            .apply(np.array)
+        )
+        self.val_liked = (
+            self.val_liked_series.to_frame()
+            .reset_index()
+            .assign(num_liked_items=lambda df: df["diner_idx"].apply(len))
+        )
+
+        liked_items_count2user_ids = (
+            self.val_liked.groupby("num_liked_items")["reviewer_id"]
+            .apply(np.array)
+            .to_dict()
+        )
 
         for count, user_ids in liked_items_count2user_ids.items():
             num_users = len(user_ids)
@@ -249,21 +267,23 @@ class BaseEmbedding(nn.Module):
                 # filter diner id already liked by user in train dataset
                 if filter_already_liked:
                     for i, user_id in enumerate(batch_users):
-                        already_liked_ids = self.train_liked[user_id.item()]
-                        for diner_id in already_liked_ids:
-                            scores[i][diner_id] = -float("inf")
+                        already_liked_ids = self.train_liked_series[user_id.item()]
+                        scores[i][already_liked_ids] = -float("inf")
 
-                for i, user_id in enumerate(batch_users):
-                    liked_items_by_batch_users.append(self.val_liked[user_id.item()])
+                batch_users_np = batch_users.detach().cpu().numpy()
+                liked_items_by_batch_users = np.vstack(
+                    self.val_liked[lambda x: x["reviewer_id"].isin(batch_users_np)][
+                        "diner_idx"
+                    ].values
+                )
 
                 max_k = min(scores.shape[1], max_k)  # to prevent index error in pytest
                 top_k = torch.topk(scores, k=max_k)
                 top_k_id = top_k.indices
 
                 self.calculate_no_candidate_metric(
-                    user_ids=batch_users,
-                    top_k_id=top_k_id,
-                    liked_items=torch.tensor(liked_items_by_batch_users),
+                    top_k_id=top_k_id.detach().cpu().numpy(),
+                    liked_items=liked_items_by_batch_users,
                     top_k_values=top_k_values,
                 )
 
@@ -337,9 +357,8 @@ class BaseEmbedding(nn.Module):
 
     def calculate_no_candidate_metric(
         self,
-        user_ids: Tensor,
-        top_k_id: Tensor,
-        liked_items: Tensor,
+        top_k_id: NDArray,
+        liked_items: NDArray,
         top_k_values: List[int],
     ) -> None:
         """
@@ -361,10 +380,10 @@ class BaseEmbedding(nn.Module):
         #     val_liked_item_id = np.array(self.val_liked[user_id])
 
         batch_num_users = liked_items.shape[0]
-        liked_items = liked_items.detach().cpu().numpy()
+        # liked_items = liked_items.detach().cpu().numpy()
 
         for k in top_k_values:
-            pred_liked_item_id = top_k_id[:, :k].detach().cpu().numpy()
+            pred_liked_item_id = top_k_id[:, :k]
             metric = fully_vectorized_ranking_metrics_at_k(
                 liked_items, pred_liked_item_id
             )
@@ -402,7 +421,7 @@ class BaseEmbedding(nn.Module):
             user_id = user_id.item()
             for k in top_k_values:
                 # diner_ids visited by user in validation dataset
-                locations = self.val_liked[user_id]
+                locations = self.val_liked_series[user_id]
                 for location in locations:
                     # filter only near diner
                     near_diner_ids = torch.tensor(nearby_candidates[location]).to(
