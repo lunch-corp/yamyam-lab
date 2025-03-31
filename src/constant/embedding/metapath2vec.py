@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class TransitionKeyMetaPath(str, Enum):
+class TransitionKeyMetaPath(StrEnum):
     """
     Enum used in transition probabilities object.
     """

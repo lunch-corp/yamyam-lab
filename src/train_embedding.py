@@ -186,10 +186,10 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             for k in top_k_values_for_pred:
                 # no candidate metric
-                map = round(model.metric_at_k[k][Metric.MAP.value], 5)
-                ndcg = round(model.metric_at_k[k][Metric.NDCG.value], 5)
+                map = round(model.metric_at_k[k][Metric.MAP], 5)
+                ndcg = round(model.metric_at_k[k][Metric.NDCG], 5)
 
-                count = model.metric_at_k[k][Metric.COUNT.value]
+                count = model.metric_at_k[k][Metric.COUNT]
 
                 logger.info(
                     f"maP@{k}: {map} with {count} users out of all {model.num_users} users"
@@ -206,8 +206,8 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
 
             for k in top_k_values_for_candidate:
-                recall = round(model.metric_at_k[k][Metric.RECALL.value], 5)
-                count = model.metric_at_k[k][Metric.COUNT.value]
+                recall = round(model.metric_at_k[k][Metric.RECALL], 5)
+                count = model.metric_at_k[k][Metric.COUNT]
                 logger.info(
                     f"recall@{k}: {recall} with {count} users out of all {model.num_users} users"
                 )

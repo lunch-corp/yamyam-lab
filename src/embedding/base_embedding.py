@@ -67,14 +67,14 @@ class BaseEmbedding(nn.Module):
         # store metric value at each epoch
         self.metric_at_k_total_epochs = {
             k: {
-                Metric.MAP.value: [],
-                Metric.NDCG.value: [],
-                Metric.RECALL.value: [],
-                Metric.COUNT.value: 0,
-                NearCandidateMetric.RANKED_PREC.value: [],
-                NearCandidateMetric.RANKED_PREC_COUNT.value: 0,
-                NearCandidateMetric.NEAR_RECALL.value: [],
-                NearCandidateMetric.RECALL_COUNT.value: 0,
+                Metric.MAP: [],
+                Metric.NDCG: [],
+                Metric.RECALL: [],
+                Metric.COUNT: 0,
+                NearCandidateMetric.RANKED_PREC: [],
+                NearCandidateMetric.RANKED_PREC_COUNT: 0,
+                NearCandidateMetric.NEAR_RECALL: [],
+                NearCandidateMetric.RECALL_COUNT: 0,
             }
             for k in top_k_values
         }
@@ -204,14 +204,14 @@ class BaseEmbedding(nn.Module):
         # refresh at every epoch
         self.metric_at_k = {
             k: {
-                Metric.MAP.value: 0,
-                Metric.NDCG.value: 0,
-                Metric.RECALL.value: 0,
-                Metric.COUNT.value: 0,
-                NearCandidateMetric.RANKED_PREC.value: 0,
-                NearCandidateMetric.RANKED_PREC_COUNT.value: 0,
-                NearCandidateMetric.NEAR_RECALL.value: 0,
-                NearCandidateMetric.RECALL_COUNT.value: 0,
+                Metric.MAP: 0,
+                Metric.NDCG: 0,
+                Metric.RECALL: 0,
+                Metric.COUNT: 0,
+                NearCandidateMetric.RANKED_PREC: 0,
+                NearCandidateMetric.RANKED_PREC_COUNT: 0,
+                NearCandidateMetric.NEAR_RECALL: 0,
+                NearCandidateMetric.RECALL_COUNT: 0,
             }
             for k in top_k_values
         }
@@ -285,35 +285,35 @@ class BaseEmbedding(nn.Module):
 
         for k in top_k_values:
             # save map
-            self.metric_at_k[k][Metric.MAP.value] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.MAP.value],
-                denominator=self.metric_at_k[k][Metric.COUNT.value],
+            self.metric_at_k[k][Metric.MAP] = safe_divide(
+                numerator=self.metric_at_k[k][Metric.MAP],
+                denominator=self.metric_at_k[k][Metric.COUNT],
             )
-            self.metric_at_k_total_epochs[k][Metric.MAP.value].append(
-                self.metric_at_k[k][Metric.MAP.value]
+            self.metric_at_k_total_epochs[k][Metric.MAP].append(
+                self.metric_at_k[k][Metric.MAP]
             )
 
             # save ndcg
-            self.metric_at_k[k][Metric.NDCG.value] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.NDCG.value],
-                denominator=self.metric_at_k[k][Metric.COUNT.value],
+            self.metric_at_k[k][Metric.NDCG] = safe_divide(
+                numerator=self.metric_at_k[k][Metric.NDCG],
+                denominator=self.metric_at_k[k][Metric.COUNT],
             )
-            self.metric_at_k_total_epochs[k][Metric.NDCG.value].append(
-                self.metric_at_k[k][Metric.NDCG.value]
+            self.metric_at_k_total_epochs[k][Metric.NDCG].append(
+                self.metric_at_k[k][Metric.NDCG]
             )
 
             # save recall
-            self.metric_at_k[k][Metric.RECALL.value] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.RECALL.value],
-                denominator=self.metric_at_k[k][Metric.COUNT.value],
+            self.metric_at_k[k][Metric.RECALL] = safe_divide(
+                numerator=self.metric_at_k[k][Metric.RECALL],
+                denominator=self.metric_at_k[k][Metric.COUNT],
             )
-            self.metric_at_k_total_epochs[k][Metric.RECALL.value].append(
-                self.metric_at_k[k][Metric.RECALL.value]
+            self.metric_at_k_total_epochs[k][Metric.RECALL].append(
+                self.metric_at_k[k][Metric.RECALL]
             )
 
             # save count
-            self.metric_at_k_total_epochs[k][Metric.COUNT.value] = self.metric_at_k[k][
-                Metric.COUNT.value
+            self.metric_at_k_total_epochs[k][Metric.COUNT] = self.metric_at_k[k][
+                Metric.COUNT
             ]
 
     def calculate_no_candidate_metric(
@@ -341,12 +341,10 @@ class BaseEmbedding(nn.Module):
             metric = fully_vectorized_ranking_metrics_at_k(
                 liked_items, pred_liked_item_id
             )
-            self.metric_at_k[k][Metric.MAP.value] += metric[Metric.AP.value].sum()
-            self.metric_at_k[k][Metric.NDCG.value] += metric[Metric.NDCG.value].sum()
-            self.metric_at_k[k][Metric.RECALL.value] += metric[
-                Metric.RECALL.value
-            ].sum()
-            self.metric_at_k[k][Metric.COUNT.value] += batch_num_users
+            self.metric_at_k[k][Metric.MAP] += metric[Metric.AP].sum()
+            self.metric_at_k[k][Metric.NDCG] += metric[Metric.NDCG].sum()
+            self.metric_at_k[k][Metric.RECALL] += metric[Metric.RECALL].sum()
+            self.metric_at_k[k][Metric.COUNT] += batch_num_users
 
     def calculate_near_candidate_metric(
         self,
@@ -393,22 +391,18 @@ class BaseEmbedding(nn.Module):
                     near_diner_ids_sorted = near_diner_ids_sorted[:k]
 
                     # calculate metric
-                    self.metric_at_k[k][NearCandidateMetric.RANKED_PREC.value] += (
+                    self.metric_at_k[k][NearCandidateMetric.RANKED_PREC] += (
                         ranked_precision(
                             liked_item=location,
                             reco_items=near_diner_ids_sorted.detach().cpu().numpy(),
                         )
                     )
-                    self.metric_at_k[k][
-                        NearCandidateMetric.RANKED_PREC_COUNT.value
-                    ] += 1
+                    self.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT] += 1
 
                     if near_diner_ids.shape[0] > k:
                         recall = 1 if location in near_diner_ids_sorted else 0
-                        self.metric_at_k[k][NearCandidateMetric.NEAR_RECALL.value] += (
-                            recall
-                        )
-                        self.metric_at_k[k][NearCandidateMetric.RECALL_COUNT.value] += 1
+                        self.metric_at_k[k][NearCandidateMetric.NEAR_RECALL] += recall
+                        self.metric_at_k[k][NearCandidateMetric.RECALL_COUNT] += 1
 
     def _recommend(
         self,

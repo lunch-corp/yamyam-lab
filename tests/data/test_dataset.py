@@ -60,7 +60,7 @@ def test_loader_dataset():
 
 
 def test_load_test_dataset():
-    reviewer_id = QualitativeReviewerId.ROCKY.value
+    reviewer_id = QualitativeReviewerId.ROCKY
     test, already_reviewed = load_test_dataset(
         reviewer_id=reviewer_id,
         user_feature_param_pair={

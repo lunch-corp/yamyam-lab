@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import IntEnum
 
 
-class QualitativeReviewerId(Enum):
+class QualitativeReviewerId(IntEnum):
     ROCKY = 893438059
     HKY = 1221429765
     YEONSEO = 2221616789

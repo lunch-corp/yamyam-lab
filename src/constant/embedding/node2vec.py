@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class TransitionKey(str, Enum):
+class TransitionKey(StrEnum):
     """
     Enum used in transition probabilities object.
     """
