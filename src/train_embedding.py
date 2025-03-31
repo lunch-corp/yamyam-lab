@@ -16,7 +16,6 @@ from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
 from tools.logger import setup_logger
 from tools.parse_args import parse_args_embedding
-from tools.plot import plot_metric_at_k
 from tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
@@ -262,13 +261,13 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
 
         # plot metrics
-        plot_metric_at_k(
-            metric=model.metric_at_k_total_epochs,
-            tr_loss=model.tr_loss,
-            parent_save_path=args.result_path,
-            top_k_values_for_pred=top_k_values_for_pred,
-            top_k_values_for_candidate=top_k_values_for_candidate,
-        )
+        # plot_metric_at_k(
+        #     metric=model.metric_at_k_total_epochs,
+        #     tr_loss=model.tr_loss,
+        #     parent_save_path=args.result_path,
+        #     top_k_values_for_pred=top_k_values_for_pred,
+        #     top_k_values_for_candidate=top_k_values_for_candidate,
+        # )
 
         if args.save_candidate:
             # generate candidates and zip related files

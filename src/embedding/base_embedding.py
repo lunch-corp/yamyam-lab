@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from collections import defaultdict
 from typing import Dict, List, Tuple, Union
 
 import networkx as nx
@@ -6,13 +7,14 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+from line_profiler import profile
 from numpy.typing import NDArray
 from torch import Tensor
 from torch.nn import Embedding
 from torch.utils.data import DataLoader
 
 from constant.metric.metric import Metric, NearCandidateMetric
-from evaluation.metric import ranked_precision, ranking_metrics_at_k
+from evaluation.metric import fully_vectorized_ranking_metrics_at_k, ranked_precision
 from tools.generate_walks import generate_walks
 from tools.utils import convert_tensor, safe_divide
 
@@ -173,6 +175,7 @@ class BaseEmbedding(nn.Module):
 
         return rw
 
+    @profile
     def recommend_all(
         self,
         X_train: Tensor,
@@ -225,35 +228,53 @@ class BaseEmbedding(nn.Module):
         self.train_liked = convert_tensor(X_train, list)
         self.val_liked = convert_tensor(X_val, list)
 
-        while start < self.num_users:
-            batch_users = self.user_ids[start : start + self.recommend_batch_size]
-            user_embeds = self.get_embedding(batch_users)
-            scores = torch.mm(user_embeds, diner_embeds.t())
+        # for batch inference, group user_ids with same number of liked_items_count
+        liked_items_count2user_ids = defaultdict(list)
+        for user_id, liked_items in self.val_liked.items():
+            liked_items_count = len(liked_items)
+            liked_items_count2user_ids[liked_items_count].append(user_id)
 
-            # TODO: change for loop to more efficient program
-            # filter diner id already liked by user in train dataset
-            if filter_already_liked:
+        for count, user_ids in liked_items_count2user_ids.items():
+            num_users = len(user_ids)
+            start = 0
+            user_ids = torch.tensor(user_ids)
+
+            while start < num_users:
+                batch_users = user_ids[start : start + self.recommend_batch_size]
+                user_embeds = self.get_embedding(batch_users)
+                scores = torch.mm(user_embeds, diner_embeds.t())
+                liked_items_by_batch_users = []
+
+                # TODO: change for loop to more efficient program
+                # filter diner id already liked by user in train dataset
+                if filter_already_liked:
+                    for i, user_id in enumerate(batch_users):
+                        already_liked_ids = self.train_liked[user_id.item()]
+                        for diner_id in already_liked_ids:
+                            scores[i][diner_id] = -float("inf")
+
                 for i, user_id in enumerate(batch_users):
-                    already_liked_ids = self.train_liked[user_id.item()]
-                    for diner_id in already_liked_ids:
-                        scores[i][diner_id] = -float("inf")
+                    liked_items_by_batch_users.append(self.val_liked[user_id.item()])
 
-            max_k = min(scores.shape[1], max_k)  # to prevent index error in pytest
-            top_k = torch.topk(scores, k=max_k)
-            top_k_id = top_k.indices
+                max_k = min(scores.shape[1], max_k)  # to prevent index error in pytest
+                top_k = torch.topk(scores, k=max_k)
+                top_k_id = top_k.indices
 
-            self.calculate_no_candidate_metric(
-                user_ids=batch_users, top_k_id=top_k_id, top_k_values=top_k_values
-            )
+                self.calculate_no_candidate_metric(
+                    user_ids=batch_users,
+                    top_k_id=top_k_id,
+                    liked_items=torch.tensor(liked_items_by_batch_users),
+                    top_k_values=top_k_values,
+                )
 
-            self.calculate_near_candidate_metric(
-                user_ids=batch_users,
-                scores=scores,
-                nearby_candidates=nearby_candidates,
-                top_k_values=top_k_values,
-            )
+                self.calculate_near_candidate_metric(
+                    user_ids=batch_users,
+                    scores=scores,
+                    nearby_candidates=nearby_candidates,
+                    top_k_values=top_k_values,
+                )
 
-            start += self.recommend_batch_size
+                start += self.recommend_batch_size
 
         for k in top_k_values:
             # save map
@@ -318,6 +339,7 @@ class BaseEmbedding(nn.Module):
         self,
         user_ids: Tensor,
         top_k_id: Tensor,
+        liked_items: Tensor,
         top_k_values: List[int],
     ) -> None:
         """
@@ -334,17 +356,24 @@ class BaseEmbedding(nn.Module):
 
         # TODO: change for loop to more efficient program
         # calculate metric
-        for i, user_id in enumerate(user_ids):
-            user_id = user_id.item()
-            val_liked_item_id = np.array(self.val_liked[user_id])
+        # for i, user_id in enumerate(user_ids):
+        #     user_id = user_id.item()
+        #     val_liked_item_id = np.array(self.val_liked[user_id])
 
-            for k in top_k_values:
-                pred_liked_item_id = top_k_id[i][:k].detach().cpu().numpy()
-                metric = ranking_metrics_at_k(val_liked_item_id, pred_liked_item_id)
-                self.metric_at_k[k][Metric.MAP.value] += metric[Metric.AP.value]
-                self.metric_at_k[k][Metric.NDCG.value] += metric[Metric.NDCG.value]
-                self.metric_at_k[k][Metric.RECALL.value] += metric[Metric.RECALL.value]
-                self.metric_at_k[k][Metric.COUNT.value] += 1
+        batch_num_users = liked_items.shape[0]
+        liked_items = liked_items.detach().cpu().numpy()
+
+        for k in top_k_values:
+            pred_liked_item_id = top_k_id[:, :k].detach().cpu().numpy()
+            metric = fully_vectorized_ranking_metrics_at_k(
+                liked_items, pred_liked_item_id
+            )
+            self.metric_at_k[k][Metric.MAP.value] += metric[Metric.AP.value].sum()
+            self.metric_at_k[k][Metric.NDCG.value] += metric[Metric.NDCG.value].sum()
+            self.metric_at_k[k][Metric.RECALL.value] += metric[
+                Metric.RECALL.value
+            ].sum()
+            self.metric_at_k[k][Metric.COUNT.value] += batch_num_users
 
     def calculate_near_candidate_metric(
         self,
