@@ -222,6 +222,8 @@ class DatasetLoader:
         """
         # validates user mapping
         for cand_asis_id, cand_tobe_id in candidate_user_mapping.items():
+            if cand_asis_id not in user_mapping:
+                continue
             if cand_tobe_id != user_mapping[cand_asis_id]:
                 raise ValueError(
                     f"For original user_id={cand_asis_id}, expected {cand_tobe_id} but got {user_mapping[cand_asis_id]}."
@@ -229,6 +231,8 @@ class DatasetLoader:
 
         # validates diner mapping
         for cand_asis_id, cand_tobe_id in candidate_diner_mapping.items():
+            if cand_asis_id not in diner_mapping:
+                continue
             if cand_tobe_id != diner_mapping[cand_asis_id]:
                 raise ValueError(
                     f"For original diner_id={cand_asis_id}, expected {cand_tobe_id} but got {diner_mapping[cand_asis_id]}."

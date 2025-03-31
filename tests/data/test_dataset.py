@@ -33,7 +33,6 @@ def test_loader_dataset():
             "diner_review_tags": {},
             "diner_menu_price": {},
         },
-        test=True,
     )
     data = data_loader.prepare_train_val_dataset()
 
