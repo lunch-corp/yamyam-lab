@@ -14,6 +14,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
+from tools.zip import unzip_files_in_directory
+
 try:
     from dotenv import load_dotenv
 
@@ -416,10 +418,7 @@ class GoogleDriveManager:
 
         # 압축 파일인 경우 압축 해제
         if file_path.endswith(".zip"):
-            extract_path = os.path.dirname(file_path)
-            with zipfile.ZipFile(file_path, "r") as zip_ref:
-                zip_ref.extractall(extract_path)
-            print(f"파일이 {extract_path}에 압축 해제되었습니다.")
+            unzip_files_in_directory(file_path)
 
         return file_path
 

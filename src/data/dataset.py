@@ -314,44 +314,23 @@ class DatasetLoader:
         """
         Load candidate dataset.
         """
-        if self.test:
-            # 필요한 컬럼만 읽어서 메모리 사용량 줄이기
-            columns = ["user_id", "diner_id"]
-            candidate = pd.read_parquet(
-                self.candidate_paths / "candidate.parquet",
-                columns=columns,
-                engine="pyarrow",
-            ).head(100)
+        candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
 
-            user_mapping = pd.read_pickle(self.candidate_paths / "user_mapping.pkl")
-            diner_mapping = pd.read_pickle(self.candidate_paths / "dimer_mapping.pkl")
-
-            candidate_user_mapping = {}
-            candidate_diner_mapping = {}
-            for _, row in candidate.iterrows():
-                if row["user_id"] in user_mapping:
-                    candidate_user_mapping[row["user_id"]] = user_mapping[
-                        row["user_id"]
-                    ]
-                if row["diner_id"] in diner_mapping:
-                    candidate_diner_mapping[row["diner_id"]] = diner_mapping[
-                        row["diner_id"]
-                    ]
-        else:
-            candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
-            candidate_user_mapping = pd.read_pickle(
-                self.candidate_paths / "user_mapping.pkl"
-            )
-            candidate_diner_mapping = pd.read_pickle(
-                self.candidate_paths / "dimer_mapping.pkl"
-            )
+        candidate_user_mapping = pd.read_pickle(
+            self.candidate_paths / "user_mapping.pkl"
+        )
+        candidate_diner_mapping = pd.read_pickle(
+            self.candidate_paths / "dimer_mapping.pkl"
+        )
 
         num_diners = len(candidate_diner_mapping)
         min_user_id = min(list(candidate_user_mapping.values()))
+
         if num_diners != min_user_id:
             raise ValueError(
                 "Mapping ids may not be unique in candidate generation models and should be checked."
             )
+
         # convert to mapping logic used in ranking model
         candidate_user_mapping_convert = {}
         for asis_id, tobe_id in candidate_user_mapping.items():

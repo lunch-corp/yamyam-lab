@@ -15,6 +15,11 @@ features:
   - mood
   - chip
   - parking
+  - asian
+  - japanese
+  - chinese
+  - korean
+  - western
 category_column_for_meta: diner_category_large
 
 user_engineered_feature_names:

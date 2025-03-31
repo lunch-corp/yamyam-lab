@@ -26,3 +26,12 @@ def zip_files_in_directory(
             logger.info(f"Added {os.path.basename(file)} to {zip_file_name}")
 
     logger.info(f"Successfully created {zip_file_name} with {len(files_to_zip)} files")
+
+
+def unzip_files_in_directory(dir_path: str) -> None:
+    extract_path = os.path.dirname(dir_path)
+
+    with zipfile.ZipFile(dir_path, "r") as zip_ref:
+        zip_ref.extractall(extract_path)
+
+    print(f"파일이 {extract_path}에 압축 해제되었습니다.")
