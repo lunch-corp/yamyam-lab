@@ -234,15 +234,6 @@ class DatasetLoader:
                     f"For original diner_id={cand_asis_id}, expected {cand_tobe_id} but got {diner_mapping[cand_asis_id]}."
                 )
 
-        # # 매핑 검증
-        # if not set(candidate_user_mapping.keys()).issubset(set(user_mapping.keys())):
-        #     missing_users = set(candidate_user_mapping.keys()) - set(
-        #         user_mapping.keys()
-        #     )
-        #     raise ValueError(
-        #         f"후보군 생성 모델의 사용자 ID {missing_users}가 재순위화 모델의 매핑에 없습니다."
-        #     )
-
     def merge_rank_features(
         self: Self,
         train: pd.DataFrame,
