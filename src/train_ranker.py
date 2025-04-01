@@ -28,7 +28,6 @@ def main(cfg: DictConfig):
     data = data_loader.prepare_train_val_dataset(
         is_rank=True, is_candidate_dataset=True
     )
-
     # mapping reverse
     X_train, y_train, X_test, y_test = (
         data["X_train"],
@@ -75,7 +74,13 @@ def main(cfg: DictConfig):
     metric_at_K = {K: {"map": 0, "ndcg": 0, "count": 0} for K in [3, 7, 10, 20]}
 
     # Get ground truth from valid data
-    test_liked_items = X_test.groupby("reviewer_id")["diner_idx"].apply(np.array)
+    X_test["target"] = y_test
+    # target이 1인 경우만 좋아요로 간주
+    test_liked_items = (
+        X_test[X_test["target"] == 1]
+        .groupby("reviewer_id")["diner_idx"]
+        .apply(np.array)
+    )
 
     # Calculate metrics for each user
     for user in tqdm(user_predictions.index):
