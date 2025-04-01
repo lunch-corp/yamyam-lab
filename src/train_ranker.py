@@ -66,7 +66,9 @@ def main(cfg: DictConfig):
 
     # Group predictions by user
     candidates["pred_score"] = predictions
-    candidates = candidates.sort_values(by="pred_score", ascending=False)
+    candidates = candidates.sort_values(
+        by=["reviewer_id", "pred_score"], ascending=False
+    )
     user_predictions = candidates.groupby("reviewer_id")["diner_idx"].apply(np.array)
 
     # Calculate metrics

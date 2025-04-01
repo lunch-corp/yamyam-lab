@@ -318,29 +318,38 @@ class DatasetLoader:
         """
         Load candidate dataset.
         """
+        # 데이터 로드
+
         candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
+        if self.test:
+            candidate = candidate.head(100)
 
-        candidate_user_mapping = pd.read_pickle(
-            self.candidate_paths / "user_mapping.pkl"
-        )
-        candidate_diner_mapping = pd.read_pickle(
-            self.candidate_paths / "dimer_mapping.pkl"
-        )
+        # 매핑 로드 및 검증
+        user_mapping = pd.read_pickle(self.candidate_paths / "user_mapping.pkl")
+        diner_mapping = pd.read_pickle(self.candidate_paths / "dimer_mapping.pkl")
 
-        num_diners = len(candidate_diner_mapping)
-        min_user_id = min(list(candidate_user_mapping.values()))
+        candidate_user_mapping = {
+            k: v for k, v in user_mapping.items() if v in candidate["user_id"]
+        }
+        candidate_diner_mapping = {
+            k: v for k, v in diner_mapping.items() if v in candidate["diner_id"]
+        }
 
+        num_diners = len(diner_mapping)
+        min_user_id = min(list(user_mapping.values()))
         if num_diners != min_user_id:
             raise ValueError(
                 "Mapping ids may not be unique in candidate generation models and should be checked."
             )
 
-        # convert to mapping logic used in ranking model
-        candidate_user_mapping_convert = {}
-        for asis_id, tobe_id in candidate_user_mapping.items():
-            candidate_user_mapping_convert[asis_id] = tobe_id - num_diners
+        # 사용자 ID 변환
+        candidate_user_mapping_convert = {
+            asis_id: tobe_id - num_diners
+            for asis_id, tobe_id in candidate_user_mapping.items()
+        }
         candidate["user_id"] = candidate["user_id"] - num_diners
 
+        # 특성 병합
         candidate["reviewer_id"] = candidate["user_id"].copy()
         candidate["diner_idx"] = candidate["diner_id"].copy()
 
