@@ -442,12 +442,12 @@ class BaseEmbedding(nn.Module):
 
     def generate_candidates_for_each_user(self, top_k_value: int) -> pd.DataFrame:
         start = 0
-        diner_embeds = self.get_embedding(self.diner_ids)
+        diner_embeds = self.get_embedding(self.diner_ids.to(self.device))
         res = torch.tensor([], dtype=torch.float32)
 
         while start < self.num_users:
             batch_users = self.user_ids[start : start + self.recommend_batch_size]
-            user_embeds = self.get_embedding(batch_users)
+            user_embeds = self.get_embedding(batch_users.to(self.device))
             scores = torch.mm(user_embeds, diner_embeds.t())
             top_k = torch.topk(scores, k=top_k_value)
             top_k_id = top_k.indices
