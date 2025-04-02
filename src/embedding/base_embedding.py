@@ -85,6 +85,7 @@ class BaseEmbedding(nn.Module):
         else:
             # not trainable parameters, but result tensors from model forwarding
             self._embedding = torch.empty((self.num_nodes, self.embedding_dim))
+            self._embedding.to(self.device)
 
     def forward(self, batch: Tensor) -> Tensor:
         """
