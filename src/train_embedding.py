@@ -43,10 +43,10 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"epochs: {args.epochs}")
         logger.info(f"embedding dimension: {args.embedding_dim}")
         logger.info(f"walks per node: {args.walks_per_node}")
+        logger.info(f"walk length: {args.walk_length}")
         logger.info(f"num neg samples: {args.num_negative_samples}")
         logger.info(f"weighted edge: {args.weighted_edge}")
         if args.model == "node2vec":
-            logger.info(f"walk length: {args.walk_length}")
             logger.info(f"p: {args.p}")
             logger.info(f"q: {args.q}")
         elif args.model == "metapath2vec":
@@ -144,7 +144,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                     batch_size=args.batch_size,
                     shuffle=True,
                 ):
-                    model.propagate_and_store_embedding(batch_nodes)
+                    model.propagate_and_store_embedding(batch_nodes.to(device))
 
             total_loss /= len(loader)
             model.tr_loss.append(total_loss)
