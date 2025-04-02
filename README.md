@@ -146,16 +146,18 @@ For detail description of each metric, please refer to [discussion](https://gith
 
 | Algorithm    | Task                   | recall@100 | recall@300 | recall@500 | recall@1000 | recall@2000 |
 |--------------|------------------------|------------|------------|------------|-------------|-------------|
-| node2vec     | Unsupervised  learning | 0.05969    | 0.10067    | 0.1265     | 0.16951     | 0.22588     |
-| metapath2vec | Unsupervised  learning | 0.00418    | 0.0125     | 0.02078    | 0.03984     | 0.07553     |
+| node2vec     | Unsupervised  learning | 0.04196    | 0.07299    | 0.09293    | 0.12739     | 0.17507     |
+| metapath2vec | Unsupervised  learning | 0.0022     | 0.00643    | 0.01028    | 0.02021     | 0.03936     |
+| graphsage    | Unsupervised  learning | TBD        | TBD        | TBD        | TBD         | TBD         |
 
 ### Ranking performance results with single step
 
 | Algorithm       | Task                  | mAP@3     | mAP@7     | mAP@10    | mAP@20     | NDCG@3  | NDCG@7  | NDCG@10 | NDCG@20   |
 |-----------------|-----------------------|-----------|-----------|-----------|------------|---------|---------|---------|-----------|
 | SVD             | Regression            | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
-| node2vec        | Unsupervised learning | 0.00515   | 0.00624   | 0.00666   | 0.0073     | 0.00791 | 0.00969 | 0.0108  | 0.01319   |
-| metapath2vec    | Unsupervised learning | 0.0001    | 0.00013   | 0.00014   | 0.00017    | 0.00016 | 0.00022 | 0.00027 | 0.00039   |
+| node2vec        | Unsupervised learning | 0.00361   | 0.00445   | 0.00475   | 0.00523    | 0.00619 | 0.00738 | 0.00814 | 0.00989   |
+| metapath2vec    | Unsupervised learning | 0.00004   | 0.00006   | 0.00007   | 0.00008    | 0.00008 | 0.00012 | 0.00015 | 0.00021   |
+| graphsage       | Unsupervised learning | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
 
 
 ### Ranking performance results with two step
