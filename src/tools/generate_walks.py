@@ -49,9 +49,7 @@ def generate_walks(
             # Perform walk
             while len(walk) < walk_length:
                 # last visited node's neighbors
-                walk_options = d_graph[walk[-1]].get(
-                    TransitionKey.NEIGHBORS.value, None
-                )
+                walk_options = d_graph[walk[-1]].get(TransitionKey.NEIGHBORS, None)
 
                 # skip dead end nodes which have no neighbors
                 if not walk_options:
@@ -59,14 +57,12 @@ def generate_walks(
 
                 if len(walk) == 1:
                     # for the first step
-                    probabilities = d_graph[walk[-1]][TransitionKey.FIRST_PROB.value]
+                    probabilities = d_graph[walk[-1]][TransitionKey.FIRST_PROB]
                     walk_to = random.choices(walk_options, weights=probabilities)[0]
                 else:
                     # if not first step, consider previous visited node of last visited node
                     # walk[-1]: last visited node, walk[-2]: previous visited node of last visited node
-                    probabilities = d_graph[walk[-1]][TransitionKey.NEXT_PROB.value][
-                        walk[-2]
-                    ]
+                    probabilities = d_graph[walk[-1]][TransitionKey.NEXT_PROB][walk[-2]]
                     walk_to = random.choices(walk_options, weights=probabilities)[0]
 
                 walk.append(walk_to)
@@ -95,11 +91,11 @@ def precompute_probabilities(
     d_graph = defaultdict(dict)
     # initialize transition matrix
     for node in graph.nodes():
-        d_graph[node][TransitionKey.FIRST_PROB.value] = []
-        d_graph[node][TransitionKey.NEIGHBORS.value] = []
-        d_graph[node][TransitionKey.NEXT_PROB.value] = {}
+        d_graph[node][TransitionKey.FIRST_PROB] = []
+        d_graph[node][TransitionKey.NEIGHBORS] = []
+        d_graph[node][TransitionKey.NEXT_PROB] = {}
         for neighbor in graph.neighbors(node):
-            d_graph[node][TransitionKey.NEXT_PROB.value][neighbor] = []
+            d_graph[node][TransitionKey.NEXT_PROB][neighbor] = []
 
     for source in tqdm(graph.nodes(), desc="Computing transition probabilities"):
         for current_node in graph.neighbors(source):
@@ -125,7 +121,7 @@ def precompute_probabilities(
 
             # Normalize
             unnorm_weights = np.array(unnorm_weights)
-            d_graph[current_node][TransitionKey.NEXT_PROB.value][source] = (
+            d_graph[current_node][TransitionKey.NEXT_PROB][source] = (
                 unnorm_weights / unnorm_weights.sum()
             )
 
@@ -136,12 +132,12 @@ def precompute_probabilities(
             first_travel_weights.append(graph[source][destination].get("weight", 1))
 
         first_travel_weights = np.array(first_travel_weights)
-        d_graph[source][TransitionKey.FIRST_PROB.value] = (
+        d_graph[source][TransitionKey.FIRST_PROB] = (
             first_travel_weights / first_travel_weights.sum()
         )
 
         # Save neighbors preserving order
-        d_graph[source][TransitionKey.NEIGHBORS.value] = list(graph.neighbors(source))
+        d_graph[source][TransitionKey.NEIGHBORS] = list(graph.neighbors(source))
     return d_graph
 
 
@@ -196,23 +192,21 @@ def precompute_probabilities_metapath(
     for node in graph.nodes():
         for meta in node_meta:
             d_graph[node][meta] = {
-                TransitionKeyMetaPath.NEIGHBORS.value: [],
-                TransitionKeyMetaPath.PROB.value: [],
+                TransitionKeyMetaPath.NEIGHBORS: [],
+                TransitionKeyMetaPath.PROB: [],
             }
 
     for node in tqdm(graph.nodes(), desc="Computing transition probabilities"):
         for neighbor in graph.neighbors(node):
             neighbor_meta = graph.nodes[neighbor].get(meta_field)
-            d_graph[node][neighbor_meta][TransitionKeyMetaPath.NEIGHBORS.value].append(
+            d_graph[node][neighbor_meta][TransitionKeyMetaPath.NEIGHBORS].append(
                 neighbor
             )
         for meta in node_meta:
-            if len(d_graph[node][meta][TransitionKeyMetaPath.NEIGHBORS.value]) != 0:
-                neighbors_meta = d_graph[node][meta][
-                    TransitionKeyMetaPath.NEIGHBORS.value
-                ]
+            if len(d_graph[node][meta][TransitionKeyMetaPath.NEIGHBORS]) != 0:
+                neighbors_meta = d_graph[node][meta][TransitionKeyMetaPath.NEIGHBORS]
                 # uniform distribution
-                d_graph[node][meta][TransitionKeyMetaPath.PROB.value] = [
+                d_graph[node][meta][TransitionKeyMetaPath.PROB] = [
                     1 / len(neighbors_meta) for _ in range(len(neighbors_meta))
                 ]
     return d_graph
@@ -258,9 +252,9 @@ def generate_walks_metapath(
                 current_node = node
                 for meta in path[1:]:
                     neighbors = d_graph[current_node][meta][
-                        TransitionKeyMetaPath.NEIGHBORS.value
+                        TransitionKeyMetaPath.NEIGHBORS
                     ]
-                    prob = d_graph[current_node][meta][TransitionKeyMetaPath.PROB.value]
+                    prob = d_graph[current_node][meta][TransitionKeyMetaPath.PROB]
                     if len(neighbors) == 0:
                         break
                     next_node = random.choices(neighbors, weights=prob)[0]
