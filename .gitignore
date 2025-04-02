@@ -9,7 +9,7 @@ __pycache__/
 .ipynb_checkpoints/
 .python-version
 
-data/*.csv
+data/*
 !data/REAMDE.md
 result/*
 src/result/*
@@ -27,7 +27,8 @@ tests/model/result/
 
 credentials/
 
-candidates/
+candidates/node2vec/*
+!candidates/node2vec/.gitkeep
 
 zip/
 

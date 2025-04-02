@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Dict, List, Self, Tuple
 
 import numpy as np
@@ -27,6 +28,7 @@ class DatasetLoader:
         random_state: int = 42,
         stratify: str = "reviewer_id",
         is_graph_model: bool = False,
+        is_candidate_dataset: bool = False,
         category_column_for_meta: str = "diner_category_large",
         test: bool = False,
     ):
@@ -55,10 +57,12 @@ class DatasetLoader:
         self.random_state = random_state
         self.stratify = stratify
         self.is_graph_model = is_graph_model
+        self.is_candidate_dataset = is_candidate_dataset
         self.category_column_for_meta = category_column_for_meta
         self.test = test
 
         self.data_paths = ensure_data_files()
+        self.candidate_paths = Path("candidates/node2vec")
 
     def load_dataset(self: Self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -117,7 +121,10 @@ class DatasetLoader:
         return train, val
 
     def prepare_train_val_dataset(
-        self: Self, is_rank: bool = False, use_metadata: bool = False
+        self: Self,
+        is_rank: bool = False,
+        is_candidate_dataset: bool = False,
+        use_metadata: bool = False,
     ) -> Dict[str, Any]:
         """
         Load and process training data.
@@ -159,12 +166,37 @@ class DatasetLoader:
         )
 
         if is_rank:
-            # Rank-specific feature merging
+            # 순위 관련 특성 병합
             train, val = self.merge_rank_features(
                 train, val, user_feature, diner_feature, diner_meta_feature
             )
+            user_mapping = mapped_res["user_mapping"]
+            diner_mapping = mapped_res["diner_mapping"]
 
-            return self.create_rank_dataset(train, val, mapped_res)
+            if not is_candidate_dataset:
+                return self.create_rank_dataset(train, val, mapped_res)
+
+            candidates, candidate_user_mapping, candidate_diner_mapping = (
+                self.load_candidate_dataset(
+                    user_feature, diner_feature, diner_meta_feature
+                )
+            )
+
+            # 후보군 생성 모델과 재순위화 모델의 사용자 ID 매핑 검증
+            self._validate_user_mappings(
+                candidate_user_mapping=candidate_user_mapping,
+                candidate_diner_mapping=candidate_diner_mapping,
+                user_mapping=user_mapping,
+                diner_mapping=diner_mapping,
+            )
+
+            # dat
+            data = self.create_rank_dataset(train, val, mapped_res)
+            data["candidates"] = candidates
+            data["candidate_user_mapping"] = candidate_user_mapping
+            data["candidate_diner_mapping"] = candidate_diner_mapping
+
+            return data
 
         if use_metadata:
             meta_mapping_info = meta_mapping(
@@ -177,6 +209,34 @@ class DatasetLoader:
         return self.create_graph_dataset(
             train, val, user_feature, diner_feature, diner_meta_feature, mapped_res
         )
+
+    def _validate_user_mappings(
+        self: Self,
+        candidate_user_mapping: Dict[str, Any],
+        candidate_diner_mapping: Dict[str, Any],
+        user_mapping: Dict[str, Any],
+        diner_mapping: Dict[str, Any],
+    ) -> None:
+        """
+        Validate user mappings between candidate generation and reranking models.
+        """
+        # validates user mapping
+        for cand_asis_id, cand_tobe_id in candidate_user_mapping.items():
+            if cand_asis_id not in user_mapping:
+                continue
+            if cand_tobe_id != user_mapping[cand_asis_id]:
+                raise ValueError(
+                    f"For original user_id={cand_asis_id}, expected {cand_tobe_id} but got {user_mapping[cand_asis_id]}."
+                )
+
+        # validates diner mapping
+        for cand_asis_id, cand_tobe_id in candidate_diner_mapping.items():
+            if cand_asis_id not in diner_mapping:
+                continue
+            if cand_tobe_id != diner_mapping[cand_asis_id]:
+                raise ValueError(
+                    f"For original diner_id={cand_asis_id}, expected {cand_tobe_id} but got {diner_mapping[cand_asis_id]}."
+                )
 
     def merge_rank_features(
         self: Self,
@@ -248,6 +308,56 @@ class DatasetLoader:
             "y_val": val["target"],
             **mapped_res,
         }
+
+    def load_candidate_dataset(
+        self: Self,
+        user_feature: pd.DataFrame,
+        diner_feature: pd.DataFrame,
+        diner_meta_feature: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """
+        Load candidate dataset.
+        """
+        # 데이터 로드
+
+        candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
+        if self.test:
+            candidate = candidate.head(100)
+
+        # 매핑 로드 및 검증
+        user_mapping = pd.read_pickle(self.candidate_paths / "user_mapping.pkl")
+        diner_mapping = pd.read_pickle(self.candidate_paths / "dimer_mapping.pkl")
+
+        candidate_user_mapping = {
+            k: v for k, v in user_mapping.items() if v in candidate["user_id"]
+        }
+        candidate_diner_mapping = {
+            k: v for k, v in diner_mapping.items() if v in candidate["diner_id"]
+        }
+
+        num_diners = len(diner_mapping)
+        min_user_id = min(list(user_mapping.values()))
+        if num_diners != min_user_id:
+            raise ValueError(
+                "Mapping ids may not be unique in candidate generation models and should be checked."
+            )
+
+        # 사용자 ID 변환
+        candidate_user_mapping_convert = {
+            asis_id: tobe_id - num_diners
+            for asis_id, tobe_id in candidate_user_mapping.items()
+        }
+        candidate["user_id"] = candidate["user_id"] - num_diners
+
+        # 특성 병합
+        candidate["reviewer_id"] = candidate["user_id"].copy()
+        candidate["diner_idx"] = candidate["diner_id"].copy()
+
+        candidate = candidate.merge(user_feature, on="reviewer_id", how="left")
+        candidate = candidate.merge(diner_feature, on="diner_idx", how="left")
+        candidate = candidate.merge(diner_meta_feature, on="diner_idx", how="left")
+
+        return candidate, candidate_user_mapping_convert, candidate_diner_mapping
 
     def create_graph_dataset(
         self: Self,

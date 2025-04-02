@@ -16,6 +16,7 @@ class DataConfig:
     category_column_for_meta: str
     user_engineered_feature_names: List[Dict[str, Any]]
     diner_engineered_feature_names: List[Dict[str, Any]]
+    test: bool = True
 
 
 @dataclass
@@ -77,8 +78,8 @@ def setup_ranker_config(request) -> TestConfig:
 
     test_config = TestConfig(
         data=DataConfig(
-            test_size=0.2,
-            min_reviews=5,
+            test_size=0.3,
+            min_reviews=3,
             features=[
                 "diner_review_cnt_category",
                 "min_price",

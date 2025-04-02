@@ -1,11 +1,23 @@
+hydra:
+  job_logging:
+      root:
+        handlers: [console]
+        level: INFO  # 로그 레벨
+      handlers:
+        console:
+          class: logging.StreamHandler
+          level: INFO
+          formatter: simple
+      formatters:
+        simple:
+          format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  run:
+    dir: .
+  output_subdir: null
+
 defaults:
   - _self_
   - data: dataset
   - models: lightgbm
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
-
-hydra:
-  run:
-    dir: .
-  output_subdir: null

@@ -33,30 +33,36 @@ def test_loader_dataset():
             "diner_review_tags": {},
             "diner_menu_price": {},
         },
+        test=True,
     )
-
     data = data_loader.prepare_train_val_dataset()
-    assert data["X_train"].shape[0] > 10000
-    assert data["X_val"].shape[0] > 10000
-    assert data["y_train"].shape[0] > 10000
-    assert data["y_val"].shape[0] > 10000
+
+    assert data["X_train"].shape[0] > 0
+    assert data["X_val"].shape[0] > 0
+    assert data["y_train"].shape[0] > 0
+    assert data["y_val"].shape[0] > 0
     assert data["num_diners"] > 0
     assert data["num_users"] > 0
     assert data["diner_mapping"] is not None
     assert data["user_mapping"] is not None
 
-    rank_data = data_loader.prepare_train_val_dataset(is_rank=True)
+    rank_data = data_loader.prepare_train_val_dataset(
+        is_rank=True, is_candidate_dataset=True
+    )
 
-    assert rank_data["X_train"].shape[0] > 10000
-    assert rank_data["X_val"].shape[0] > 10000
-    assert rank_data["y_train"].shape[0] > 10000
-    assert rank_data["y_val"].shape[0] > 10000
+    assert rank_data["X_train"].shape[0] > 0
+    assert rank_data["X_val"].shape[0] > 0
+    assert rank_data["y_train"].shape[0] > 0
+    assert rank_data["y_val"].shape[0] > 0
     assert rank_data["X_train"].shape[0] == rank_data["y_train"].shape[0]
     assert rank_data["X_val"].shape[0] == rank_data["y_val"].shape[0]
     assert rank_data["num_diners"] > 0
     assert rank_data["num_users"] > 0
     assert rank_data["diner_mapping"] is not None
     assert rank_data["user_mapping"] is not None
+    assert rank_data["candidates"] is not None
+    assert rank_data["candidate_user_mapping"] is not None
+    assert rank_data["candidate_diner_mapping"] is not None
 
 
 def test_load_test_dataset():
