@@ -38,6 +38,7 @@ def main(args: ArgumentParser.parse_args) -> None:
 
     try:
         logger.info(f"embedding model: {args.model}")
+        logger.info(f"device: {device}")
         logger.info(f"batch size: {args.batch_size}")
         logger.info(f"learning rate: {args.lr}")
         logger.info(f"epochs: {args.epochs}")
