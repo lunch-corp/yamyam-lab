@@ -326,7 +326,7 @@ class DatasetLoader:
 
         # 매핑 로드 및 검증
         user_mapping = pd.read_pickle(self.candidate_paths / "user_mapping.pkl")
-        diner_mapping = pd.read_pickle(self.candidate_paths / "dimer_mapping.pkl")
+        diner_mapping = pd.read_pickle(self.candidate_paths / "diner_mapping.pkl")
 
         candidate_user_mapping = {
             k: v for k, v in user_mapping.items() if v in candidate["user_id"]
