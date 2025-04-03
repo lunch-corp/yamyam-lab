@@ -41,6 +41,6 @@ Latest version of each candidate generator model is given below.
 
 | Model name   | Latest version   |
 |--------------|------------------|
-| node2vec     | 202503241559.zip |
-| metapath2vec | TBD              |
+| node2vec     | 202504011544.zip |
+| metapath2vec | 202504011954.zip |
 | graphsage    | TBD              |
