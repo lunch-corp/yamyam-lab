@@ -287,24 +287,40 @@ class Model(BaseEmbedding):
         return self.pos_sample(batch), self.neg_sample(batch)
 
     def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
-        # Positive loss.
-        start, rest = pos_rw[:, 0], pos_rw[:, 1:].contiguous()
+        # forward propagation
+        # pool pos, neg node together and calculates embedding in one batch
+        # this line may trigger memory error depending on server spec
+        all_nodes = torch.unique(torch.concat([pos_rw.view(-1), neg_rw.view(-1)]))
+        embeddings = self.forward(all_nodes)
 
-        h_start = self.forward(start).view(pos_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.forward(rest.view(-1)).view(
+        # get embeddings for pos, neg node
+        pos_rw_indices = (
+            (all_nodes.unsqueeze(1) == pos_rw.view(-1).unsqueeze(0))
+            .long()
+            .argmax(dim=0)
+        )  # ( len(pos_rw.view(-1)), )
+        neg_rw_indices = (
+            (all_nodes.unsqueeze(1) == neg_rw.view(-1).unsqueeze(0))
+            .long()
+            .argmax(dim=0)
+        )  # ( len(neg_rw.view(-1)), )
+        pos_rw_emb = embeddings[pos_rw_indices].view(
             pos_rw.size(0), -1, self.embedding_dim
-        )
+        )  # [i][j]: embedding of pos_rw[i][j]
+        neg_rw_emb = embeddings[neg_rw_indices].view(
+            neg_rw.size(0), -1, self.embedding_dim
+        )  # [i][j]: embedding of neg_rw[i][j]
+
+        # positive loss
+        h_start = pos_rw_emb[:, 0:1, :]
+        h_rest = pos_rw_emb[:, 1:, :]
 
         out = (h_start * h_rest).sum(dim=-1).view(-1)
         pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
 
-        # Negative loss.
-        start, rest = neg_rw[:, 0], neg_rw[:, 1:].contiguous()
-
-        h_start = self.forward(start).view(neg_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.forward(rest.view(-1)).view(
-            neg_rw.size(0), -1, self.embedding_dim
-        )
+        # negative loss
+        h_start = neg_rw_emb[:, 0:1, :]
+        h_rest = neg_rw_emb[:, 1:, :]
 
         out = (h_start * h_rest).sum(dim=-1).view(-1)
         neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()
