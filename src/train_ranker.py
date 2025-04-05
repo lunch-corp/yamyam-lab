@@ -73,7 +73,7 @@ def main(cfg: DictConfig):
     # Calculate metrics
     metric_at_K = {K: {"map": 0, "ndcg": 0, "count": 0} for K in [3, 7, 10, 20]}
 
-    # target이 1인 경우만 좋아요로 간주
+    # Get already liked items from test data
     test_liked_items = X_test.groupby("reviewer_id")["diner_idx"].apply(np.array)
 
     # Get already liked items from training data
