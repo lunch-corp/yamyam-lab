@@ -107,13 +107,13 @@ def precompute_probabilities(
                 weight = graph[current_node][destination].get("weight", 1)
 
                 if destination == source:  # Backwards probability
-                    weight = weight * 1 / p
+                    weight = weight * 1 / p if p > 0 else 0
                 elif (
                     destination in graph[source]
                 ):  # If the neighbor is connected to the source
                     weight = weight
                 else:
-                    weight = weight * 1 / q
+                    weight = weight * 1 / q if q > 0 else 0
 
                 # Assign the unnormalized sampling strategy weight, normalize during random walk
                 unnorm_weights.append(weight)

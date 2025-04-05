@@ -60,6 +60,10 @@ def parse_args_embedding():
 
     # graphsage parameter
     parser.add_argument("--num_sage_layers", type=int, default=2)
+    parser.add_argument(
+        "--aggregator_funcs", type=str, nargs="*", default=["mean", "mean"]
+    )
+    parser.add_argument("--num_neighbor_samples", type=int, default=3)
 
     # candidate generation parameter for two-stage reco
     parser.add_argument("--save_candidate", action="store_true", required=False)

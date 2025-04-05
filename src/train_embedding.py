@@ -57,6 +57,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             )
         elif args.model == "graphsage":
             logger.info(f"number of sage layers: {args.num_sage_layers}")
+            logger.info(f"aggregator functions: {args.aggregator_funcs}")
         logger.info(f"result path: {args.result_path}")
         logger.info(f"test: {args.test}")
 
@@ -118,6 +119,8 @@ def main(args: ArgumentParser.parse_args) -> None:
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
             meta_path=args.meta_path,  # metapath2vec parameter
             num_layers=args.num_sage_layers,  # graphsage parameter
+            aggregator_funcs=args.aggregator_funcs,  # graphsage parameter
+            num_neighbor_samples=args.num_neighbor_samples,  # graphsage parameter
             user_raw_features=data["user_feature"],  # graphsage parameter
             diner_raw_features=data["diner_feature"],  # graphsage parameter
         ).to(device)
@@ -130,12 +133,15 @@ def main(args: ArgumentParser.parse_args) -> None:
         for epoch in range(args.epochs):
             logger.info(f"################## epoch {epoch} ##################")
             total_loss = 0
+            i = 0
             for pos_rw, neg_rw in loader:
+                logger.info(f"current batch: {i}")
                 optimizer.zero_grad()
                 loss = model.loss(pos_rw.to(device), neg_rw.to(device))
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
+                i += 1
 
             # when training graphsage for every epoch,
             # propagation should be run to store embeddings for each node at every epoch

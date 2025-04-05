@@ -164,16 +164,23 @@ class BaseEmbedding(nn.Module):
             Negative samples for each of node ids.
         """
         batch = batch.repeat(self.walks_per_node)
+        train_num_nodes = len(self.graph.nodes)
 
-        rw = torch.randint(
-            self.num_nodes,
+        indices = torch.randint(
+            train_num_nodes,
             (batch.size(0), self.num_negative_samples),
             dtype=batch.dtype,
             device=batch.device,
         )
-        rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
+        negative_samples = torch.index_select(
+            input=torch.tensor(list(self.graph.nodes)),
+            dim=0,
+            index=indices.view(-1),
+        ).view(batch.size(0), self.num_negative_samples)
 
-        return rw
+        negative_samples = torch.cat([batch.view(-1, 1), negative_samples], dim=-1)
+
+        return negative_samples
 
     def recommend_all(
         self,
