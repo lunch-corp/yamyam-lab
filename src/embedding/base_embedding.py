@@ -111,6 +111,9 @@ class BaseEmbedding(nn.Module):
         return DataLoader(
             torch.tensor([node for node in self.graph.nodes()]),
             collate_fn=self.sample,
+            num_workers=4,  # can be tuned depending on server spec
+            pin_memory=True,  # to reduce data transfer btw cpu and gpu
+            prefetch_factor=2,  # can be tuned depending on server spec
             **kwargs,
         )
 

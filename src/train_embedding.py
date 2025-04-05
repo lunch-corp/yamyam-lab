@@ -137,7 +137,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             for pos_rw, neg_rw in loader:
                 logger.info(f"current batch: {i}")
                 optimizer.zero_grad()
-                loss = model.loss(pos_rw.to(device), neg_rw.to(device))
+                loss = model.loss(pos_rw, neg_rw)
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
