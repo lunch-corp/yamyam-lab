@@ -73,14 +73,11 @@ def main(cfg: DictConfig):
     # Calculate metrics
     metric_at_K = {K: {"map": 0, "ndcg": 0, "count": 0} for K in [3, 7, 10, 20]}
 
-    # Get ground truth from valid data
-    X_test["target"] = y_test
     # target이 1인 경우만 좋아요로 간주
-    test_liked_items = (
-        X_test[X_test["target"] == 1]
-        .groupby("reviewer_id")["diner_idx"]
-        .apply(np.array)
-    )
+    test_liked_items = X_test.groupby("reviewer_id")["diner_idx"].apply(np.array)
+
+    # Get already liked items from training data
+    train_liked_items = X_train.groupby("reviewer_id")["diner_idx"].apply(np.array)
 
     # Calculate metrics for each user
     for user in tqdm(user_predictions.index):
@@ -88,14 +85,25 @@ def main(cfg: DictConfig):
             continue
 
         liked_items = test_liked_items[user]
-        reco_items = user_predictions[user]
+        pred_items = user_predictions[user]
+
+        # Filter out already liked items from training data
+        if user in train_liked_items:
+            already_liked = train_liked_items[user]
+            # Create a mask for items that were not liked in training
+            mask = ~np.isin(pred_items, already_liked)
+            pred_items = pred_items[mask]
+
+        # Skip if no predictions left after filtering
+        if len(pred_items) == 0:
+            continue
 
         for K in metric_at_K.keys():
             if len(liked_items) < K:
                 continue
 
             metric = ranking_metrics_at_k(
-                liked_items=np.array(liked_items), reco_items=reco_items[:K]
+                liked_items=np.array(liked_items), reco_items=pred_items[:K]
             )
 
             metric_at_K[K]["map"] += metric["ap"]
