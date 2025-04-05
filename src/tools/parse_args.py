@@ -35,6 +35,7 @@ def parse_args_embedding():
         required=True,
         choices=["node2vec", "metapath2vec", "graphsage"],
     )
+    parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--epochs", type=int, default=10)

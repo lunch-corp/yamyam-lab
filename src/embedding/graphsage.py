@@ -21,9 +21,7 @@ class SageLayer(nn.Module):
         )
 
     def forward(self, self_feat: torch.Tensor, agg_feat: torch.Tensor):
-        concat_feat = torch.concat([self_feat, agg_feat], axis=0).unsqueeze(
-            0
-        )  # (1, input_size)
+        concat_feat = torch.cat([self_feat, agg_feat], dim=1)
         out = F.relu(self.linear(concat_feat))  # (output_size, 1)
         return out
 
@@ -184,32 +182,76 @@ class Model(BaseEmbedding):
             sage_layer = self.sage_layers[k - 1]
 
             # Lines 10-14: Process each node in current layer
-            # Todo: parallel processing
-            for u in layer_nodes[k]:
-                # Get neighbors of u that are in layer k-1
-                neighbors = layer_neighbor_nodes[k][u]
+            nodes_by_neighbor_count = {}
+            for node in layer_nodes[k]:
+                n_count = len(layer_neighbor_nodes[k][node])
+                if n_count not in nodes_by_neighbor_count:
+                    nodes_by_neighbor_count[n_count] = []
+                nodes_by_neighbor_count[n_count].append(node)
 
-                # Line 11: Aggregate features from neighbors
-                neighbor_features = [hidden_reps[k - 1][v] for v in neighbors]
-                # Stack neighbor features for batch processing
-                stacked_neighbors = torch.stack(neighbor_features)
-                h_neighbors = self.aggregators[k - 1](stacked_neighbors)
+            for n_count, node_group in nodes_by_neighbor_count.items():
+                batch_size = min(128, len(node_group))
+                for i in range(0, len(node_group), batch_size):
+                    batch = node_group[i : i + batch_size]
 
-                # Line 12: Concatenate self features with aggregated neighbor features
-                h_self = hidden_reps[k - 1][u]
-                h_new = sage_layer(
-                    h_self.to(self.device), h_neighbors.to(self.device)
-                )  # h^{k}_{u}
+                    # Pre-allocate tensors for batched processing
+                    self_features = torch.zeros(
+                        len(batch), self.embedding_dim, device=self.device
+                    )
+                    neighbor_features = torch.zeros(
+                        len(batch), self.embedding_dim, device=self.device
+                    )
 
-                # Line 13: Normalize the representation
-                h_new = F.normalize(h_new, p=2, dim=1)
+                    for j, node in enumerate(batch):
+                        self_features[j] = hidden_reps[k - 1][node]
 
-                # Store the new representation
-                hidden_reps[k][u] = h_new.squeeze()
+                        neighbors = layer_neighbor_nodes[k][node]
+                        neighbor_feats = [hidden_reps[k - 1][v] for v in neighbors]
+                        stacked_neighbors = torch.stack(neighbor_feats)
+                        neighbor_features[j] = self.aggregators[k - 1](
+                            stacked_neighbors
+                        )
 
-        # Line 16: Final representations for requested nodes
-        h_final = [hidden_reps[self.num_layers][u.item()] for u in nodes]
-        return torch.stack(h_final)
+                    # Perform forward pass for the entire batch
+                    h_new_batch = sage_layer(self_features, neighbor_features)
+                    h_new_batch = F.normalize(h_new_batch, p=2, dim=1)
+
+                    # Store results
+                    for j, node in enumerate(batch):
+                        hidden_reps[k][node] = h_new_batch[j]
+
+        # Step 4: Gather final embeddings efficiently
+        results = torch.zeros(len(nodes), self.embedding_dim, device=self.device)
+        for i, node_id in enumerate(nodes.tolist()):
+            results[i] = hidden_reps[self.num_layers][node_id]
+
+        return results
+
+        #     for u in layer_nodes[k]:
+        #         # Get neighbors of u that are in layer k-1
+        #         neighbors = layer_neighbor_nodes[k][u]
+
+        #         # Line 11: Aggregate features from neighbors
+        #         neighbor_features = [hidden_reps[k - 1][v] for v in neighbors]
+        #         # Stack neighbor features for batch processing
+        #         stacked_neighbors = torch.stack(neighbor_features)
+        #         h_neighbors = self.aggregators[k - 1](stacked_neighbors)
+
+        #         # Line 12: Concatenate self features with aggregated neighbor features
+        #         h_self = hidden_reps[k - 1][u]
+        #         h_new = sage_layer(
+        #             h_self.to(self.device), h_neighbors.to(self.device)
+        #         )  # h^{k}_{u}
+
+        #         # Line 13: Normalize the representation
+        #         h_new = F.normalize(h_new, p=2, dim=1)
+
+        #         # Store the new representation
+        #         hidden_reps[k][u] = h_new.squeeze()
+
+        # # Line 16: Final representations for requested nodes
+        # h_final = [hidden_reps[self.num_layers][u.item()] for u in nodes]
+        # return torch.stack(h_final)
 
     def pos_sample(self, batch: Tensor) -> Tensor:
         """
@@ -300,10 +342,8 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Concatenated features with diner feature first and user feature following.
         """
-        user_features = self.user_feature_layer(self.user_raw_features.to(self.device))
-        diner_features = self.diner_feature_layer(
-            self.diner_raw_features.to(self.device)
-        )
+        user_features = self.user_feature_layer(self.user_raw_features)
+        diner_features = self.diner_feature_layer(self.diner_raw_features)
         return torch.concat([diner_features, user_features])  # diner index first
 
     def propagate_and_store_embedding(self, batch_nodes: Tensor):
