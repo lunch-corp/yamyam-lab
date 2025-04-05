@@ -138,10 +138,8 @@ def main(args: ArgumentParser.parse_args) -> None:
         for epoch in range(args.epochs):
             logger.info(f"################## epoch {epoch} ##################")
             total_loss = 0
-            i = 0
             batch_len = len(loader)
             for batch_idx, (pos_rw, neg_rw) in enumerate(loader):
-                logger.info(f"current batch: {i}")
                 optimizer.zero_grad()
                 loss = model.loss(pos_rw, neg_rw)
                 loss.backward()
