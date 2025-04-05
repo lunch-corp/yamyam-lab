@@ -7,7 +7,6 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
-from tools.generate_walks import precompute_probabilities
 from tools.sampling import uniform_sampling_without_replacement_from_small_size_pool
 
 
@@ -121,18 +120,19 @@ class Model(BaseEmbedding):
                 )
             )
 
-        self.d_graph = precompute_probabilities(
-            graph=graph,
-            p=1,  # unbiased random walk
-            q=1,  # unbiased random walk
-        )
+        # self.d_graph = precompute_probabilities(
+        #     graph=graph,
+        #     p=1,  # unbiased random walk
+        #     q=1,  # unbiased random walk
+        # )
+
+        # import pickle
+
+        # pickle.dump(self.d_graph, open("src/result/d_graph.pkl", "wb"))
 
         import pickle
 
-        pickle.dump(self.d_graph, open("src/result/d_graph.pkl", "wb"))
-
-        # import pickle
-        # self.d_graph = pickle.load(open("src/result/d_graph.pkl", "rb"))
+        self.d_graph = pickle.load(open("src/result/d_graph.pkl", "rb"))
 
     def forward(self, nodes: Tensor) -> Tensor:
         """
@@ -145,7 +145,7 @@ class Model(BaseEmbedding):
             Propagated embedding vector with node features in inductive way.
         """
         # Convert batch nodes to a set for O(1) lookups
-        batch_nodes_set = set(nodes.numpy())
+        batch_nodes_set = set(nodes.detach().cpu().numpy())
 
         # Initialize sets of nodes and store sampled neighbors needed at each layer (B^k in the algorithm)
         layer_nodes = [set() for _ in range(self.num_layers + 1)]
@@ -197,7 +197,9 @@ class Model(BaseEmbedding):
 
                 # Line 12: Concatenate self features with aggregated neighbor features
                 h_self = hidden_reps[k - 1][u]
-                h_new = sage_layer(h_self, h_neighbors)  # h^{k}_{u}
+                h_new = sage_layer(
+                    h_self.to(self.device), h_neighbors.to(self.device)
+                )  # h^{k}_{u}
 
                 # Line 13: Normalize the representation
                 h_new = F.normalize(h_new, p=2, dim=1)
