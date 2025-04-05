@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
+from tools.generate_walks import precompute_probabilities
 from tools.sampling import uniform_sampling_without_replacement_from_small_size_pool
 
 
@@ -118,19 +119,11 @@ class Model(BaseEmbedding):
                 )
             )
 
-        # self.d_graph = precompute_probabilities(
-        #     graph=graph,
-        #     p=1,  # unbiased random walk
-        #     q=1,  # unbiased random walk
-        # )
-
-        # import pickle
-
-        # pickle.dump(self.d_graph, open("src/result/d_graph.pkl", "wb"))
-
-        import pickle
-
-        self.d_graph = pickle.load(open("src/result/d_graph.pkl", "rb"))
+        self.d_graph = precompute_probabilities(
+            graph=graph,
+            p=1,  # unbiased random walk
+            q=1,  # unbiased random walk
+        )
 
     def forward(self, nodes: Tensor) -> Tensor:
         """
@@ -150,7 +143,7 @@ class Model(BaseEmbedding):
         layer_neighbor_nodes = [{} for _ in range(self.num_layers + 1)]
         layer_nodes[self.num_layers] = batch_nodes_set.copy()
 
-        # Lines 1-7: Neighborhood Sampling - identify required nodes at each layer
+        # Lines 1-7: neighborhood Sampling - identify required nodes at each layer
         for k in range(self.num_layers, 0, -1):
             for u in layer_nodes[k]:
                 # Add u to the set of nodes needed at layer k-1
@@ -170,18 +163,18 @@ class Model(BaseEmbedding):
         # h^0_v = x_v for all v in B^0
         hidden_reps = [{}]  # List of dictionaries, one per layer
 
-        # Line 8: Initialize with input features for layer 0
+        # Line 8: initialize with input features for layer 0
         features = self._get_raw_features()
         for v in layer_nodes[0]:
             hidden_reps[0][v] = features[v]
 
-        # Lines 9-15: Forward propagation through layers
+        # Lines 9-15: forward propagation through layers
         for k in range(1, self.num_layers + 1):
             # hidden representations for current layer
             hidden_reps.append({})
             sage_layer = self.sage_layers[k - 1]
 
-            # Lines 10-14: Process each node in current layer
+            # Lines 10-14: process each node in current layer
             nodes_by_neighbor_count = {}
             for node in layer_nodes[k]:
                 n_count = len(layer_neighbor_nodes[k][node])
@@ -206,52 +199,28 @@ class Model(BaseEmbedding):
                         self_features[j] = hidden_reps[k - 1][node]
 
                         neighbors = layer_neighbor_nodes[k][node]
+                        # Line 11: aggregate features from neighbors
                         neighbor_feats = [hidden_reps[k - 1][v] for v in neighbors]
                         stacked_neighbors = torch.stack(neighbor_feats)
                         neighbor_features[j] = self.aggregators[k - 1](
                             stacked_neighbors
                         )
 
-                    # Perform forward pass for the entire batch
+                    # Line 12: perform forward pass using sage layer
                     h_new_batch = sage_layer(self_features, neighbor_features)
+                    # Line 13: normalize the representation
                     h_new_batch = F.normalize(h_new_batch, p=2, dim=1)
 
                     # Store results
                     for j, node in enumerate(batch):
                         hidden_reps[k][node] = h_new_batch[j]
 
-        # Step 4: Gather final embeddings efficiently
+        # Line 16: final representations for requested nodes
         results = torch.zeros(len(nodes), self.embedding_dim, device=self.device)
         for i, node_id in enumerate(nodes.tolist()):
             results[i] = hidden_reps[self.num_layers][node_id]
 
         return results
-
-        #     for u in layer_nodes[k]:
-        #         # Get neighbors of u that are in layer k-1
-        #         neighbors = layer_neighbor_nodes[k][u]
-
-        #         # Line 11: Aggregate features from neighbors
-        #         neighbor_features = [hidden_reps[k - 1][v] for v in neighbors]
-        #         # Stack neighbor features for batch processing
-        #         stacked_neighbors = torch.stack(neighbor_features)
-        #         h_neighbors = self.aggregators[k - 1](stacked_neighbors)
-
-        #         # Line 12: Concatenate self features with aggregated neighbor features
-        #         h_self = hidden_reps[k - 1][u]
-        #         h_new = sage_layer(
-        #             h_self.to(self.device), h_neighbors.to(self.device)
-        #         )  # h^{k}_{u}
-
-        #         # Line 13: Normalize the representation
-        #         h_new = F.normalize(h_new, p=2, dim=1)
-
-        #         # Store the new representation
-        #         hidden_reps[k][u] = h_new.squeeze()
-
-        # # Line 16: Final representations for requested nodes
-        # h_final = [hidden_reps[self.num_layers][u.item()] for u in nodes]
-        # return torch.stack(h_final)
 
     def pos_sample(self, batch: Tensor) -> Tensor:
         """

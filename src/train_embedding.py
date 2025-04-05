@@ -139,14 +139,17 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger.info(f"################## epoch {epoch} ##################")
             total_loss = 0
             i = 0
-            for pos_rw, neg_rw in loader:
+            batch_len = len(loader)
+            for batch_idx, (pos_rw, neg_rw) in enumerate(loader):
                 logger.info(f"current batch: {i}")
                 optimizer.zero_grad()
                 loss = model.loss(pos_rw, neg_rw)
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
-                i += 1
+
+                if batch_idx % 500 == 0:
+                    logger.info(f"current batch index: {batch_idx} out of {batch_len}")
 
             # when training graphsage for every epoch,
             # propagation should be run to store embeddings for each node at every epoch
