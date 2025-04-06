@@ -50,7 +50,7 @@ def parse_args_embedding():
 
     # node2vec parameter
     parser.add_argument("--walk_length", type=int, default=20)
-    parser.add_argument("--p", type=int, default=1)
+    parser.add_argument("--p", type=float, default=1)
     parser.add_argument("--q", type=float, default=1)
 
     # metapath2vec parameter
