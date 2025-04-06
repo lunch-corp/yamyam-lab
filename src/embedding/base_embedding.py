@@ -153,9 +153,8 @@ class BaseEmbedding(nn.Module):
             d_graph=self.d_graph,
             walk_length=self.walk_length,
             num_walks=1,
-            device=self.device,
         )
-        return rw
+        return rw.to(self.device)
 
     def _neg_sample(self, batch: Tensor) -> Tensor:
         """
