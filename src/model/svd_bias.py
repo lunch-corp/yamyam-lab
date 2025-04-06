@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -10,9 +10,8 @@ from torch import Tensor
 from constant.metric.metric import Metric, NearCandidateMetric
 from evaluation.metric import (
     fully_vectorized_ranking_metrics_at_k,
-    ranking_metrics_at_k,
 )
-from tools.utils import convert_tensor, safe_divide
+from tools.utils import safe_divide
 
 
 class Model(nn.Module):
@@ -87,80 +86,6 @@ class Model(nn.Module):
             + self.mu
         )  # batch_size * 1
         return output
-
-    def recommend(
-        self,
-        X_train: Tensor,
-        X_val: Tensor,
-        top_K: List[int] = [3, 5, 7, 10, 20],
-        filter_already_liked: bool = True,
-    ) -> Dict[int, NDArray]:
-        """
-        Recommend item to each user based on predicted scores and
-
-        Args:
-            X_train (Tensor): Dataset used when training model.
-                When recommendation, this is used when filtering items that already liked by user.
-            X_val (Tensor): Dataset used when validation model.
-            top_K (List[int]): A list of number of items to recommend to user.
-            filter_already_liked (bool): Whether to filter items that already liked
-                by user in train dataset.
-
-        Returns (Dict[int, NDArray]):
-            Defined metric will be stored in class attribute `metric_at_k`. This function returns
-            recommendation item list at `20` of each user.
-        """
-
-        self.map = 0.0
-        self.ndcg = 0.0
-
-        train_liked = convert_tensor(X_train, dict)
-        val_liked = convert_tensor(X_val, list)
-        res = {}
-        metric_at_K = {k: {"map": 0, "ndcg": 0, "count": 0} for k in top_K}
-        for user in range(self.num_users):
-            item_idx = torch.arange(self.num_items)
-            user_idx = torch.tensor([user]).repeat(self.num_items)
-
-            # calculate one user's predicted scores for all item_ids
-            with torch.no_grad():
-                scores = self.forward(user_idx, item_idx)
-
-            # filter item_id in train dataset
-            if filter_already_liked:
-                user_liked_items = train_liked[user]
-                for already_liked_item_id in user_liked_items.keys():
-                    scores[already_liked_item_id] = -float(
-                        "inf"
-                    )  # not recommend already chosen item_id
-
-            # calculate metric
-            val_liked_item_id = np.array(val_liked[user])
-            for K in top_K:
-                if len(val_liked_item_id) < K:
-                    continue
-
-                # recommendations for all item pools
-                pred_liked_item_id = (
-                    torch.topk(scores, k=K).indices.detach().cpu().numpy()
-                )
-                metric = ranking_metrics_at_k(val_liked_item_id, pred_liked_item_id)
-                metric_at_K[K]["map"] += metric["ap"]
-                metric_at_K[K]["ndcg"] += metric["ndcg"]
-                metric_at_K[K]["count"] += 1
-
-                # store recommendation result when K=20
-                if K == 20:
-                    res[user] = pred_liked_item_id
-        for K in top_K:
-            metric_at_K[K]["map"] = safe_divide(
-                numerator=metric_at_K[K]["map"], denominator=metric_at_K[K]["count"]
-            )
-            metric_at_K[K]["ndcg"] = safe_divide(
-                numerator=metric_at_K[K]["ndcg"], denominator=metric_at_K[K]["count"]
-            )
-        self.metric_at_K = metric_at_K
-        return res
 
     def recommend_all(
         self,
