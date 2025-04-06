@@ -23,6 +23,7 @@ def generate_walks(
     d_graph: Dict[str, Any],
     walk_length: int,
     num_walks: int,
+    device: str,
 ) -> Tensor:
     """
     Generates the random walks which will be used as the skip-gram input.
@@ -33,6 +34,7 @@ def generate_walks(
             on parameter `p`, `q`, and edge weights
         walk_length (int): Length of the random walks.
         num_walks (int): Number of biased random walks for each of node id
+        device (str): Device type, one of cpu or cuda.
 
     Returns (Tensor):
         Concatenated random walks in Tensor.
@@ -69,7 +71,7 @@ def generate_walks(
 
             walks.append(walk)
 
-    return torch.tensor(walks)
+    return torch.tensor(walks, device=device)
 
 
 def precompute_probabilities(

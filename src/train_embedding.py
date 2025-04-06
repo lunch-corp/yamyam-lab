@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 
 import torch
+import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
 from constant.metric.metric import Metric
@@ -26,6 +27,9 @@ ZIP_PATH = os.path.join(ROOT_PATH, "./zip")
 def main(args: ArgumentParser.parse_args) -> None:
     os.makedirs(args.result_path, exist_ok=True)
     config = load_yaml(CONFIG_PATH.format(model=args.model))
+
+    # set multiprocessing start method to spawn
+    mp.start_method("spawn", force=True)
 
     # predefine config
     top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
