@@ -37,7 +37,9 @@ def main(args: ArgumentParser.parse_args):
         logger.info(f"learning rate: {args.lr}")
         logger.info(f"regularization: {args.regularization}")
         logger.info(f"epochs: {args.epochs}")
-        logger.info(f"number of factors for user / item embedding: {args.num_factors}")
+        logger.info(
+            f"number of factors for user / item embedding: {args.embedding_dim}"
+        )
         logger.info(f"test ratio: {args.test_ratio}")
         logger.info(f"patience for watching validation loss: {args.patience}")
         logger.info(f"result path: {args.result_path}")
@@ -70,7 +72,7 @@ def main(args: ArgumentParser.parse_args):
         model = model_module(
             num_users=data["num_users"],
             num_items=data["num_diners"],
-            num_factors=args.num_factors,
+            embedding_dim=args.embedding_dim,
             top_k_values=top_k_values_for_pred,
             mu=data["y_train"].mean(),
         ).to(args.device)

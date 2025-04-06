@@ -20,7 +20,7 @@ class Model(nn.Module):
         self,
         num_users: int,
         num_items: int,
-        num_factors: int,
+        embedding_dim: int,
         top_k_values: List[int],
         **kwargs,
     ):
@@ -28,15 +28,15 @@ class Model(nn.Module):
         Args:
             num_users (int): number of unique users across train / validation dataset.
             num_items (int): number of unique items (diners) across train / validation dataset.
-            num_factors (int): dimension size of embedding vector.
+            embedding_dim (int): dimension size of embedding vector.
         """
         super(Model, self).__init__()
 
         self.num_users = num_users
         self.num_items = num_items
 
-        self.embed_user = nn.Embedding(num_users, num_factors)
-        self.embed_item = nn.Embedding(num_items, num_factors)
+        self.embed_user = nn.Embedding(num_users, embedding_dim)
+        self.embed_item = nn.Embedding(num_items, embedding_dim)
         self.user_bias = nn.Embedding(num_users, 1)
         self.item_bias = nn.Embedding(num_items, 1)
         self.mu = kwargs["mu"]
@@ -76,8 +76,8 @@ class Model(nn.Module):
         Returns (Tensor):
             Predicted scores of each user related with item ids.
         """
-        embed_user = self.embed_user(user_idx)  # batch_size * num_factors
-        embed_item = self.embed_item(item_idx)  # batch_size * num_factors
+        embed_user = self.embed_user(user_idx)  # batch_size * embedding_dim
+        embed_item = self.embed_item(item_idx)  # batch_size * embedding_dim
         user_bias = self.user_bias(user_idx)  # batch_size * 1
         item_bias = self.item_bias(item_idx)  # batch_size * 1
         output = (
