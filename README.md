@@ -121,10 +121,11 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
 |----------------------|-----------------|
 | Candidate generation | node2vec        |
 | Candidate generation | metapath2vec    |
+| Candidate generation | graphsage       |
 | Reranker             | lightgbm ranker |
 | Reranker             | xgboost ranker  |
 
-We plan to generate candidate diners of each user using `candidate generation model` and rerank them using `reranker model`.
+We are planning to generate candidate diners of each user using `candidate generation model` and rerank them using `reranker model`.
 
 
 ---
@@ -154,7 +155,7 @@ For detail description of each metric, please refer to [discussion](https://gith
 
 | Algorithm       | Task                  | mAP@3     | mAP@7     | mAP@10    | mAP@20     | NDCG@3  | NDCG@7  | NDCG@10 | NDCG@20   |
 |-----------------|-----------------------|-----------|-----------|-----------|------------|---------|---------|---------|-----------|
-| SVD             | Regression            | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
+| SVD             | Regression            | 0.00001   | 0.00002   | 0.00002   | 0.00003    | 0.00002 | 0.00003 | 0.00004 | 0.00007   |
 | node2vec        | Unsupervised learning | 0.00361   | 0.00445   | 0.00475   | 0.00523    | 0.00619 | 0.00738 | 0.00814 | 0.00989   |
 | metapath2vec    | Unsupervised learning | 0.00004   | 0.00006   | 0.00007   | 0.00008    | 0.00008 | 0.00012 | 0.00015 | 0.00021   |
 | graphsage       | Unsupervised learning | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
