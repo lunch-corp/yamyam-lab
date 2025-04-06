@@ -29,7 +29,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     config = load_yaml(CONFIG_PATH.format(model=args.model))
 
     # set multiprocessing start method to spawn
-    mp.start_method("spawn", force=True)
+    mp.set_start_method("spawn", force=True)
 
     # predefine config
     top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
