@@ -118,6 +118,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             model_name=args.model,
             device=args.device,
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
+            num_workers=4,  # can be tuned based on server spec
             meta_path=args.meta_path,  # metapath2vec parameter
             num_layers=args.num_sage_layers,  # graphsage parameter
             aggregator_funcs=args.aggregator_funcs,  # graphsage parameter

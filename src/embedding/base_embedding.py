@@ -31,6 +31,7 @@ class BaseEmbedding(nn.Module):
         model_name: str,
         device: str,
         recommend_batch_size: int,
+        num_workers: int,
     ):
         """
         Base module for node embedding model (node2vec, metapath2vec, graphsage)
@@ -59,6 +60,7 @@ class BaseEmbedding(nn.Module):
         self.model_name = model_name
         self.device = device
         self.recommend_batch_size = recommend_batch_size
+        self.num_workers = num_workers
         self.EPS = 1e-15
         self.num_users = len(self.user_ids)
         self.num_diners = len(self.diner_ids)
@@ -111,9 +113,9 @@ class BaseEmbedding(nn.Module):
         return DataLoader(
             torch.tensor([node for node in self.graph.nodes()]),
             collate_fn=self.sample,
-            num_workers=4,  # can be tuned depending on server spec
-            pin_memory=True,  # to reduce data transfer btw cpu and gpu
-            prefetch_factor=2,  # can be tuned depending on server spec
+            num_workers=self.num_workers,  # can be tuned depending on server spec
+            # pin_memory=True,  # to reduce data transfer btw cpu and gpu
+            # prefetch_factor=2,  # can be tuned depending on server spec
             **kwargs,
         )
 

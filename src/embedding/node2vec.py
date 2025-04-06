@@ -5,6 +5,7 @@ import torch
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
+from loss.custom import basic_contrastive_loss
 from tools.generate_walks import precompute_probabilities
 
 
@@ -23,6 +24,7 @@ class Model(BaseEmbedding):
         model_name: str,
         device: str,
         recommend_batch_size: int,
+        num_workers: int,
         # parameters for node2vec
         walk_length: int,
         p: float = 1.0,
@@ -67,6 +69,7 @@ class Model(BaseEmbedding):
             model_name=model_name,
             device=device,
             recommend_batch_size=recommend_batch_size,
+            num_workers=num_workers,
         )
 
         self.walk_length = walk_length
@@ -138,26 +141,16 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Calculated loss.
         """
-        # Positive loss.
-        start, rest = pos_rw[:, 0], pos_rw[:, 1:].contiguous()
-
-        h_start = self._embedding(start).view(pos_rw.size(0), 1, self.embedding_dim)
-        h_rest = self._embedding(rest.view(-1)).view(
+        pos_rw_emb = self._embedding(pos_rw.view(-1)).view(
             pos_rw.size(0), -1, self.embedding_dim
         )
-
-        out = (h_start * h_rest).sum(dim=-1).view(-1)
-        pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
-
-        # Negative loss.
-        start, rest = neg_rw[:, 0], neg_rw[:, 1:].contiguous()
-
-        h_start = self._embedding(start).view(neg_rw.size(0), 1, self.embedding_dim)
-        h_rest = self._embedding(rest.view(-1)).view(
+        neg_rw_emb = self._embedding(neg_rw.view(-1)).view(
             neg_rw.size(0), -1, self.embedding_dim
         )
 
-        out = (h_start * h_rest).sum(dim=-1).view(-1)
-        neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()
+        contrastive_loss = basic_contrastive_loss(
+            pos_rw_emb=pos_rw_emb,
+            neg_rw_emb=neg_rw_emb,
+        )
 
-        return pos_loss + neg_loss
+        return contrastive_loss

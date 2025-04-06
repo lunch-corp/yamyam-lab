@@ -43,6 +43,7 @@ def setup_config(request):
     model, use_metadata = request.param
     args = argparse.ArgumentParser()
     args.model = model
+    args.device = "cpu"
     args.batch_size = 128
     args.lr = 0.01
     args.regularization = 1e-4
@@ -67,6 +68,8 @@ def setup_config(request):
     ]
     args.category_column_for_meta = "diner_category_large"
     args.num_sage_layers = 2
+    args.aggregator_funcs = ["mean", "mean"]
+    args.num_neighbor_samples = 3
     args.test = True
     args.save_candidate = False
     return args

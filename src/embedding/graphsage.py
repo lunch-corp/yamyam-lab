@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
+from loss.custom import basic_contrastive_loss
 from tools.generate_walks import precompute_probabilities
 from tools.sampling import uniform_sampling_without_replacement_from_small_size_pool
 
@@ -42,6 +43,7 @@ class Model(BaseEmbedding):
         model_name: str,
         device: str,
         recommend_batch_size: int,
+        num_workers: int,
         # parameters for graphsage
         num_layers: int,
         user_raw_features: torch.Tensor,
@@ -85,6 +87,7 @@ class Model(BaseEmbedding):
             model_name=model_name,
             device=device,
             recommend_batch_size=recommend_batch_size,
+            num_workers=num_workers,
         )
         self.num_layers = num_layers
         self.user_raw_features = user_raw_features
@@ -280,21 +283,12 @@ class Model(BaseEmbedding):
             neg_rw.size(0), -1, self.embedding_dim
         )  # [i][j]: embedding of neg_rw[i][j]
 
-        # positive loss
-        h_start = pos_rw_emb[:, 0:1, :]
-        h_rest = pos_rw_emb[:, 1:, :]
+        contrastive_loss = basic_contrastive_loss(
+            pos_rw_emb=pos_rw_emb,
+            neg_rw_emb=neg_rw_emb,
+        )
 
-        out = (h_start * h_rest).sum(dim=-1).view(-1)
-        pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
-
-        # negative loss
-        h_start = neg_rw_emb[:, 0:1, :]
-        h_rest = neg_rw_emb[:, 1:, :]
-
-        out = (h_start * h_rest).sum(dim=-1).view(-1)
-        neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()
-
-        return pos_loss + neg_loss
+        return contrastive_loss
 
     # Neighborhood sampling function (N_k in the algorithm)
     @staticmethod
