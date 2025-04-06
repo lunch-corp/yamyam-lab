@@ -6,7 +6,7 @@ import torch.nn as nn
 from numpy.typing import NDArray
 from torch import Tensor
 
-from evaluation.metric import ranked_precision, ranking_metrics_at_k
+from evaluation.metric import ranking_metrics_at_k
 from tools.utils import convert_tensor, safe_divide
 
 
@@ -64,26 +64,16 @@ class Model(nn.Module):
         self,
         X_train: Tensor,
         X_val: Tensor,
-        nearby_candidates: Dict[int, List[int]],
         top_K: List[int] = [3, 5, 7, 10, 20],
         filter_already_liked: bool = True,
     ) -> Dict[int, NDArray]:
         """
-        Recommend item to each user based on predicted scores.
-        Recommendations on two ways are performed.
-         - Recommend items to each user not considering user's locality.
-           -> Calculates NDCG, mAP metric.
-         - Recommend items to each user considering user's locality.
-           -> Calculates ranked precision metric.
-        Second method gets candidates from `NearCandidateGenerator`,
-        which filters diners within x km distance given user's latitude and longitude.
+        Recommend item to each user based on predicted scores and
 
         Args:
             X_train (Tensor): Dataset used when training model.
                 When recommendation, this is used when filtering items that already liked by user.
             X_val (Tensor): Dataset used when validation model.
-            nearby_candidates (Dict[int, List[int]]): Each key is reference diner, and
-                corresponding value is a list of diners within x km distance with reference diner.
             top_K (List[int]): A list of number of items to recommend to user.
             filter_already_liked (bool): Whether to filter items that already liked
                 by user in train dataset.
@@ -99,15 +89,10 @@ class Model(nn.Module):
         train_liked = convert_tensor(X_train, dict)
         val_liked = convert_tensor(X_val, list)
         res = {}
-        metric_at_K = {
-            k: {"map": 0, "ndcg": 0, "count": 0, "ranked_prec": 0} for k in top_K
-        }
+        metric_at_K = {k: {"map": 0, "ndcg": 0, "count": 0} for k in top_K}
         for user in range(self.num_users):
             item_idx = torch.arange(self.num_items)
             user_idx = torch.tensor([user]).repeat(self.num_items)
-
-            # diner_ids visited by user in validation dataset
-            locations = val_liked[user]
 
             # calculate one user's predicted scores for all item_ids
             with torch.no_grad():
@@ -136,18 +121,6 @@ class Model(nn.Module):
                 metric_at_K[K]["ndcg"] += metric["ndcg"]
                 metric_at_K[K]["count"] += 1
 
-                for location in locations:
-                    # filter only near diner
-                    near_diner = np.array(nearby_candidates[location])
-                    near_diner_score = np.array([scores[i].item() for i in near_diner])
-
-                    # sort indices using predicted score
-                    indices = np.argsort(near_diner_score)[::-1]
-                    pred_near_liked_item_id = near_diner[indices][:K]
-                    metric_at_K[K]["ranked_prec"] += ranked_precision(
-                        location, pred_near_liked_item_id
-                    )
-
                 # store recommendation result when K=20
                 if K == 20:
                     res[user] = pred_liked_item_id
@@ -157,9 +130,6 @@ class Model(nn.Module):
             )
             metric_at_K[K]["ndcg"] = safe_divide(
                 numerator=metric_at_K[K]["ndcg"], denominator=metric_at_K[K]["count"]
-            )
-            metric_at_K[K]["ranked_prec"] = safe_divide(
-                numerator=metric_at_K[K]["ranked_prec"], denominator=X_val.shape[0]
             )
         self.metric_at_K = metric_at_K
         return res

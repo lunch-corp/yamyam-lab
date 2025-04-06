@@ -7,7 +7,6 @@ from argparse import ArgumentParser
 import torch
 from torch import optim
 
-from candidate.near import NearCandidateGenerator
 from data.dataset import DatasetLoader
 from loss.custom import svd_loss
 from preprocess.preprocess import prepare_torch_dataloader
@@ -60,25 +59,6 @@ def main(args: ArgumentParser.parse_args):
         )
 
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
-
-        # get near 1km diner_ids
-        candidate_generator = NearCandidateGenerator()
-        near_diners = candidate_generator.get_near_candidates_for_all_diners(
-            max_distance_km=config.training.near_candidate.max_distance_km
-        )
-        # convert diner_ids
-        diner_mapping = data["diner_mapping"]
-        nearby_candidates_mapping = {}
-        for ref_id, nearby_id in near_diners.items():
-            # only get diner appeared in train/val dataset
-            if diner_mapping.get(ref_id) is None:
-                continue
-            nearby_id_mapping = [
-                diner_mapping.get(diner_id)
-                for diner_id in nearby_id
-                if diner_mapping.get(diner_id) is not None
-            ]
-            nearby_candidates_mapping[diner_mapping[ref_id]] = nearby_id_mapping
 
         # train model
         best_loss = float("inf")
@@ -135,16 +115,13 @@ def main(args: ArgumentParser.parse_args):
             model.recommend(
                 X_train=data["X_train"],
                 X_val=data["X_val"],
-                nearby_candidates=nearby_candidates_mapping,
                 filter_already_liked=True,
             )
             maps = []
             ndcgs = []
-            ranked_precs = []
             for K in model.metric_at_K.keys():
                 map = round(model.metric_at_K[K]["map"], 5)
                 ndcg = round(model.metric_at_K[K]["ndcg"], 5)
-                ranked_prec = round(model.metric_at_K[K]["ranked_prec"], 5)
                 count = model.metric_at_K[K]["count"]
                 logger.info(
                     f"maP@{K}: {map} with {count} users out of all {model.num_users} users"
@@ -152,15 +129,12 @@ def main(args: ArgumentParser.parse_args):
                 logger.info(
                     f"ndcg@{K}: {ndcg} with {count} users out of all {model.num_users} users"
                 )
-                logger.info(f"ranked precision@{K}: {ranked_prec}")
 
                 maps.append(str(map))
                 ndcgs.append(str(ndcg))
-                ranked_precs.append(str(ranked_prec))
 
             logger.info(f"map result: {'|'.join(maps)}")
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
-            logger.info(f"ranked_prec result: {'|'.join(ranked_precs)}")
 
             if best_loss > val_loss:
                 prev_best_loss = best_loss
