@@ -263,7 +263,7 @@ class BaseEmbedding(nn.Module):
         for count, user_ids in liked_items_count2user_ids.items():
             num_users = len(user_ids)
             start = 0
-            user_ids = torch.tensor(user_ids)
+            user_ids = torch.tensor(user_ids, device=self.device)
 
             while start < num_users:
                 batch_users = user_ids[start : start + self.recommend_batch_size]
