@@ -187,19 +187,11 @@ class BaseEmbedding(nn.Module):
         Suppose number of users is U and number of diners is D.
         The dimension of associated matrix between users and diners is U x D.
         However, to avoid out of memory error, batch recommendation is run.
-        For every batch users, we calculate metric when there are no candidates,
-        and there are near diner candidates.
-
-            - when there are no candidates:
-                map, ndcg, recall, ranked_prec are calculated at @3, @7, @10, @20
-            - when there are near diner candidates:
-                recall is calculated at @100, @300, @500
 
         Args:
              X_train (Tensor): number of reviews x (diner_id, reviewer_id) in train dataset.
              X_val (Tensor): number of reviews x (diner_id, reviewer_id) in val dataset.
              top_k_values (List[int]): a list of k values.
-             epoch (int): current epoch.
              filter_already_liked (bool): whether filtering pre-liked diner in train dataset or not.
         """
         # prepare for metric calculation

@@ -38,43 +38,45 @@ def plot_metric_at_k(
         Metric.RECALL.value,
     ]
 
-    for metric_name in pred_metrics:
-        pred_metrics_df = pd.DataFrame()
-        for k in top_k_values_for_pred:
-            epochs = len(metric[k][metric_name])
-            tmp = pd.DataFrame(
-                {
-                    "metric": metric_name,
-                    "@k": f"@{k}",
-                    "value": metric[k][metric_name],
-                    "epochs": [i for i in range(epochs)],
-                }
+    if len(top_k_values_for_pred) >= 1:
+        for metric_name in pred_metrics:
+            pred_metrics_df = pd.DataFrame()
+            for k in top_k_values_for_pred:
+                epochs = len(metric[k][metric_name])
+                tmp = pd.DataFrame(
+                    {
+                        "metric": metric_name,
+                        "@k": f"@{k}",
+                        "value": metric[k][metric_name],
+                        "epochs": [i for i in range(epochs)],
+                    }
+                )
+                pred_metrics_df = pd.concat([pred_metrics_df, tmp])
+            plot_metric(
+                df=pred_metrics_df,
+                metric_name=metric_name,
+                save_path=os.path.join(parent_save_path, f"{metric_name}.png"),
             )
-            pred_metrics_df = pd.concat([pred_metrics_df, tmp])
-        plot_metric(
-            df=pred_metrics_df,
-            metric_name=metric_name,
-            save_path=os.path.join(parent_save_path, f"{metric_name}.png"),
-        )
 
-    for metric_name in candidate_metrics:
-        candidate_metrics_df = pd.DataFrame()
-        for k in top_k_values_for_candidate:
-            epochs = len(metric[k][metric_name])
-            tmp = pd.DataFrame(
-                {
-                    "metric": metric_name,
-                    "@k": f"@{k}",
-                    "value": metric[k][metric_name],
-                    "epochs": [i for i in range(epochs)],
-                }
+    if len(top_k_values_for_candidate) >= 1:
+        for metric_name in candidate_metrics:
+            candidate_metrics_df = pd.DataFrame()
+            for k in top_k_values_for_candidate:
+                epochs = len(metric[k][metric_name])
+                tmp = pd.DataFrame(
+                    {
+                        "metric": metric_name,
+                        "@k": f"@{k}",
+                        "value": metric[k][metric_name],
+                        "epochs": [i for i in range(epochs)],
+                    }
+                )
+                candidate_metrics_df = pd.concat([candidate_metrics_df, tmp])
+            plot_metric(
+                df=candidate_metrics_df,
+                metric_name=metric_name,
+                save_path=os.path.join(parent_save_path, f"{metric_name}.png"),
             )
-            candidate_metrics_df = pd.concat([candidate_metrics_df, tmp])
-        plot_metric(
-            df=candidate_metrics_df,
-            metric_name=metric_name,
-            save_path=os.path.join(parent_save_path, f"{metric_name}.png"),
-        )
 
     tr_loss_df = pd.DataFrame(
         {
