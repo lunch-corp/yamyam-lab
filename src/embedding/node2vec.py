@@ -141,10 +141,10 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Calculated loss.
         """
-        pos_rw_emb = self._embedding(pos_rw.view(-1)).view(
+        pos_rw_emb = self._embedding(pos_rw.view(-1).to(self.device)).view(
             pos_rw.size(0), -1, self.embedding_dim
         )
-        neg_rw_emb = self._embedding(neg_rw.view(-1)).view(
+        neg_rw_emb = self._embedding(neg_rw.view(-1).to(self.device)).view(
             neg_rw.size(0), -1, self.embedding_dim
         )
 
