@@ -13,11 +13,12 @@ def parse_nested_list(value: str) -> List[str]:
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True, choices=["svd_bias"])
+    parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--regularization", type=float, default=1e-4)
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--num_factors", type=int, default=32)
+    parser.add_argument("--embedding_dim", type=int, default=32)
     parser.add_argument("--test_ratio", type=float, default=0.3)
     parser.add_argument("--random_state", type=int, default=42)
     parser.add_argument("--patience", type=int, default=5)

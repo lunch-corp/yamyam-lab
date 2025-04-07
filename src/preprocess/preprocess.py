@@ -225,7 +225,7 @@ def prepare_torch_dataloader(
     X_val: Tensor,
     y_val: Tensor,
     batch_size: int = 128,
-    random_state: int = 42,
+    num_workers: int = 4,
 ) -> Tuple[DataLoader, DataLoader]:
     """
     Make train / validation pytorch DataLoader.
@@ -237,18 +237,31 @@ def prepare_torch_dataloader(
         X_val (Tensor): input features used when validating model.
         y_val (Tensor): target features used when validating model.
         batch_size (int): batch size for mini-batch gradient descent.
-        random_state (int): random seed for reproducibility.
+        num_workers (int): number of workers when multiprocessing.
 
     Returns (Tuple[DataLoader, DataLoader]):
         Train / validation dataloader.
     """
-    # seed = torch.Generator(device=device.type).manual_seed(random_state)
 
     train_dataset = TorchData(X_train, y_train)
     val_dataset = TorchData(X_val, y_val)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
+    train_dataloader = DataLoader(
+        dataset=train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+        prefetch_factor=2,
+    )
+    val_dataloader = DataLoader(
+        dataset=val_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+        prefetch_factor=2,
+    )
     return train_dataloader, val_dataloader
 
 

@@ -43,10 +43,10 @@ def setup_config(request):
     model, use_metadata = request.param
     args = argparse.ArgumentParser()
     args.model = model
+    args.device = "cpu"
     args.batch_size = 128
     args.lr = 0.01
     args.regularization = 1e-4
-    args.num_factors = 16
     args.patience = 5
     args.epochs = 1
     args.test_ratio = 0.3
