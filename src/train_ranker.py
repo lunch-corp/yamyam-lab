@@ -128,7 +128,7 @@ def main(cfg: DictConfig):
         logging.info(f"\nEvaluation Results\n{table}")
 
     except Exception:
-        pass
+        logging.info("No candidate dataset")
 
     # plot feature importance
     trainer.plot_feature_importance()
