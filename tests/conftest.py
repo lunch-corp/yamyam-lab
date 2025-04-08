@@ -17,7 +17,7 @@ class DataConfig:
     user_engineered_feature_names: List[Dict[str, Any]]
     diner_engineered_feature_names: List[Dict[str, Any]]
     test: bool = True
-
+    is_candidate_dataset: bool = False
 
 @dataclass
 class ModelConfig:
