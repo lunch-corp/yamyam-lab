@@ -37,3 +37,4 @@ cat_features:
 
 target: target
 size: 30
+is_candidate_dataset: true
