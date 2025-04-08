@@ -19,6 +19,7 @@ class DataConfig:
     test: bool = True
     is_candidate_dataset: bool = False
 
+
 @dataclass
 class ModelConfig:
     model_path: str
