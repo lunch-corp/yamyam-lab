@@ -36,16 +36,20 @@ def main(cfg: DictConfig):
         data["y_val"],
     )
 
-    # build model
+    # build Pmodel
     trainer = build_model(cfg)
 
     try:
         candidates = data["candidates"]
         reviewer_mapping = {v: k for k, v in data["user_mapping"].items()}
+        diner_mapping = {v: k for k, v in data["diner_mapping"].items()}
         candidate_mapping = {v: k for k, v in data["candidate_user_mapping"].items()}
+        candidate_diner_mapping = {v: k for k, v in data["candidate_diner_mapping"].items()}
 
         X_test["reviewer_id"] = X_test["reviewer_id"].map(reviewer_mapping)
+        X_test["diner_idx"] = X_test["diner_idx"].map(diner_mapping)
         candidates["reviewer_id"] = candidates["reviewer_id"].map(candidate_mapping)
+        candidates["diner_idx"] = candidates["diner_idx"].map(candidate_diner_mapping)
 
         # train model
         trainer.fit(X_train, y_train, X_test, y_test)
