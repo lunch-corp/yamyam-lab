@@ -5,11 +5,9 @@ from apps.components.utils import load_data
 
 
 def diner_analysis_page():
-    st.title("식당 분석")
+    review_df, diner_df = load_data()
 
-    # 데이터 로드
-    with st.spinner("데이터를 불러오는 중..."):
-        review_df, diner_df = load_data()
+    st.title("식당 분석")
 
     search_button = False
 
@@ -145,7 +143,10 @@ def diner_analysis_page():
         if pd.notna(diner_info["diner_lat"]) and pd.notna(diner_info["diner_lon"]):
             st.map(
                 pd.DataFrame(
-                    {"lat": [diner_info["diner_lat"]], "lon": [diner_info["diner_lon"]]}
+                    {
+                        "lat": [diner_info["diner_lat"]],
+                        "lon": [diner_info["diner_lon"]],
+                    }
                 )
             )
         st.write(diner_info["diner_road_address"])
