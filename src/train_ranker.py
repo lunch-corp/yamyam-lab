@@ -44,7 +44,9 @@ def main(cfg: DictConfig):
         reviewer_mapping = {v: k for k, v in data["user_mapping"].items()}
         diner_mapping = {v: k for k, v in data["diner_mapping"].items()}
         candidate_mapping = {v: k for k, v in data["candidate_user_mapping"].items()}
-        candidate_diner_mapping = {v: k for k, v in data["candidate_diner_mapping"].items()}
+        candidate_diner_mapping = {
+            v: k for k, v in data["candidate_diner_mapping"].items()
+        }
 
         X_test["reviewer_id"] = X_test["reviewer_id"].map(reviewer_mapping)
         X_test["diner_idx"] = X_test["diner_idx"].map(diner_mapping)
