@@ -36,6 +36,7 @@ def main(cfg: DictConfig):
         data["y_val"],
     )
 
+    # build model
     trainer = build_model(cfg)
 
     try:
