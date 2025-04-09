@@ -36,14 +36,7 @@ def main(cfg: DictConfig):
         data["y_val"],
     )
 
-    # train model
     trainer = build_model(cfg)
-
-    # train model
-    trainer.fit(X_train, y_train, X_test, y_test)
-
-    # save model
-    trainer.save_model()
 
     try:
         candidates = data["candidates"]
@@ -52,6 +45,9 @@ def main(cfg: DictConfig):
 
         X_test["reviewer_id"] = X_test["reviewer_id"].map(reviewer_mapping)
         candidates["reviewer_id"] = candidates["reviewer_id"].map(candidate_mapping)
+
+        # train model
+        trainer.fit(X_train, y_train, X_test, y_test)
 
         # candidate predictions
         batch_size = 100000
@@ -102,13 +98,16 @@ def main(cfg: DictConfig):
                 continue
 
             for K in metric_at_K.keys():
+                # if len(liked_items) < K:
+                #     continue
+
                 metric = ranking_metrics_at_k(
                     liked_items=np.array(liked_items), reco_items=pred_items[:K]
                 )
 
-            metric_at_K[K]["map"] += metric["ap"]
-            metric_at_K[K]["ndcg"] += metric["ndcg"]
-            metric_at_K[K]["count"] += 1
+                metric_at_K[K]["map"] += metric["ap"]
+                metric_at_K[K]["ndcg"] += metric["ndcg"]
+                metric_at_K[K]["count"] += 1
 
         # Average metrics
         table = PrettyTable()
@@ -128,7 +127,11 @@ def main(cfg: DictConfig):
         logging.info(f"\nEvaluation Results\n{table}")
 
     except Exception:
-        logging.info("No candidate dataset")
+        logging.info("No candidates data found just training model")
+        trainer.fit(X_train, y_train, X_test, y_test)
+
+    # save model
+    trainer.save_model()
 
     # plot feature importance
     trainer.plot_feature_importance()
