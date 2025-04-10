@@ -1,61 +1,123 @@
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 
 from apps.components.utils import load_data
 
 
-def create_category_treemap(diner_df: pd.DataFrame) -> go.Figure:
-    """카테고리 트리맵을 생성합니다."""
-    category_counts = (
+def create_category_treemap(diner_df):
+    """
+    카테고리 구조를 트리맵으로 시각화
+    """
+    # 각 카테고리 레벨별 카운트
+    df_grouped = (
         diner_df.groupby(
-            ["diner_category_large", "diner_category_middle", "diner_category_small"]
+            [
+                "diner_category_large",
+                "diner_category_middle",
+                "diner_category_small",
+            ]
         )
         .size()
         .reset_index(name="count")
     )
 
+    # 누락된 값 처리
+    df_grouped = df_grouped.fillna("기타")
+
+    # 트리맵 생성
     fig = px.treemap(
-        category_counts,
+        df_grouped,
         path=["diner_category_large", "diner_category_middle", "diner_category_small"],
         values="count",
-        title="카테고리 분포",
+        color="count",
+        color_continuous_scale="Viridis",
+        title="카테고리별 식당 분포",
     )
-    fig.update_traces(root_color="lightgrey")
-    fig.update_layout(height=600)
+    fig.update_layout(margin=dict(t=50, l=25, r=25, b=25))
     return fig
 
 
-def create_category_metrics(df: pd.DataFrame, category_col: str) -> pd.DataFrame:
-    """카테고리별 주요 지표를 계산합니다."""
-    metrics = (
-        df.groupby(category_col)
-        .agg(
-            {
-                "diner_idx": "count",
-                "diner_review_avg": "mean",
-                "bayesian_score": "mean",
-                "diner_review_cnt": "mean",
-            }
-        )
-        .round(2)
+def create_category_metrics(diner_df, category_column):
+    """
+    선택한 카테고리 수준에 따른 메트릭 계산
+    """
+    diner_df["diner_review_cnt"] = pd.to_numeric(
+        diner_df["diner_review_cnt"], errors="coerce"
     )
 
+    # 카테고리별 평균 및 카운트 계산
+    metrics = pd.DataFrame(
+        {
+            "count": diner_df.groupby(category_column).size(),
+            "avg_rating": diner_df.groupby(category_column)["diner_review_avg"].mean(),
+            "bayesian_avg": diner_df.groupby(category_column)["bayesian_score"].mean(),
+            "avg_reviews": diner_df.groupby(category_column)["diner_review_cnt"].mean(),
+        }
+    )
+
+    # 결측치 처리
+    metrics = metrics.fillna(0)
     metrics.columns = ["식당 수", "평균 평점", "베이지안 평균", "평균 리뷰 수"]
     return metrics.sort_values("식당 수", ascending=False)
 
 
+def create_missing_values_chart(diner_df):
+    """
+    각 카테고리 수준별 결측치 비율을 시각화합니다.
+    """
+    category_columns = [
+        "diner_category_large",
+        "diner_category_middle",
+        "diner_category_small",
+        "diner_category_detail",
+    ]
+
+    # 결측치 계산
+    missing_data = {"카테고리 수준": [], "결측치 수": [], "결측치 비율(%)": []}
+
+    total_rows = len(diner_df)
+
+    for col in category_columns:
+        missing_count = diner_df[col].isna().sum()
+        missing_percent = (missing_count / total_rows) * 100
+
+        missing_data["카테고리 수준"].append(col.replace("diner_category_", ""))
+        missing_data["결측치 수"].append(missing_count)
+        missing_data["결측치 비율(%)"].append(missing_percent)
+
+    missing_df = pd.DataFrame(missing_data)
+
+    # 막대 그래프 생성
+    fig = px.bar(
+        missing_df,
+        x="카테고리 수준",
+        y="결측치 비율(%)",
+        text="결측치 수",
+        title="카테고리 수준별 결측치 비율",
+        color="결측치 비율(%)",
+        color_continuous_scale="Reds",
+    )
+
+    fig.update_traces(texttemplate="%{text:,}", textposition="outside")
+    fig.update_layout(yaxis_range=[0, 100])
+
+    return fig
+
+
 def category_analysis_page():
+    review_df, diner_df = load_data()
+
     st.title("카테고리 분석")
 
-    # 데이터 로드
-    with st.spinner("데이터를 불러오는 중..."):
-        review_df, diner_df = load_data()
-
     # 탭 생성
-    tab1, tab2, tab3 = st.tabs(
-        ["카테고리 개요", "카테고리별 통계", "카테고리 상세 분석"]
+    tab1, tab2, tab3, tab4 = st.tabs(
+        [
+            "카테고리 개요",
+            "카테고리별 통계",
+            "카테고리 상세 분석",
+            "결측치 분석",
+        ]
     )
 
     with tab1:
@@ -111,9 +173,10 @@ def category_analysis_page():
 
         # 카테고리 선택
         col1, col2, col3 = st.columns(3)
+
         with col1:
             middle_categories = ["전체"] + sorted(
-                diner_df["diner_category_middle"].unique().tolist()
+                diner_df["diner_category_middle"].dropna().unique().tolist()
             )
             large_cat = st.selectbox("중분류 선택:", middle_categories)
 
@@ -126,7 +189,7 @@ def category_analysis_page():
         # 소분류 선택
         with col2:
             small_categories = ["전체"] + sorted(
-                filtered_df["diner_category_small"].unique().tolist()
+                filtered_df["diner_category_small"].dropna().unique().tolist()
             )
             middle_cat = st.selectbox("소분류 선택:", small_categories)
 
@@ -137,7 +200,7 @@ def category_analysis_page():
         # 세부분류 선택
         with col3:
             detail_categories = ["전체"] + sorted(
-                filtered_df["diner_category_detail"].unique().tolist()
+                filtered_df["diner_category_detail"].dropna().unique().tolist()
             )
             small_cat = st.selectbox("세부분류 선택:", detail_categories)
 
@@ -176,6 +239,13 @@ def category_analysis_page():
             title="리뷰 점수 분포",
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    with tab4:
+        st.subheader("카테고리 결측치 분석")
+
+        # 결측치 비율 시각화
+        missing_fig = create_missing_values_chart(diner_df)
+        st.plotly_chart(missing_fig, use_container_width=True)
 
 
 if __name__ == "__main__":

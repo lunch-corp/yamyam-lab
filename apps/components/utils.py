@@ -6,124 +6,72 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src.preprocess.diner_transform import CategoryProcessor
-from src.tools.google_drive import ensure_data_files
-
 # 프로젝트 루트 디렉토리를 Python path에 추가
 root_dir = Path(__file__).parent.parent.parent
 sys.path.append(str(root_dir))
 
 
-@st.cache_data
-def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """리뷰, 식당, 리뷰어 데이터를 로드하고 캐시합니다."""
+@st.cache_data(ttl=3600)
+def load_data():
+    """
+    데이터를 로드하고 Streamlit 캐싱 기능을 사용하여 효율적으로 관리합니다.
 
-    # # 필요한 파일 다운로드 확인
-    data_paths = ensure_data_files()
+    Returns:
+        tuple: (review_df, diner_df, diner_category_df, reviewer_df) - 각 데이터프레임
+    """
+    # 데이터 경로 설정
+    data_path = Path(__file__).parents[2] / "data"
 
-    # 식당 데이터 로드 및 형변환
-    diner = pd.read_csv(data_paths["diner"])
+    # 데이터 로딩 시작
+    # start_time = time.time()
 
-    # category 데이터 로드 및 전처리 후 기존 diner와 merge
-    diner_category_raw = pd.read_csv(data_paths["category"])
-    diner_category_preprocessed = CategoryProcessor(diner_category_raw).process_all().df
-    diner = pd.merge(
-        left=diner, right=diner_category_preprocessed, on="diner_idx", how="left"
-    )
+    with st.spinner("리뷰 데이터를 불러오는 중..."):
+        review_df = pd.read_csv(data_path / "review.csv")
 
-    # 숫자형 컬럼
-    numeric_cols_diner = [
-        "diner_idx",
-        "diner_review_cnt",
-        "diner_blog_review_cnt",
-        "diner_review_avg",
-        "diner_lat",
-        "diner_lon",
-        "bayesian_score",
-    ]
-    diner[numeric_cols_diner] = diner[numeric_cols_diner].apply(
-        pd.to_numeric, errors="coerce"
-    )
+    with st.spinner("식당 데이터를 불러오는 중..."):
+        diner_df = pd.read_csv(data_path / "diner.csv")
 
-    # 문자열 컬럼
-    string_cols_diner = [
-        "diner_name",
-        "diner_category_large",
-        "diner_category_middle",
-        "diner_category_small",
-        "diner_category_detail",
-        "diner_road_address",
-        "diner_num_address",
-        "diner_phone",
-        "diner_open_time",
-    ]
-    diner[string_cols_diner] = diner[string_cols_diner].astype(str)
+    with st.spinner("카테고리 데이터를 불러오는 중..."):
+        diner_category_df = pd.read_csv(data_path / "diner_category_raw.csv")
 
-    # 리스트형 컬럼들
-    list_cols_diner = [
-        "diner_tag",
-        "diner_menu_name",
-        "diner_menu_price",
-        "diner_review_tags",
-    ]
-    for col in list_cols_diner:
-        diner[col] = diner[col].apply(
-            lambda x: eval(x) if pd.notna(x) and x != "nan" else []
-        )
+    with st.spinner("리뷰어 데이터를 불러오는 중..."):
+        reviewer_df = pd.read_csv(data_path / "reviewer.csv")
 
-    # 리뷰어 데이터 로드 및 형변환
-    reviewer = pd.read_csv(data_paths["reviewer"])
+    diner_df = pd.merge(diner_df, diner_category_df, on="diner_idx", how="left")
+    review_df = pd.merge(review_df, reviewer_df, on="reviewer_id", how="left")
 
-    # 숫자형 컬럼
-    numeric_cols_reviewer = ["reviewer_id", "reviewer_avg", "badge_level"]
-    reviewer[numeric_cols_reviewer] = reviewer[numeric_cols_reviewer].apply(
-        pd.to_numeric, errors="coerce"
-    )
+    # end_time = time.time()
+    # st.success(f"데이터 로딩 완료! (소요 시간: {end_time - start_time:.2f}초)")
 
-    # 문자열 컬럼
-    string_cols_reviewer = ["badge_grade", "reviewer_user_name"]
-    reviewer[string_cols_reviewer] = reviewer[string_cols_reviewer].astype(str)
+    return review_df, diner_df
 
-    # 리뷰 데이터 로드 및 형변환
-    review_columns = [
-        "diner_idx",
-        "review_id",
-        "reviewer_id",
-        "reviewer_review",
-        "reviewer_review_date",
-        "reviewer_review_score",
-    ]
 
-    review = pd.read_csv(data_paths["review"], usecols=review_columns)
+# @st.cache_data(ttl=3600)
+# def get_review_data():
+#     """리뷰 데이터만 로드합니다."""
+#     data_path = Path(__file__).parents[2] / "data"
+#     return pd.read_csv(data_path / "review.csv")
 
-    # 날짜형 변환
-    review["reviewer_review_date"] = pd.to_datetime(review["reviewer_review_date"])
 
-    # 숫자형 변환
-    numeric_cols_review = ["diner_idx", "review_id", "reviewer_id"]
-    review[numeric_cols_review] = review[numeric_cols_review].apply(
-        pd.to_numeric, errors="coerce"
-    )
+# @st.cache_data(ttl=3600)
+# def get_diner_data():
+#     """식당 데이터만 로드합니다."""
+#     data_path = Path(__file__).parents[2] / "data"
+#     return pd.read_csv(data_path / "diner.csv")
 
-    # 데이터 정제
-    # NA 값 처리
-    diner = diner.fillna(
-        {
-            "diner_open_time": "",
-            "diner_phone": "",
-            "diner_road_address": "",
-            "diner_num_address": "",
-        }
-    )
 
-    reviewer = reviewer.fillna({"badge_grade": "", "reviewer_user_name": ""})
+# @st.cache_data(ttl=3600)
+# def get_category_data():
+#     """카테고리 데이터만 로드합니다."""
+#     data_path = Path(__file__).parents[2] / "data"
+#     return pd.read_csv(data_path / "diner_category_raw.csv")
 
-    review = review.fillna({"reviewer_review": ""})
 
-    # 리뷰 데이터에 리뷰어 정보 병합
-    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
-    review["score_diff"] = review["reviewer_review_score"] - review["reviewer_avg"]
-    return review, diner
+# @st.cache_data(ttl=3600)
+# def get_reviewer_data():
+#     """리뷰어 데이터만 로드합니다."""
+#     data_path = Path(__file__).parents[2] / "data"
+#     return pd.read_csv(data_path / "reviewer.csv")
 
 
 def get_reviewer_info(
@@ -134,6 +82,9 @@ def get_reviewer_info(
     if len(target_reviewer) == 0:
         return None, None
     reviewer_name = target_reviewer["reviewer_user_name"].iloc[0]
+    target_reviewer["score_diff"] = (
+        target_reviewer["reviewer_review_score"] - target_reviewer["reviewer_avg"]
+    )
     return target_reviewer, reviewer_name
 
 

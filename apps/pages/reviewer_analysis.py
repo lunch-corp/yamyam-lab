@@ -18,12 +18,9 @@ from apps.components.utils import (
 
 
 def reviewer_analysis_page():
+    review_df, diner_df = load_data()
+
     st.title("리뷰어 분석")
-
-    # 데이터 로드
-    with st.spinner("데이터를 불러오는 중..."):
-        review_df, diner_df = load_data()
-
     # 사이드바에 리뷰어 ID 입력
     with st.sidebar:
         st.subheader("리뷰어 검색")
