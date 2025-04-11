@@ -169,6 +169,30 @@ class BaseEmbedding(nn.Module):
             Negative samples for each of node ids.
         """
         batch = batch.repeat(self.walks_per_node)
+
+        rw = torch.randint(
+            self.num_nodes,
+            (batch.size(0), self.num_negative_samples),
+            dtype=batch.dtype,
+            device=batch.device,
+        )
+        rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
+
+        return rw
+
+    def _neg_sample_from_train_nodes(self, batch: Tensor) -> Tensor:
+        """
+        Sample negative with uniform sampling.
+        In word2vec objective function, to reduce computation burden, negative sampling
+        is performed and approximate denominator of probability.
+
+        Args:
+            batch (Tensor): A batch of node ids.
+
+        Returns (Tensor):
+            Negative samples for each of node ids.
+        """
+        batch = batch.repeat(self.walks_per_node)
         train_num_nodes = len(self.graph.nodes)
 
         indices = torch.randint(

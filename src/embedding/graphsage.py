@@ -153,7 +153,10 @@ class Model(BaseEmbedding):
                 layer_nodes[k - 1].add(u)
 
                 # Sample neighbors of u and add them to required nodes at layer k-1
-                neighbors = list(self.graph.neighbors(u))
+                if self.graph.has_node(u):
+                    neighbors = list(self.graph.neighbors(u))
+                else:
+                    neighbors = []
                 sampled_neighbors = self.sample_neighbors(
                     neighbors, self.num_neighbor_samples
                 )
@@ -169,7 +172,10 @@ class Model(BaseEmbedding):
         # Line 8: initialize with input features for layer 0
         features = self._get_raw_features()
         for v in layer_nodes[0]:
-            hidden_reps[0][v] = features[v]
+            if self.graph.has_node(v):
+                hidden_reps[0][v] = features[v]
+            else:
+                hidden_reps[0][v] = torch.zeros(self.embedding_dim, device=self.device)
 
         # Lines 9-15: forward propagation through layers
         for k in range(1, self.num_layers + 1):

@@ -83,7 +83,6 @@ class Model(BaseEmbedding):
                 q=q,
             )
 
-    @torch.jit.export
     def pos_sample(self, batch: Tensor) -> Tensor:
         """
         For each of node id, generate biased random walk using `generate_walks` function.
@@ -98,7 +97,6 @@ class Model(BaseEmbedding):
         """
         return self._pos_sample(batch)
 
-    @torch.jit.export
     def neg_sample(self, batch: Tensor) -> Tensor:
         """
         Sample negative with uniform sampling.
@@ -113,7 +111,6 @@ class Model(BaseEmbedding):
         """
         return self._neg_sample(batch)
 
-    @torch.jit.export
     def sample(self, batch: Union[List[int], Tensor]) -> Tuple[Tensor, Tensor]:
         """
         Wrapper function for positive, negative sampling.
@@ -129,7 +126,6 @@ class Model(BaseEmbedding):
             batch = torch.tensor(batch)
         return self.pos_sample(batch), self.neg_sample(batch)
 
-    @torch.jit.export
     def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
         """
         Computes word2vec skip-gram based loss.
