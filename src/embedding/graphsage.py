@@ -208,12 +208,17 @@ class Model(BaseEmbedding):
                         self_features[j] = hidden_reps[k - 1][node]
 
                         neighbors = layer_neighbor_nodes[k][node]
-                        # Line 11: aggregate features from neighbors
-                        neighbor_feats = [hidden_reps[k - 1][v] for v in neighbors]
-                        stacked_neighbors = torch.stack(neighbor_feats)
-                        neighbor_features[j] = self.aggregators[k - 1](
-                            stacked_neighbors
-                        )
+                        if len(neighbors) == 0:
+                            neighbor_features[j] = torch.zeros(
+                                self.embedding_dim, device=self.device
+                            )
+                        else:
+                            # Line 11: aggregate features from neighbors
+                            neighbor_feats = [hidden_reps[k - 1][v] for v in neighbors]
+                            stacked_neighbors = torch.stack(neighbor_feats)
+                            neighbor_features[j] = self.aggregators[k - 1](
+                                stacked_neighbors
+                            )
 
                     # Line 12: perform forward pass using sage layer
                     h_new_batch = sage_layer(self_features, neighbor_features)
