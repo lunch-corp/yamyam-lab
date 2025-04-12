@@ -33,8 +33,13 @@ def parse_args():
     parser.add_argument("--weighted_edge", action="store_true")
     parser.add_argument("--use_metadata", action="store_true")
     parser.add_argument("--num_sage_layers", type=int, required=False, default=2)
+    parser.add_argument(
+        "--aggregator_funcs", type=str, nargs="*", default=["mean", "mean"]
+    )
+    parser.add_argument("--num_neighbor_samples", type=int, default=3)
     parser.add_argument("--candidate_top_k", type=int, required=False, default=100)
     parser.add_argument("--device", type=str, required=False, default="cpu")
+    parser.add_argument("--reusable_token_path", type=str, required=True)
     return parser.parse_args()
 
 
@@ -42,6 +47,8 @@ def main(args):
     config = load_yaml(CONFIG_PATH.format(model=args.model))
     file_name = config.post_training.file_name
     data = pickle.load(open(args.data_obj_path, "rb"))
+    # Note: train_graph, val_graph will be loaded from saved files.
+    # At this time, we do not save those graphs, so we instead make it using the same training pipeline.
     train_graph, val_graph = prepare_networkx_undirected_graph(
         X_train=data["X_train"],
         y_train=data["y_train"],
@@ -75,8 +82,11 @@ def main(args):
         model_name=args.model,
         device="cpu",
         recommend_batch_size=2000,
+        num_workers=4,  # can be tuned based on server spec
         meta_path=[],  # metapath2vec parameter
         num_layers=args.num_sage_layers,  # graphsage parameter
+        aggregator_funcs=args.aggregator_funcs,  # graphsage parameter
+        num_neighbor_samples=args.num_neighbor_samples,  # graphsage parameter
         user_raw_features=data["user_feature"],  # graphsage parameter
         diner_raw_features=data["diner_feature"],  # graphsage parameter
         inference=True,
@@ -100,6 +110,8 @@ def main(args):
     candidates_df = model.generate_candidates_for_each_user(
         top_k_value=args.candidate_top_k
     )
+    logging.info("Done generating candidates from pre-trained weights")
+
     # save files to zip
     pickle.dump(
         data["user_mapping"],
