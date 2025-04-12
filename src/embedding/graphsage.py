@@ -1,15 +1,15 @@
 from typing import List, Tuple, Union
 
 import networkx as nx
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
+from loss.custom import basic_contrastive_loss
 from tools.generate_walks import precompute_probabilities
-from tools.sampling import uniform_sampling_without_replacement_from_pool
+from tools.sampling import uniform_sampling_without_replacement_from_small_size_pool
 
 
 class SageLayer(nn.Module):
@@ -18,14 +18,12 @@ class SageLayer(nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         self.linear = nn.Linear(
-            in_features=input_size * 2,
+            in_features=input_size,
             out_features=output_size,
         )
 
     def forward(self, self_feat: torch.Tensor, agg_feat: torch.Tensor):
-        concat_feat = torch.concat([self_feat, agg_feat], dim=0).unsqueeze(
-            0
-        )  # (1, input_size*2)
+        concat_feat = torch.cat([self_feat, agg_feat], dim=1)
         out = F.relu(self.linear(concat_feat))  # (output_size, 1)
         return out
 
@@ -45,12 +43,14 @@ class Model(BaseEmbedding):
         model_name: str,
         device: str,
         recommend_batch_size: int,
+        num_workers: int,
         # parameters for graphsage
         num_layers: int,
         user_raw_features: torch.Tensor,
         diner_raw_features: torch.Tensor,
-        agg_func: str = "MEAN",
-        walk_length: int = 1,
+        aggregator_funcs: List[str],
+        walk_length: int,
+        num_neighbor_samples: int,
         **kwargs,
     ):
         """
@@ -87,23 +87,39 @@ class Model(BaseEmbedding):
             model_name=model_name,
             device=device,
             recommend_batch_size=recommend_batch_size,
+            num_workers=num_workers,
         )
         self.num_layers = num_layers
         self.user_raw_features = user_raw_features
         self.diner_raw_features = diner_raw_features
-        self.agg_func = agg_func
         self.walk_length = walk_length
+        self.num_neighbor_samples = num_neighbor_samples
+
+        self.aggregators = []
+        for func in aggregator_funcs:
+            if func == "mean":
+                self.aggregators.append(self.mean_aggregator)
+            elif func == "max":
+                self.aggregators.append(self.max_aggregator)
+            else:
+                ValueError(f"Unsupported aggregator: {func}")
 
         _, user_feature_input_size = user_raw_features.shape
         _, diner_feature_input_size = diner_raw_features.shape
 
         self.user_feature_layer = nn.Linear(user_feature_input_size, embedding_dim)
         self.diner_feature_layer = nn.Linear(diner_feature_input_size, embedding_dim)
+        layer_dims = [self.embedding_dim] * (self.num_layers + 1)
 
-        for index in range(1, num_layers + 1):
-            layer_size = embedding_dim if index != 1 else embedding_dim
-            setattr(
-                self, "sage_layer_" + str(index), SageLayer(layer_size, embedding_dim)
+        self.sage_layers = nn.ModuleList()
+
+        for k in range(self.num_layers):
+            in_dim = layer_dims[k] * 2
+            self.sage_layers.append(
+                SageLayer(
+                    input_size=in_dim,
+                    output_size=layer_dims[k + 1],
+                )
             )
 
         self.d_graph = precompute_probabilities(
@@ -112,46 +128,113 @@ class Model(BaseEmbedding):
             q=1,  # unbiased random walk
         )
 
-    def forward(self, batch_nodes: Tensor) -> Tensor:
+    def forward(self, nodes: Tensor) -> Tensor:
         """
         Forward method in graphsage following `minibatch pseudocode` in paper.
+
         Args:
             batch_nodes (Tensor): Node ids in current batch.
 
         Returns (Tensor):
             Propagated embedding vector with node features in inductive way.
         """
-        B_ks = self._sample_from_batch(batch_nodes=batch_nodes)
-        emb = self._get_raw_features()
-        for i in range(self.num_layers):
-            B_k = B_ks[i]
-            sage_layer = getattr(self, f"sage_layer_{i + 1}")
-            for node in B_k:
-                # sample neighbors from current node
-                neighbors = self._sample_neighbors(
-                    node.item(), num_samples=self.walks_per_node
+        # Convert batch nodes to a set for O(1) lookups
+        batch_nodes_set = set(nodes.detach().cpu().numpy())
+
+        # Initialize sets of nodes and store sampled neighbors needed at each layer (B^k in the algorithm)
+        layer_nodes = [set() for _ in range(self.num_layers + 1)]
+        layer_neighbor_nodes = [{} for _ in range(self.num_layers + 1)]
+        layer_nodes[self.num_layers] = batch_nodes_set.copy()
+
+        # Lines 1-7: neighborhood Sampling - identify required nodes at each layer
+        for k in range(self.num_layers, 0, -1):
+            for u in layer_nodes[k]:
+                # Add u to the set of nodes needed at layer k-1
+                layer_nodes[k - 1].add(u)
+
+                # Sample neighbors of u and add them to required nodes at layer k-1
+                if self.graph.has_node(u):
+                    neighbors = list(self.graph.neighbors(u))
+                else:
+                    neighbors = []
+                sampled_neighbors = self.sample_neighbors(
+                    neighbors, self.num_neighbor_samples
                 )
+                layer_nodes[k - 1].update(sampled_neighbors)
 
-                # get neighbor nodes embeddings in previous step
-                pre_emb_neighbors = emb[neighbors]  # h^{k-1}_{u'}
+                # store neighbor for reproducibility in forward prop
+                layer_neighbor_nodes[k][u] = sampled_neighbors
 
-                # aggregate neighbor embedding vectors
-                agg_emb_neighbors = self.aggregate(
-                    pre_emb_neighbors
-                )  # AGG_k( h^{k-1}_{u'} )
+        # Initialize hidden representations for all required nodes (lines 8-16)
+        # h^0_v = x_v for all v in B^0
+        hidden_reps = [{}]  # List of dictionaries, one per layer
 
-                # get current node embedding in previous step
-                pre_emb_node = emb[node]  # h^{k-1}_{u}
+        # Line 8: initialize with input features for layer 0
+        features = self._get_raw_features()
+        for v in layer_nodes[0]:
+            if self.graph.has_node(v):
+                hidden_reps[0][v] = features[v]
+            else:
+                hidden_reps[0][v] = torch.zeros(self.embedding_dim, device=self.device)
 
-                # pass sage layer and get node embedding in current step
-                cur_emb_node = sage_layer(pre_emb_node, agg_emb_neighbors)  # h^{k}_{u}
+        # Lines 9-15: forward propagation through layers
+        for k in range(1, self.num_layers + 1):
+            # hidden representations for current layer
+            hidden_reps.append({})
+            sage_layer = self.sage_layers[k - 1]
 
-                # normalize current node embedding
-                cur_emb_node = F.normalize(cur_emb_node, p=2, dim=1)
+            # Lines 10-14: process each node in current layer
+            nodes_by_neighbor_count = {}
+            for node in layer_nodes[k]:
+                n_count = len(layer_neighbor_nodes[k][node])
+                if n_count not in nodes_by_neighbor_count:
+                    nodes_by_neighbor_count[n_count] = []
+                nodes_by_neighbor_count[n_count].append(node)
 
-                # store current step embedding
-                emb[node] = cur_emb_node
-        return emb[batch_nodes]
+            for n_count, node_group in nodes_by_neighbor_count.items():
+                batch_size = min(128, len(node_group))
+                for i in range(0, len(node_group), batch_size):
+                    batch = node_group[i : i + batch_size]
+
+                    # Pre-allocate tensors for batched processing
+                    self_features = torch.zeros(
+                        len(batch), self.embedding_dim, device=self.device
+                    )
+                    neighbor_features = torch.zeros(
+                        len(batch), self.embedding_dim, device=self.device
+                    )
+
+                    for j, node in enumerate(batch):
+                        self_features[j] = hidden_reps[k - 1][node]
+
+                        neighbors = layer_neighbor_nodes[k][node]
+                        if len(neighbors) == 0:
+                            neighbor_features[j] = torch.zeros(
+                                self.embedding_dim, device=self.device
+                            )
+                        else:
+                            # Line 11: aggregate features from neighbors
+                            neighbor_feats = [hidden_reps[k - 1][v] for v in neighbors]
+                            stacked_neighbors = torch.stack(neighbor_feats)
+                            neighbor_features[j] = self.aggregators[k - 1](
+                                stacked_neighbors
+                            )
+
+                    # Line 12: perform forward pass using sage layer
+                    h_new_batch = sage_layer(self_features, neighbor_features)
+                    # Line 13: normalize the representation
+                    h_new_batch = F.normalize(h_new_batch, p=2, dim=1)
+
+                    # Store results
+                    for j, node in enumerate(batch):
+                        hidden_reps[k][node] = h_new_batch[j]
+
+        # Line 16: final representations for requested nodes
+        results = torch.zeros(len(nodes), self.embedding_dim, device=self.device)
+        for i, node_id in enumerate(nodes.tolist()):
+            results[i] = hidden_reps[self.num_layers][node_id]
+
+        return results
 
     def pos_sample(self, batch: Tensor) -> Tensor:
         """
@@ -187,95 +270,58 @@ class Model(BaseEmbedding):
         return self.pos_sample(batch), self.neg_sample(batch)
 
     def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
-        # Positive loss.
-        start, rest = pos_rw[:, 0], pos_rw[:, 1:].contiguous()
+        # forward propagation
+        # pool pos, neg node together and calculates embedding in one batch
+        # this line may trigger memory error depending on server spec
+        all_nodes = torch.unique(torch.concat([pos_rw.view(-1), neg_rw.view(-1)]))
+        embeddings = self.forward(all_nodes)
 
-        h_start = self.forward(start).view(pos_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.forward(rest.view(-1)).view(
+        # get embeddings for pos, neg node
+        pos_rw_indices = (
+            (all_nodes.unsqueeze(1) == pos_rw.view(-1).unsqueeze(0))
+            .long()
+            .argmax(dim=0)
+        )  # ( len(pos_rw.view(-1)), )
+        neg_rw_indices = (
+            (all_nodes.unsqueeze(1) == neg_rw.view(-1).unsqueeze(0))
+            .long()
+            .argmax(dim=0)
+        )  # ( len(neg_rw.view(-1)), )
+        pos_rw_emb = embeddings[pos_rw_indices].view(
             pos_rw.size(0), -1, self.embedding_dim
-        )
-
-        out = (h_start * h_rest).sum(dim=-1).view(-1)
-        pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
-
-        # Negative loss.
-        start, rest = neg_rw[:, 0], neg_rw[:, 1:].contiguous()
-
-        h_start = self.forward(start).view(neg_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.forward(rest.view(-1)).view(
+        )  # [i][j]: embedding of pos_rw[i][j]
+        neg_rw_emb = embeddings[neg_rw_indices].view(
             neg_rw.size(0), -1, self.embedding_dim
+        )  # [i][j]: embedding of neg_rw[i][j]
+
+        contrastive_loss = basic_contrastive_loss(
+            pos_rw_emb=pos_rw_emb,
+            neg_rw_emb=neg_rw_emb,
         )
 
-        out = (h_start * h_rest).sum(dim=-1).view(-1)
-        neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()
+        return contrastive_loss
 
-        return pos_loss + neg_loss
-
-    def _sample_neighbors(self, node: int, num_samples: int) -> Tensor:
-        """
-        Uniformly samples neighbor nodes.
-
-        Args:
-            node (int): Center node.
-            num_samples (int): Number of neighbors to sample.
-
-        Returns (Tensor):
-            Tensor containing node_ids of neighbors.
-        """
-        if not self.graph.has_node(node):
-            return torch.tensor([], dtype=torch.long)
-        neighbors = list(self.graph.neighbors(node))
-        if len(neighbors) <= num_samples:
-            return torch.tensor(neighbors)
-        else:
-            return uniform_sampling_without_replacement_from_pool(
-                pool=torch.tensor(neighbors),
-                size=num_samples,
-            )
-
-    def _sample_from_batch(self, batch_nodes: Tensor) -> List[Tensor]:
-        """
-        Sampling stage in `minibatch pseudocode` in paper.
-
-        Args:
-            batch_nodes (Tensor): List of node_ids in current batch.
-
-        Returns (List[Tensor]):
-            List of B^{k}.
-        """
-        batch_nodes = torch.tensor(
-            [
-                node_id
-                for node_id in torch.unique(batch_nodes).clone()
-                if self.graph.has_node(node_id.item())
-            ]
+    # Neighborhood sampling function (N_k in the algorithm)
+    @staticmethod
+    def sample_neighbors(neighbors: List[int], sample_size: int) -> List[int]:
+        """Uniformly samples 'sample_size' neighbors from the given list."""
+        if len(neighbors) <= sample_size:
+            return neighbors
+        return uniform_sampling_without_replacement_from_small_size_pool(
+            pool=neighbors,
+            size=sample_size,
         )
-        batches = [batch_nodes]
-        for _ in range(self.num_layers):
-            last_batch_nodes = batches[-1].detach().cpu().numpy()
-            neighbors = []
-            for node in last_batch_nodes:
-                neighbors.append(self._sample_neighbors(node, self.walks_per_node))
-            last_batch_nodes_with_neighbors = np.concatenate(
-                (last_batch_nodes, np.concatenate(neighbors))
-            )
-            batches.append(torch.tensor(np.unique(last_batch_nodes_with_neighbors)))
-        return batches[::-1]
 
-    def aggregate(self, emb: Tensor) -> Tensor:
-        """
-        Function for aggregating embeddings of neighbors.
-        In paper, GCN, mean, LSTM, pool algorithms are used.
-        Those functions will be implemented in the future.
+    # Aggregator functions
+    @staticmethod
+    def mean_aggregator(neighbor_features: torch.Tensor) -> torch.Tensor:
+        """Mean aggregator: average neighbor features."""
+        return torch.mean(neighbor_features, dim=0)
 
-        Args:
-            emb (Tensor): Stacked embeddings of neighbors.
-
-        Returns (Tensor):
-            Aggregated embeddings using specified agg_func.
-        """
-        if self.agg_func == "MEAN":
-            return emb.mean(dim=0)
+    @staticmethod
+    def max_aggregator(neighbor_features: torch.Tensor) -> torch.Tensor:
+        """Max pooling aggregator: element-wise maximum of neighbor features."""
+        return torch.max(neighbor_features, dim=0)[0]
 
     def _get_raw_features(self) -> Tensor:
         """
@@ -286,10 +332,8 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Concatenated features with diner feature first and user feature following.
         """
-        user_features = self.user_feature_layer(self.user_raw_features.to(self.device))
-        diner_features = self.diner_feature_layer(
-            self.diner_raw_features.to(self.device)
-        )
+        user_features = self.user_feature_layer(self.user_raw_features)
+        diner_features = self.diner_feature_layer(self.diner_raw_features)
         return torch.concat([diner_features, user_features])  # diner index first
 
     def propagate_and_store_embedding(self, batch_nodes: Tensor):

@@ -7,6 +7,7 @@ import torch
 from torch import Tensor
 
 from embedding.base_embedding import BaseEmbedding
+from loss.custom import basic_contrastive_loss
 from tools.generate_walks import (
     generate_walks_metapath,
     precompute_probabilities_metapath,
@@ -29,6 +30,7 @@ class Model(BaseEmbedding):
         model_name: str,
         device: str,
         recommend_batch_size: int,
+        num_workers: int,
         # parameters for metapath2vec
         meta_path: List[List[str]],
         meta_field: str = "meta",
@@ -75,10 +77,12 @@ class Model(BaseEmbedding):
             model_name=model_name,
             device=device,
             recommend_batch_size=recommend_batch_size,
+            num_workers=num_workers,
         )
 
         self.meta_path = meta_path
         self.meta_field = meta_field
+        self.padding_value = -1
 
         given_meta = []
         for path in meta_path:
@@ -122,9 +126,15 @@ class Model(BaseEmbedding):
             meta_path=self.meta_path,
             meta_field=self.meta_field,
             walks_per_node=1,
+            padding_value=self.padding_value,
         )
-        self.meta_path_count = meta_path_count
-        return rw
+        count = [c for path, c in meta_path_count]
+        # Pad metadata to match the width of rw
+        meta_count_row = torch.full((1, rw.size(1)), self.padding_value, dtype=rw.dtype)
+        meta_count_row[0, : len(count)] = torch.tensor(count, dtype=rw.dtype)
+        pos_rw_with_meta_count = torch.cat([meta_count_row, rw], dim=0)
+        # self.meta_path_count = meta_path_count
+        return pos_rw_with_meta_count
 
     @torch.jit.export
     def neg_sample(self, batch: Tensor) -> Tensor:
@@ -192,7 +202,7 @@ class Model(BaseEmbedding):
         if not isinstance(batch, Tensor):
             batch = torch.tensor(batch)
         pos_rw = self.pos_sample(batch)
-        pos_rw_start_node = pos_rw[:, 0]
+        pos_rw_start_node = pos_rw[1:, 0]
         neg_rw = self.neg_sample(pos_rw_start_node)
         return pos_rw, neg_rw
 
@@ -210,42 +220,37 @@ class Model(BaseEmbedding):
         Returns (Tensor):
             Calculated loss.
         """
+        # get count for each meta path which is first row in pos_rw
+        meta_count_row = pos_rw[0]
+        # unpad count row
+        meta_count_row = meta_count_row[meta_count_row != self.padding_value].tolist()
+
+        # get real positive rw
+        pos_rw = pos_rw[1:]
+
         start_idx = 0
         loss = torch.tensor(0.0, requires_grad=True)
-        for meta_path, count in self.meta_path_count:
-            # Positive loss.
-            pos_rw_padded = pos_rw[start_idx:count, :]
+        for count in meta_count_row:
+            pos_rw_padded = pos_rw[start_idx : start_idx + count, :]
             pos_rw_unpadded = unpad_by_mask(
                 padded_tensor=pos_rw_padded,
-                padding_value=-1,
+                padding_value=self.padding_value,
             )
-            start, rest = pos_rw_unpadded[:, 0], pos_rw_unpadded[:, 1:].contiguous()
+            neg_rw_sliced = neg_rw[start_idx : start_idx + count, :]
 
-            h_start = self._embedding(start).view(
-                pos_rw_unpadded.size(0), 1, self.embedding_dim
-            )
-            h_rest = self._embedding(rest.view(-1)).view(
+            pos_rw_emb = self._embedding(pos_rw_unpadded.view(-1)).view(
                 pos_rw_unpadded.size(0), -1, self.embedding_dim
             )
-
-            out = (h_start * h_rest).sum(dim=-1).view(-1)
-            pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
-            loss = loss + pos_loss
-
-            # Negative loss.
-            neg_rw_sliced = neg_rw[start_idx:count, :]
-            start, rest = neg_rw_sliced[:, 0], neg_rw_sliced[:, 1:].contiguous()
-
-            h_start = self._embedding(start).view(
-                neg_rw_sliced.size(0), 1, self.embedding_dim
-            )
-            h_rest = self._embedding(rest.view(-1)).view(
+            neg_rw_emb = self._embedding(neg_rw_sliced.view(-1)).view(
                 neg_rw_sliced.size(0), -1, self.embedding_dim
             )
 
-            out = (h_start * h_rest).sum(dim=-1).view(-1)
-            neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()
-            loss = loss + neg_loss
+            contrastive_loss = basic_contrastive_loss(
+                pos_rw_emb=pos_rw_emb,
+                neg_rw_emb=neg_rw_emb,
+            )
+
+            loss = loss + contrastive_loss
 
             start_idx += count
         return loss

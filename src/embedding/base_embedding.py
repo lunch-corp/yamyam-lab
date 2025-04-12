@@ -31,6 +31,7 @@ class BaseEmbedding(nn.Module):
         model_name: str,
         device: str,
         recommend_batch_size: int,
+        num_workers: int,
     ):
         """
         Base module for node embedding model (node2vec, metapath2vec, graphsage)
@@ -59,6 +60,7 @@ class BaseEmbedding(nn.Module):
         self.model_name = model_name
         self.device = device
         self.recommend_batch_size = recommend_batch_size
+        self.num_workers = num_workers
         self.EPS = 1e-15
         self.num_users = len(self.user_ids)
         self.num_diners = len(self.diner_ids)
@@ -111,6 +113,9 @@ class BaseEmbedding(nn.Module):
         return DataLoader(
             torch.tensor([node for node in self.graph.nodes()]),
             collate_fn=self.sample,
+            num_workers=self.num_workers,  # can be tuned depending on server spec
+            pin_memory=True,  # to reduce data transfer btw cpu and gpu
+            prefetch_factor=2,  # can be tuned depending on server spec
             **kwargs,
         )
 
@@ -174,6 +179,37 @@ class BaseEmbedding(nn.Module):
         rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
 
         return rw
+
+    def _neg_sample_from_train_nodes(self, batch: Tensor) -> Tensor:
+        """
+        Sample negative with uniform sampling.
+        In word2vec objective function, to reduce computation burden, negative sampling
+        is performed and approximate denominator of probability.
+
+        Args:
+            batch (Tensor): A batch of node ids.
+
+        Returns (Tensor):
+            Negative samples for each of node ids.
+        """
+        batch = batch.repeat(self.walks_per_node)
+        train_num_nodes = len(self.graph.nodes)
+
+        indices = torch.randint(
+            train_num_nodes,
+            (batch.size(0), self.num_negative_samples),
+            dtype=batch.dtype,
+            device=batch.device,
+        )
+        negative_samples = torch.index_select(
+            input=torch.tensor(list(self.graph.nodes)),
+            dim=0,
+            index=indices.view(-1),
+        ).view(batch.size(0), self.num_negative_samples)
+
+        negative_samples = torch.cat([batch.view(-1, 1), negative_samples], dim=-1)
+
+        return negative_samples
 
     def recommend_all(
         self,
@@ -243,7 +279,7 @@ class BaseEmbedding(nn.Module):
         for count, user_ids in liked_items_count2user_ids.items():
             num_users = len(user_ids)
             start = 0
-            user_ids = torch.tensor(user_ids)
+            user_ids = torch.tensor(user_ids, device=self.device)
 
             while start < num_users:
                 batch_users = user_ids[start : start + self.recommend_batch_size]

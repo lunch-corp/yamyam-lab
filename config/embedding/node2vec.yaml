@@ -7,8 +7,6 @@ preprocess:
 training:
   near_candidate:
     max_distance_km: 1
-  torch:
-    device: cpu
   evaluation:
     recommend_batch_size: 1000
     top_k_values_for_pred:

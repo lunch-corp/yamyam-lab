@@ -36,6 +36,7 @@ def parse_args_embedding():
         required=True,
         choices=["node2vec", "metapath2vec", "graphsage"],
     )
+    parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--epochs", type=int, default=10)
@@ -50,7 +51,7 @@ def parse_args_embedding():
 
     # node2vec parameter
     parser.add_argument("--walk_length", type=int, default=20)
-    parser.add_argument("--p", type=int, default=1)
+    parser.add_argument("--p", type=float, default=1)
     parser.add_argument("--q", type=float, default=1)
 
     # metapath2vec parameter
@@ -61,6 +62,10 @@ def parse_args_embedding():
 
     # graphsage parameter
     parser.add_argument("--num_sage_layers", type=int, default=2)
+    parser.add_argument(
+        "--aggregator_funcs", type=str, nargs="*", default=["mean", "mean"]
+    )
+    parser.add_argument("--num_neighbor_samples", type=int, default=3)
 
     # candidate generation parameter for two-stage reco
     parser.add_argument("--save_candidate", action="store_true", required=False)

@@ -107,13 +107,13 @@ def precompute_probabilities(
                 weight = graph[current_node][destination].get("weight", 1)
 
                 if destination == source:  # Backwards probability
-                    weight = weight * 1 / p
+                    weight = weight * 1 / p if p > 0 else 0
                 elif (
                     destination in graph[source]
                 ):  # If the neighbor is connected to the source
                     weight = weight
                 else:
-                    weight = weight * 1 / q
+                    weight = weight * 1 / q if q > 0 else 0
 
                 # Assign the unnormalized sampling strategy weight, normalize during random walk
                 unnorm_weights.append(weight)
@@ -219,6 +219,7 @@ def generate_walks_metapath(
     meta_path: List[List[str]],
     meta_field: str,
     walks_per_node: int,
+    padding_value: int,
 ) -> Tuple[Tensor, List[Tuple[Tuple[str, str], int]]]:
     """
     Generate walks given meta_path.
@@ -234,6 +235,7 @@ def generate_walks_metapath(
             two meta_paths consisting of different meta values.
         meta_field (str): Name of meta field.
         walks_per_node (int): Number of sequences per node.
+        padding_value (int): Predefined padding value.
 
     Returns (Tuple[Tensor, List[Tuple, int]]):
         Concatenated tensor and meta paths count. Latter is used to unpad positive random walks
@@ -241,8 +243,8 @@ def generate_walks_metapath(
     """
     walks = []
     meta_path_count = []
-    cnt = 0
     for path in meta_path:
+        cnt = 0
         for node in node_ids:
             start_node_meta = graph.nodes[node][meta_field]
             if path[0] != start_node_meta:
@@ -265,5 +267,5 @@ def generate_walks_metapath(
                     walks.append(torch.tensor(walk))
                     cnt += 1
         meta_path_count.append((tuple(path), cnt))
-    walks_padded = pad_sequence(walks, batch_first=True, padding_value=-1)
+    walks_padded = pad_sequence(walks, batch_first=True, padding_value=padding_value)
     return walks_padded, meta_path_count

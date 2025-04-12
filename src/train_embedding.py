@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 
 import torch
+import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
 from constant.metric.metric import Metric
@@ -27,8 +28,10 @@ def main(args: ArgumentParser.parse_args) -> None:
     os.makedirs(args.result_path, exist_ok=True)
     config = load_yaml(CONFIG_PATH.format(model=args.model))
 
+    # set multiprocessing start method to spawn
+    mp.set_start_method("spawn", force=True)
+
     # predefine config
-    device = config.training.torch.device
     top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
     top_k_values_for_candidate = config.training.evaluation.top_k_values_for_candidate
     file_name = config.post_training.file_name
@@ -38,7 +41,7 @@ def main(args: ArgumentParser.parse_args) -> None:
 
     try:
         logger.info(f"embedding model: {args.model}")
-        logger.info(f"device: {device}")
+        logger.info(f"device: {args.device}")
         logger.info(f"batch size: {args.batch_size}")
         logger.info(f"learning rate: {args.lr}")
         logger.info(f"epochs: {args.epochs}")
@@ -57,6 +60,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             )
         elif args.model == "graphsage":
             logger.info(f"number of sage layers: {args.num_sage_layers}")
+            logger.info(f"aggregator functions: {args.aggregator_funcs}")
         logger.info(f"result path: {args.result_path}")
         logger.info(f"test: {args.test}")
 
@@ -102,8 +106,10 @@ def main(args: ArgumentParser.parse_args) -> None:
         model_path = f"embedding.{args.model}"
         model_module = importlib.import_module(model_path).Model
         model = model_module(
-            user_ids=torch.tensor(list(data["user_mapping"].values())).to(device),
-            diner_ids=torch.tensor(list(data["diner_mapping"].values())).to(device),
+            user_ids=torch.tensor(list(data["user_mapping"].values())).to(args.device),
+            diner_ids=torch.tensor(list(data["diner_mapping"].values())).to(
+                args.device
+            ),
             graph=train_graph,
             embedding_dim=args.embedding_dim,
             walk_length=args.walk_length,
@@ -114,13 +120,20 @@ def main(args: ArgumentParser.parse_args) -> None:
             p=args.p,
             top_k_values=top_k_values,
             model_name=args.model,
-            device=device,
+            device=args.device,
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
+            num_workers=4,  # can be tuned based on server spec
             meta_path=args.meta_path,  # metapath2vec parameter
             num_layers=args.num_sage_layers,  # graphsage parameter
-            user_raw_features=data["user_feature"],  # graphsage parameter
-            diner_raw_features=data["diner_feature"],  # graphsage parameter
-        ).to(device)
+            aggregator_funcs=args.aggregator_funcs,  # graphsage parameter
+            num_neighbor_samples=args.num_neighbor_samples,  # graphsage parameter
+            user_raw_features=data["user_feature"].to(
+                args.device
+            ),  # graphsage parameter
+            diner_raw_features=data["diner_feature"].to(
+                args.device
+            ),  # graphsage parameter
+        ).to(args.device)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
         loader = model.loader(
@@ -130,12 +143,16 @@ def main(args: ArgumentParser.parse_args) -> None:
         for epoch in range(args.epochs):
             logger.info(f"################## epoch {epoch} ##################")
             total_loss = 0
-            for pos_rw, neg_rw in loader:
+            batch_len = len(loader)
+            for batch_idx, (pos_rw, neg_rw) in enumerate(loader):
                 optimizer.zero_grad()
-                loss = model.loss(pos_rw.to(device), neg_rw.to(device))
+                loss = model.loss(pos_rw, neg_rw)
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
+
+                if batch_idx % 500 == 0:
+                    logger.info(f"current batch index: {batch_idx} out of {batch_len}")
 
             # when training graphsage for every epoch,
             # propagation should be run to store embeddings for each node at every epoch
@@ -145,7 +162,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                     batch_size=args.batch_size,
                     shuffle=True,
                 ):
-                    model.propagate_and_store_embedding(batch_nodes.to(device))
+                    model.propagate_and_store_embedding(batch_nodes.to(args.device))
 
             total_loss /= len(loader)
             model.tr_loss.append(total_loss)

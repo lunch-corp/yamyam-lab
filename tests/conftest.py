@@ -68,6 +68,8 @@ def setup_config(request):
     ]
     args.category_column_for_meta = "diner_category_large"
     args.num_sage_layers = 2
+    args.aggregator_funcs = ["mean", "mean"]
+    args.num_neighbor_samples = 3
     args.test = True
     args.save_candidate = False
     return args
