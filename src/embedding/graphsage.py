@@ -51,6 +51,7 @@ class Model(BaseEmbedding):
         aggregator_funcs: List[str],
         walk_length: int,
         num_neighbor_samples: int,
+        inference: bool = False,
         **kwargs,
     ):
         """
@@ -73,6 +74,7 @@ class Model(BaseEmbedding):
             diner_raw_features (torch.Tensor): Diner raw features whose dimension should be matched with diner_ids.
             agg_func (str): Aggregation function when combining neighbor embeddings from previous step.
             walk_length (int): Length of walk.
+            inference (bool): Indicator whether inference mode or not.
             **kwargs: Additional keyword arguments.
         """
         super().__init__(
@@ -122,11 +124,12 @@ class Model(BaseEmbedding):
                 )
             )
 
-        self.d_graph = precompute_probabilities(
-            graph=graph,
-            p=1,  # unbiased random walk
-            q=1,  # unbiased random walk
-        )
+        if inference is False:
+            self.d_graph = precompute_probabilities(
+                graph=graph,
+                p=1,  # unbiased random walk
+                q=1,  # unbiased random walk
+            )
 
     def forward(self, nodes: Tensor) -> Tensor:
         """
