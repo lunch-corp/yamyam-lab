@@ -1,4 +1,6 @@
 import argparse
+import os
+import sys
 from typing import List
 
 
@@ -81,3 +83,14 @@ def parse_args_eval():
     parser.add_argument("--embedding_dim", type=int)
     parser.add_argument("--log_path", type=str)
     return parser.parse_args()
+
+
+def save_command_to_file(save_path):
+    os.makedirs(save_path, exist_ok=True)
+
+    # Get the command that was used to run the script
+    command = " ".join(sys.argv)
+    full_command = f"poetry run python3 {command}"
+    command_file_path = os.path.join(save_path, "command.txt")
+    with open(command_file_path, "w") as f:
+        f.write(full_command)

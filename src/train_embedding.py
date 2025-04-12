@@ -15,18 +15,26 @@ from preprocess.preprocess import prepare_networkx_undirected_graph
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
 from tools.logger import setup_logger
-from tools.parse_args import parse_args_embedding
+from tools.parse_args import parse_args_embedding, save_command_to_file
 from tools.plot import plot_metric_at_k
 from tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/embedding/{model}.yaml")
-ZIP_PATH = os.path.join(ROOT_PATH, "./zip")
+RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
+ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
 
 def main(args: ArgumentParser.parse_args) -> None:
-    os.makedirs(args.result_path, exist_ok=True)
+    # set result path
+    dt = datetime.now().strftime("%Y%m%d%H%M")
+    test_flag = "test" if args.test else "untest"
+    result_path = RESULT_PATH.format(test=test_flag, model=args.model, dt=dt)
+    os.makedirs(result_path, exist_ok=True)
+    # load config
     config = load_yaml(CONFIG_PATH.format(model=args.model))
+    # save command used in argparse
+    save_command_to_file(result_path)
 
     # set multiprocessing start method to spawn
     mp.set_start_method("spawn", force=True)
@@ -37,7 +45,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     file_name = config.post_training.file_name
     fe = config.preprocess.feature_engineering
 
-    logger = setup_logger(os.path.join(args.result_path, file_name.log))
+    logger = setup_logger(os.path.join(result_path, file_name.log))
 
     try:
         logger.info(f"embedding model: {args.model}")
@@ -61,7 +69,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         elif args.model == "graphsage":
             logger.info(f"number of sage layers: {args.num_sage_layers}")
             logger.info(f"aggregator functions: {args.aggregator_funcs}")
-        logger.info(f"result path: {args.result_path}")
+        logger.info(f"result path: {result_path}")
         logger.info(f"test: {args.test}")
 
         data_loader = DatasetLoader(
@@ -90,9 +98,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         # for qualitative eval
-        pickle.dump(
-            data, open(os.path.join(args.result_path, file_name.data_object), "wb")
-        )
+        pickle.dump(data, open(os.path.join(result_path, file_name.data_object), "wb"))
 
         num_nodes = data["num_users"] + data["num_diners"]
         if args.model == "metapath2vec":
@@ -216,15 +222,15 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             torch.save(
                 model.state_dict(),
-                str(os.path.join(args.result_path, file_name.weight)),
+                str(os.path.join(result_path, file_name.weight)),
             )
             pickle.dump(
                 model.tr_loss,
-                open(os.path.join(args.result_path, file_name.training_loss), "wb"),
+                open(os.path.join(result_path, file_name.training_loss), "wb"),
             )
             pickle.dump(
                 model.metric_at_k_total_epochs,
-                open(os.path.join(args.result_path, file_name.metric), "wb"),
+                open(os.path.join(result_path, file_name.metric), "wb"),
             )
             logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
 
@@ -232,15 +238,14 @@ def main(args: ArgumentParser.parse_args) -> None:
         plot_metric_at_k(
             metric=model.metric_at_k_total_epochs,
             tr_loss=model.tr_loss,
-            parent_save_path=args.result_path,
+            parent_save_path=result_path,
             top_k_values_for_pred=top_k_values_for_pred,
             top_k_values_for_candidate=top_k_values_for_candidate,
         )
 
         if args.save_candidate:
             # generate candidates and zip related files
-            dt = datetime.now().strftime("%Y%m%d%H%M")
-            zip_path = os.path.join(ZIP_PATH, args.model, dt)
+            zip_path = ZIP_PATH.format(test=test_flag, model=args.model, dt=dt)
             os.makedirs(zip_path, exist_ok=True)
             candidates_df = model.generate_candidates_for_each_user(
                 top_k_value=config.post_training.candidate_generation.top_k
