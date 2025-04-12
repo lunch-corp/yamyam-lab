@@ -71,6 +71,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger.info(f"aggregator functions: {args.aggregator_funcs}")
         logger.info(f"result path: {result_path}")
         logger.info(f"test: {args.test}")
+        logger.info(f"training results will be saved in {result_path}")
 
         data_loader = DatasetLoader(
             test_size=args.test_ratio,
