@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+from argparse import ArgumentParser
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
@@ -12,6 +13,9 @@ def parse_args():
     parser.add_argument(
         "--model_name", type=str, choices=["node2vec", "metapath2vec", "graphsage"]
     )
+    parser.add_argument(
+        "--download_file_type", type=str, choices=["candidates", "models"]
+    )
     parser.add_argument("--latest", action="store_true")
     parser.add_argument(
         "--credential_file_path_from_gcloud_console", type=str, required=False
@@ -20,15 +24,20 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
-    args = parse_args()
+def main(args: ArgumentParser.parse_args):
     reuse_auth_info = True if args.reusable_token_path else False
     manager = GoogleDriveManager(
         credential_file_path_from_gcloud_console=args.credential_file_path_from_gcloud_console,
         reusable_token_path=args.reusable_token_path,
         reuse_auth_info=reuse_auth_info,
     )
-    manager.download_candidates_result(
+    manager.download_result(
         model_name=args.model_name,
         latest=args.latest,
+        download_file_type=args.download_file_type,
     )
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    main(args)

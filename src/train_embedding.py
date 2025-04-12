@@ -161,7 +161,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                     logger.info(f"current batch index: {batch_idx} out of {batch_len}")
 
             # when training graphsage for every epoch,
-            # propagation should be run to store embeddings for each node at every epoch
+            # propagation should be run to store embeddings for each node
             if args.model == "graphsage":
                 for batch_nodes in DataLoader(
                     torch.tensor([node for node in train_graph.nodes()]),
@@ -274,9 +274,10 @@ def main(args: ArgumentParser.parse_args) -> None:
                 reusable_token_path=args.reusable_token_path,
                 reuse_auth_info=True,
             )
-            file_id = manager.upload_candidates_result(
+            file_id = manager.upload_result(
                 model_name=args.model,
                 file_path=os.path.join(zip_path, f"{dt}.zip"),
+                download_file_type="candidates",
             )
             logger.info(
                 f"Successfully uploaded candidate results to google drive."
