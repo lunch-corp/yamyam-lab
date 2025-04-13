@@ -97,8 +97,9 @@ def main(cfg: DictConfig):
                 continue
 
             for K in metric_at_K.keys():
-                # if len(liked_items) < K:
-                #     continue
+                if len(liked_items) < K:
+                    continue
+
                 metric = ranking_metrics_at_k(
                     liked_items=np.array(liked_items), reco_items=pred_items[:K]
                 )
