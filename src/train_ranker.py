@@ -35,17 +35,21 @@ def main(cfg: DictConfig):
         data["X_val"],
         data["y_val"],
     )
-
     # build Pmodel
     trainer = build_model(cfg)
 
+    # train model
+    trainer.fit(X_train, y_train, X_test, y_test)
+
+    # save model
+    trainer.save_model()
+
+    # plot feature importance
+    trainer.plot_feature_importance()
+
     try:
-        candidates = data["candidates"]
-
-        # train model
-        trainer.fit(X_train, y_train, X_test, y_test)
-
         # candidate predictions
+        candidates = data["candidates"]
         batch_size = 100000
         num_batches = (len(candidates) + batch_size - 1) // batch_size
         predictions = np.zeros(len(candidates))
@@ -78,13 +82,13 @@ def main(cfg: DictConfig):
         for user in tqdm(user_predictions.index):
             if user not in test_liked_items:
                 continue
-
             liked_items = test_liked_items[user]
             pred_items = user_predictions[user]
 
             # Filter out already liked items from training data
             if user in train_liked_items:
                 already_liked = train_liked_items[user]
+
                 # Create a mask for items that were not liked in training
                 mask = ~np.isin(pred_items, already_liked)
                 pred_items = pred_items[mask]
@@ -96,7 +100,6 @@ def main(cfg: DictConfig):
             for K in metric_at_K.keys():
                 # if len(liked_items) < K:
                 #     continue
-
                 metric = ranking_metrics_at_k(
                     liked_items=np.array(liked_items), reco_items=pred_items[:K]
                 )
@@ -108,7 +111,6 @@ def main(cfg: DictConfig):
         # Average metrics
         table = PrettyTable()
         table.field_names = ["K", "MAP", "NDCG"]
-
         for K in metric_at_K:
             metric_at_K[K]["map"] = safe_divide(
                 numerator=metric_at_K[K]["map"], denominator=metric_at_K[K]["count"]
@@ -119,18 +121,10 @@ def main(cfg: DictConfig):
             table.add_row(
                 [K, f"{metric_at_K[K]['map']:.8f}", f"{metric_at_K[K]['ndcg']:.8f}"]
             )
-
         logging.info(f"\nEvaluation Results\n{table}")
 
     except Exception:
         logging.info("No candidates data found just training model")
-        trainer.fit(X_train, y_train, X_test, y_test)
-
-    # save model
-    trainer.save_model()
-
-    # plot feature importance
-    trainer.plot_feature_importance()
 
 
 if __name__ == "__main__":
