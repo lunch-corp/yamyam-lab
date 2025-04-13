@@ -149,7 +149,7 @@ For detail description of each metric, please refer to [discussion](https://gith
 |--------------|------------------------|------------|------------|------------|-------------|-------------|
 | node2vec     | Unsupervised  learning | 0.04196    | 0.07299    | 0.09293    | 0.12739     | 0.17507     |
 | metapath2vec | Unsupervised  learning | 0.0022     | 0.00643    | 0.01028    | 0.02021     | 0.03936     |
-| graphsage    | Unsupervised  learning | TBD        | TBD        | TBD        | TBD         | TBD         |
+| graphsage    | Unsupervised  learning | 0.0013     | 0.00407    | 0.00679    | 0.01342     | 0.02551     |
 
 ### Ranking performance results with single step
 
@@ -158,7 +158,7 @@ For detail description of each metric, please refer to [discussion](https://gith
 | SVD             | Regression            | 0.00001   | 0.00002   | 0.00002   | 0.00003    | 0.00002 | 0.00003 | 0.00004 | 0.00007   |
 | node2vec        | Unsupervised learning | 0.00361   | 0.00445   | 0.00475   | 0.00523    | 0.00619 | 0.00738 | 0.00814 | 0.00989   |
 | metapath2vec    | Unsupervised learning | 0.00004   | 0.00006   | 0.00007   | 0.00008    | 0.00008 | 0.00012 | 0.00015 | 0.00021   |
-| graphsage       | Unsupervised learning | TBD       | TBD       | TBD       | TBD        | TBD     | TBD     | TBD     | TBD       |
+| graphsage       | Unsupervised learning | 0.00002   | 0.00004   | 0.00004   | 0.00005    | 0.00009 | 0.00012 | 0.00014 | 0.00018   |
 
 
 ### Ranking performance results with two step
