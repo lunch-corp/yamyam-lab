@@ -28,6 +28,7 @@ def main(cfg: DictConfig):
     data = data_loader.prepare_train_val_dataset(
         is_rank=True, is_candidate_dataset=cfg.data.is_candidate_dataset
     )
+
     # mapping reverse
     X_train, y_train, X_test, y_test = (
         data["X_train"],
@@ -35,6 +36,7 @@ def main(cfg: DictConfig):
         data["X_val"],
         data["y_val"],
     )
+
     # build Pmodel
     trainer = build_model(cfg)
 
@@ -99,6 +101,7 @@ def main(cfg: DictConfig):
             for K in metric_at_K.keys():
                 # if len(liked_items) < K:
                 #     continue
+
                 metric = ranking_metrics_at_k(
                     liked_items=np.array(liked_items), reco_items=pred_items[:K]
                 )

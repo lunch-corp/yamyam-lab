@@ -6,10 +6,11 @@ results: lgb_ranker
 params:
   objective: lambdarank
   boosting_type: gbdt
-  metric: map
+  metric: ndcg
   ndcg_at:
+    - 3
+    - 7
     - 10
-    - 15
     - 20
   bagging_freq: 5
   bagging_fraction: 0.8

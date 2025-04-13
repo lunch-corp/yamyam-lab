@@ -14,6 +14,7 @@ from preprocess.preprocess import (
 )
 from store.feature import build_feature
 from tools.google_drive import ensure_data_files
+from tools.utils import reduce_mem_usage
 
 
 class DatasetLoader:
@@ -91,8 +92,8 @@ class DatasetLoader:
         Create the target column for classification.
         """
         review["target"] = (
-            review["reviewer_review_score"] - review["reviewer_avg"] > 0.5
-        ).astype(int)
+            review["reviewer_review_score"] > review["reviewer_avg"]
+        ).astype(np.int8)
         return review
 
     def train_test_split_stratify(
@@ -166,10 +167,18 @@ class DatasetLoader:
         )
 
         if is_rank:
+            # reduce memory usage
+            train = reduce_mem_usage(train)
+            val = reduce_mem_usage(val)
+            user_feature = reduce_mem_usage(user_feature)
+            diner_feature = reduce_mem_usage(diner_feature)
+            diner_meta_feature = reduce_mem_usage(diner_meta_feature)
+
             # 순위 관련 특성 병합
             train, val = self.merge_rank_features(
                 train, val, user_feature, diner_feature, diner_meta_feature
             )
+
             user_mapping = mapped_res["user_mapping"]
             diner_mapping = mapped_res["diner_mapping"]
 
@@ -357,6 +366,9 @@ class DatasetLoader:
         candidate = candidate.merge(diner_feature, on="diner_idx", how="left")
         candidate = candidate.merge(diner_meta_feature, on="diner_idx", how="left")
 
+        # reduce memory usage
+        candidate = reduce_mem_usage(candidate)
+
         return candidate, candidate_user_mapping_convert, candidate_diner_mapping
 
     def create_graph_dataset(
@@ -465,6 +477,9 @@ def load_test_dataset(
     test = test.merge(user_feature, on="reviewer_id", how="left")
     test = test.merge(diner_feature, on="diner_idx", how="left")
     test = test.merge(review, on="reviewer_id", how="left")
+
+    # reduce memory usage
+    test = reduce_mem_usage(test)
 
     # Add diner columns
     diner_cols = [
