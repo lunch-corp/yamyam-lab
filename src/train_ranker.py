@@ -53,7 +53,6 @@ def main(cfg: DictConfig):
         batch_size = 100000
         num_batches = (len(candidates) + batch_size - 1) // batch_size
         predictions = np.zeros(len(candidates))
-
         for i in tqdm(range(num_batches)):
             start_idx = i * batch_size
             end_idx = min((i + 1) * batch_size, len(candidates))
