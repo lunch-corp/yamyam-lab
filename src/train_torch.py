@@ -4,6 +4,7 @@ import os
 import pickle
 import traceback
 from argparse import ArgumentParser
+from datetime import datetime
 
 import torch
 from torch import optim
@@ -18,17 +19,22 @@ from tools.plot import plot_metric_at_k
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/{model}.yaml")
+RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 
 def main(args: ArgumentParser.parse_args):
-    os.makedirs(args.result_path, exist_ok=True)
+    # set result path
+    dt = datetime.now().strftime("%Y%m%d%H%M")
+    test_flag = "test" if args.test else "untest"
+    result_path = RESULT_PATH.format(test=test_flag, model=args.model, dt=dt)
+    os.makedirs(result_path, exist_ok=True)
     config = load_yaml(CONFIG_PATH.format(model=args.model))
 
     # predefine config
     top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
     file_name = config.post_training.file_name
 
-    logger = setup_logger(os.path.join(args.result_path, file_name.log))
+    logger = setup_logger(os.path.join(result_path, file_name.log))
 
     try:
         logger.info(f"model: {args.model}")
@@ -42,8 +48,8 @@ def main(args: ArgumentParser.parse_args):
         )
         logger.info(f"test ratio: {args.test_ratio}")
         logger.info(f"patience for watching validation loss: {args.patience}")
-        logger.info(f"result path: {args.result_path}")
         logger.info(f"test: {args.test}")
+        logger.info(f"training results will be saved in {result_path}")
 
         # generate dataloader for pytorch training pipeline
         data_loader = DatasetLoader(
@@ -62,9 +68,7 @@ def main(args: ArgumentParser.parse_args):
         )
 
         # for qualitative eval
-        pickle.dump(
-            data, open(os.path.join(args.result_path, file_name.data_object), "wb")
-        )
+        pickle.dump(data, open(os.path.join(result_path, file_name.data_object), "wb"))
 
         # import model module
         model_path = f"model.{args.model}"
@@ -166,11 +170,11 @@ def main(args: ArgumentParser.parse_args):
 
             pickle.dump(
                 model.tr_loss,
-                open(os.path.join(args.result_path, file_name.training_loss), "wb"),
+                open(os.path.join(result_path, file_name.training_loss), "wb"),
             )
             pickle.dump(
                 model.metric_at_k_total_epochs,
-                open(os.path.join(args.result_path, file_name.metric), "wb"),
+                open(os.path.join(result_path, file_name.metric), "wb"),
             )
 
             if best_loss > val_loss:
@@ -180,7 +184,7 @@ def main(args: ArgumentParser.parse_args):
                 patience = args.patience
                 torch.save(
                     model.state_dict(),
-                    str(os.path.join(args.result_path, file_name.weight)),
+                    str(os.path.join(result_path, file_name.weight)),
                 )
                 logger.info(
                     f"Best validation: {best_loss}, Previous validation loss: {prev_best_loss}"
@@ -202,7 +206,7 @@ def main(args: ArgumentParser.parse_args):
 
             torch.save(
                 model.state_dict(),
-                str(os.path.join(args.result_path, file_name.weight)),
+                str(os.path.join(result_path, file_name.weight)),
             )
             logger.info("Save final model")
 
@@ -210,7 +214,7 @@ def main(args: ArgumentParser.parse_args):
         plot_metric_at_k(
             metric=model.metric_at_k_total_epochs,
             tr_loss=model.tr_loss,
-            parent_save_path=args.result_path,
+            parent_save_path=result_path,
             top_k_values_for_pred=top_k_values_for_pred,
             top_k_values_for_candidate=[],
         )

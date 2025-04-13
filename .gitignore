@@ -31,5 +31,6 @@ candidates/
 !candidates/node2vec/.gitkeep
 
 zip/
+trained_models/
 
 .DS_Store

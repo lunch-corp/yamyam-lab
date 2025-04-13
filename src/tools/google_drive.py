@@ -216,9 +216,17 @@ class MimeType(Enum):
 class GoogleDriveManager:
     SCOPES = ["https://www.googleapis.com/auth/drive"]
     CANDIDATES_FOLDER_ID = "1_-NOoTC-K6aZMJLM4DgNitCGXX0QkbSA"
-    CANDIDATE_GENERATOR_MODEL = ["node2vec", "metapath2vec", "graphsage"]
+    EMBEDDING_MODEL = ["node2vec", "metapath2vec", "graphsage"]
+    DOWNLOAD_FILE_TYPE = ["candidates", "models"]
     MAPPING = {AllowedFileType.ZIP: MimeType.ZIP}
-    DOWNLOAD_PATH = os.path.join(ROOT_PATH, "candidates")
+    DOWNLOAD_PATH = {
+        "candidates": os.path.join(ROOT_PATH, "candidates"),
+        "models": os.path.join(ROOT_PATH, "trained_models"),
+    }
+    FOLDER_ID = {
+        "candidates": "1_-NOoTC-K6aZMJLM4DgNitCGXX0QkbSA",
+        "models": "1zdqZldExdYZ2eH-Gfabnh8rHkWamPnVG",
+    }
 
     """
     Google drive manager enabling various jobs using python client.
@@ -422,23 +430,30 @@ class GoogleDriveManager:
 
         return file_path
 
-    def download_candidates_result(
-        self, model_name: str, latest: bool = True, file_id: str = None
+    def download_result(
+        self,
+        model_name: str,
+        download_file_type: str,
+        latest: bool = True,
+        file_id: str = None,
     ):
         """
-        Download candidate result specified by candidate generator model name.
+        Download candidate or trained model result specified by model name.
 
         Args:
-            model_name (str): Name of candidate generator model.
+            model_name (str): Name of embedding model.
             latest (bool): Whether download latest result or not.
-            file_id (str): If latest is set as False, download candidate result whose
+            file_id (str): If latest is set as False, download candidate or trained model result whose
                 file_id is equal to `file_id`.
+            download_file_type (str): File type to download, which is either candidates or models.
 
         Returns (str):
             Path to the downloaded file.
 
         """
-        model_folder_id = self._get_model_folder_id(model_name=model_name)
+        model_folder_id = self._get_model_folder_id(
+            model_name=model_name, download_file_type=download_file_type
+        )
 
         # get latest file_id
         if latest:
@@ -446,7 +461,9 @@ class GoogleDriveManager:
         else:
             latest_file_id = file_id
 
-        download_path = os.path.join(self.DOWNLOAD_PATH, model_name)
+        download_path = os.path.join(
+            self.DOWNLOAD_PATH.get(download_file_type), model_name
+        )
         os.makedirs(download_path, exist_ok=True)
 
         return self.download_file(
@@ -454,18 +471,23 @@ class GoogleDriveManager:
             download_path=download_path,
         )
 
-    def upload_candidates_result(self, model_name: str, file_path: str) -> str:
+    def upload_result(
+        self, model_name: str, file_path: str, download_file_type: str
+    ) -> str:
         """
-        Uploads candidate result to related google drive directory.
+        Uploads candidate or trained model result to related google drive directory.
 
         Args:
             model_name (str): Model name currently under training. This is used when finding folder_id of model.
             file_path (str): File path of zil file to upload to google drive.
+            download_file_type (str): File type to download, which is either candidates or models.
 
         Returns (str):
             Id of uploaded zip file.
         """
-        model_folder_id = self._get_model_folder_id(model_name=model_name)
+        model_folder_id = self._get_model_folder_id(
+            model_name=model_name, download_file_type=download_file_type
+        )
         return self.upload_file(
             file_path=file_path,
             folder_id=model_folder_id,
@@ -488,24 +510,31 @@ class GoogleDriveManager:
         )
         return sorted(files, key=lambda x: x["name"])[-1]
 
-    def _get_model_folder_id(self, model_name: str):
+    def _get_model_folder_id(self, model_name: str, download_file_type: str):
         """
         Get folder id matched with given model_name.
 
         Args:
             model_name (str): Name of model to find.
+            download_file_type (str): File type to download, which is either candidates or models.
 
         Returns (str):
             Id of folder matched with model_name.
         """
-        if model_name not in self.CANDIDATE_GENERATOR_MODEL:
+        if model_name not in self.EMBEDDING_MODEL:
             raise ValueError(
                 f"Unsupported model: {model_name}."
-                f"Should be one of {self.CANDIDATE_GENERATOR_MODEL}"
+                f"Should be one of {self.EMBEDDING_MODEL}"
+            )
+        if download_file_type not in self.DOWNLOAD_FILE_TYPE:
+            raise ValueError(
+                f"Unsupported file type: {download_file_type}."
+                f"Should be one of {self.DOWNLOAD_FILE_TYPE}"
             )
         # get model folder id
+        parent_folder_id = self.FOLDER_ID.get(download_file_type)
         files = self.list_files_in_folder(
-            folder_id=self.CANDIDATES_FOLDER_ID,
+            folder_id=parent_folder_id,
             mime_type=MimeType.FOLDER.value,
         )
         return [file for file in files if file["name"] == model_name][0]["id"]
