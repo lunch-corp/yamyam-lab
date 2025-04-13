@@ -166,18 +166,19 @@ class DatasetLoader:
             self.diner_engineered_feature_names,
         )
 
-        # reduce memory usage
-        train = reduce_mem_usage(train)
-        val = reduce_mem_usage(val)
-        user_feature = reduce_mem_usage(user_feature)
-        diner_feature = reduce_mem_usage(diner_feature)
-        diner_meta_feature = reduce_mem_usage(diner_meta_feature)
-
         if is_rank:
+            # reduce memory usage
+            train = reduce_mem_usage(train)
+            val = reduce_mem_usage(val)
+            user_feature = reduce_mem_usage(user_feature)
+            diner_feature = reduce_mem_usage(diner_feature)
+            diner_meta_feature = reduce_mem_usage(diner_meta_feature)
+
             # 순위 관련 특성 병합
             train, val = self.merge_rank_features(
                 train, val, user_feature, diner_feature, diner_meta_feature
             )
+
             user_mapping = mapped_res["user_mapping"]
             diner_mapping = mapped_res["diner_mapping"]
 
