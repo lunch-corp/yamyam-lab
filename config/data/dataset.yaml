@@ -4,6 +4,8 @@ random_state: 42
 test: false
 path: data/
 features:
+  - reviewer_review_cnt
+  - badge_level
   - diner_review_cnt_category
   - min_price
   - max_price
@@ -26,6 +28,7 @@ user_engineered_feature_names:
   - categorical_feature_count:
       categorical_feature_names:
        - diner_category_large
+    add_user_features: {}
 
 diner_engineered_feature_names:
   - all_review_cnt: {}
@@ -34,7 +37,6 @@ diner_engineered_feature_names:
 
 cat_features:
   - diner_review_cnt_category
-
 target: target
 size: 30
 is_candidate_dataset: true

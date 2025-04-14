@@ -110,7 +110,7 @@ class DatasetLoader:
         """
 
         train, val = train_test_split(
-            review,
+            review.drop(columns=["reviewer_review_cnt", "badge_level"]),
             test_size=self.test_size,
             random_state=self.random_state,
             stratify=review[self.stratify],
@@ -199,7 +199,7 @@ class DatasetLoader:
                 diner_mapping=diner_mapping,
             )
 
-            # dat
+            # dataset
             data = self.create_rank_dataset(train, val, mapped_res)
             data["candidates"] = candidates
             data["candidate_user_mapping"] = candidate_user_mapping

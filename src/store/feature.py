@@ -380,6 +380,7 @@ class UserFeatureStore(BaseFeatureStore):
         self.feature_methods = {
             "categorical_feature_count": self.calculate_categorical_feature_count,
             "user_mean_review_score": self.calculate_user_mean_review_score,
+            "add_user_features": self.add_user_features,
             # "scaled_scores": self.calculate_scaled_scores,
         }
         for feat, arg in feature_param_pair.items():
@@ -408,6 +409,22 @@ class UserFeatureStore(BaseFeatureStore):
         """
         for feat, params in self.feature_param_pair.items():
             self.feature_methods[feat](**params)
+
+    def add_user_features(self: Self, **kwargs) -> None:
+        """
+        Calculates total review count of each user.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+        """
+        review_info = self.review[["reviewer_id", "reviewer_review_cnt", "badge_level"]]
+
+        self.user = pd.merge(
+            left=self.user,
+            right=review_info,
+            how="inner",
+            on="reviewer_id",
+        )
 
     def calculate_categorical_feature_count(
         self: Self, categorical_feature_names: List[str], **kwargs
