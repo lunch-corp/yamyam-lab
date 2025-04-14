@@ -52,7 +52,13 @@ def main(cfg: DictConfig):
     try:
         # candidate predictions
         candidates = data["candidates"]
-        predictions = trainer.predict(candidates[cfg.data.features])
+        num_batches = (len(candidates) + cfg.batch_size - 1) // cfg.batch_size
+        predictions = np.zeros(len(candidates))
+        for i in tqdm(range(num_batches)):
+            start_idx = i * cfg.batch_size
+            end_idx = min((i + 1) * cfg.batch_size, len(candidates))
+            batch = candidates[cfg.data.features].iloc[start_idx:end_idx]
+            predictions[start_idx:end_idx] = trainer.predict(batch)
 
         # Group predictions by user
         candidates["pred_score"] = predictions

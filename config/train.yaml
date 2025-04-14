@@ -21,3 +21,5 @@ defaults:
   - models: lightgbm
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
+
+batch_size: 1000000
