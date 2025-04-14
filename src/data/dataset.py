@@ -474,7 +474,11 @@ def load_test_dataset(
 
     # Create test data
     test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": candidates})
-    test = test.merge(reviewer[["reviewer_id", "reviewer_review_cnt", "badge_level"]], on="reviewer_id", how="left")
+    test = test.merge(
+        reviewer[["reviewer_id", "reviewer_review_cnt", "badge_level"]],
+        on="reviewer_id",
+        how="left",
+    )
     test = test.merge(user_feature, on="reviewer_id", how="left")
     test = test.merge(diner_feature, on="diner_idx", how="left")
     test = test.merge(review, on="reviewer_id", how="left")
