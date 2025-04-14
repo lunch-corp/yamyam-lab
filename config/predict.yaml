@@ -31,3 +31,6 @@ distance_threshold: 0.5
 diner_category_large:
 - 치킨
 - 양식
+- 한식
+- 중식
+- 일식
