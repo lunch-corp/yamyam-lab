@@ -299,7 +299,7 @@ class DatasetLoader:
         return train, val
 
     def negative_sampling(
-        self: Self, df: pd.DataFrame, num_neg_samples: int, random_state: int
+        self: Self, review: pd.DataFrame, num_neg_samples: int, random_state: int
     ):
         """
         Negative sampling for ranking task.
@@ -316,18 +316,17 @@ class DatasetLoader:
         np.random.seed(random_state)
 
         # Get list of restaurants reviewed by each user
-        user_2_diner_df = df.groupby("reviewer_id").agg({"diner_idx": list})
+        user_2_diner_df = review.groupby("reviewer_id").agg({"diner_idx": list})
         user_2_diner_map = dict(
             zip(user_2_diner_df.index, user_2_diner_df["diner_idx"])
         )
 
         # Get all unique diners and users
-        candidate_pool = df["diner_idx"].unique().tolist()
+        candidate_pool = review["diner_idx"].unique().tolist()
         all_users = list(user_2_diner_map.keys())
 
         # Generate negative samples using popularity-based sampling
-        diner_popularity = df["diner_idx"].value_counts()
-        diner_prob = diner_popularity / diner_popularity.sum()
+        diner_popularity = review["diner_idx"].value_counts()
 
         neg_samples_list = []
         batch_size = 1000
@@ -343,7 +342,7 @@ class DatasetLoader:
                 available_diners = list(set(candidate_pool) - user_diners)
 
                 # Calculate probabilities for available diners
-                available_probs = diner_prob[available_diners]
+                available_probs = diner_popularity[available_diners]
                 available_probs = available_probs / available_probs.sum()
 
                 # Sample based on popularity
@@ -369,7 +368,7 @@ class DatasetLoader:
 
         # Combine positive and negative samples
         neg_df = pd.DataFrame(neg_samples)
-        all_data = pd.concat([df, neg_df], ignore_index=True)
+        all_data = pd.concat([review, neg_df], ignore_index=True)
 
         return all_data
 
