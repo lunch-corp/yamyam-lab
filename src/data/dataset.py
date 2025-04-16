@@ -317,16 +317,20 @@ class DatasetLoader:
             zip(user_2_diner_df.index, user_2_diner_df["diner_idx"])
         )
 
-        # Get all unique diners
+        # Get all unique diners and users
         candidate_pool = df["diner_idx"].unique().tolist()
         all_users = list(user_2_diner_map.keys())
 
-        # Generate negative samples efficiently using vectorized operations
-        neg_samples_list = []
+        # Generate negative samples using popularity-based sampling
+        diner_popularity = df["diner_idx"].value_counts()
+        diner_prob = diner_popularity / diner_popularity.sum()
 
-        # Process in batches to manage memory
+        neg_samples_list = []
         batch_size = 1000
-        for i in tqdm(range(0, len(all_users), batch_size), desc="negative sampling"):
+
+        for i in tqdm(
+            range(0, len(all_users), batch_size), desc="popularity-based sampling"
+        ):
             batch_users = all_users[i : i + batch_size]
             batch_neg_diners = []
 
@@ -334,15 +338,17 @@ class DatasetLoader:
                 user_diners = set(user_2_diner_map[user_id])
                 available_diners = list(set(candidate_pool) - user_diners)
 
-                if len(available_diners) < n_samples:
-                    sampled_diners = np.random.choice(
-                        available_diners, size=n_samples, replace=True
-                    )
-                else:
-                    sampled_diners = np.random.choice(
-                        available_diners, size=n_samples, replace=False
-                    )
+                # Calculate probabilities for available diners
+                available_probs = diner_prob[available_diners]
+                available_probs = available_probs / available_probs.sum()
 
+                # Sample based on popularity
+                sampled_diners = np.random.choice(
+                    available_diners,
+                    size=n_samples,
+                    p=available_probs,
+                    replace=len(available_diners) < n_samples,
+                )
                 batch_neg_diners.extend(sampled_diners)
 
             batch_user_ids = np.repeat(batch_users, n_samples)
