@@ -334,9 +334,15 @@ class DatasetLoader:
                 user_diners = set(user_2_diner_map[user_id])
                 available_diners = list(set(candidate_pool) - user_diners)
 
-                sampled_diners = np.random.choice(
-                    available_diners, size=n_samples, replace=False
-                )
+                if len(available_diners) < n_samples:
+                    sampled_diners = np.random.choice(
+                        available_diners, size=n_samples, replace=True
+                    )
+                else:
+                    sampled_diners = np.random.choice(
+                        available_diners, size=n_samples, replace=False
+                    )
+
                 batch_neg_diners.extend(sampled_diners)
 
             batch_user_ids = np.repeat(batch_users, n_samples)
