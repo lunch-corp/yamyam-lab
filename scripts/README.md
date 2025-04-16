@@ -59,7 +59,7 @@ Latest version of each embedding model is given below. Note that identical versi
 
 ## How to generate candidates from trained embedding model
 
-Here, we run `scripts/generate_candidate.py` python file to download results.
+Here, we run `scripts/generate_candidate.py` python file to generate candidates.
 
 There are two required files when generating candidates from trained embedding model.
 
@@ -68,7 +68,7 @@ There are two required files when generating candidates from trained embedding m
 
 You could directly download those files in [google drive](https://drive.google.com/drive/u/0/folders/1zdqZldExdYZ2eH-Gfabnh8rHkWamPnVG) unzipping training results.
 
-Or you could download them running `scripts/download_result.py` script. Please refer to `How to download candidate generation or trained model result` section for more details.
+Or you could download them running `scripts/download_result.py` script. Please refer to above `How to download candidate generation or trained model result` section for more details.
 
 You should specify path for trained pytorch weight and data object when running `scripts/generate_candidate.py`.
 
@@ -76,17 +76,18 @@ Depending on the embedding model you want, different arguments are required.
 
 Refer to description of each parameter.
 
-| Parameter name        | Description                                                                     |
-|-----------------------|---------------------------------------------------------------------------------|
-| `model`               | Name of embedding model (`node2vec` / `metapath2vec` / `graphsage` are allowed) |
-| `embedding_dim`       | Embedding dimension for trained model                                           |
-| `data_obj_path`       | Path to data_object.pkl                                                         |
-| `model_pt_path`       | Path to weight.pt                                                               |
-| `weighted_edge`       | Indicator for weighted edge                                                     |
-| `candidate_top_k`     | Number of candidates to generate                                                |
-| `reusable_token_path` | Path to reusable token path                                                     |
-| `use_metadata`        | Indicator for using metadata                                                    |
-| `num_sage_layers`     | Number of sage layers                                                           |
+| Parameter name                     | Description                                                                     |
+|------------------------------------|---------------------------------------------------------------------------------|
+| `model`                            | Name of embedding model (`node2vec` / `metapath2vec` / `graphsage` are allowed) |
+| `embedding_dim`                    | Embedding dimension for trained model                                           |
+| `data_obj_path`                    | Path to data_object.pkl                                                         |
+| `model_pt_path`                    | Path to weight.pt                                                               |
+| `weighted_edge`                    | Indicator for weighted edge                                                     |
+| `candidate_top_k`                  | Number of candidates to generate                                                |
+| `reusable_token_path`              | Path to reusable token path                                                     |
+| `use_metadata`                     | Indicator for using metadata                                                    |
+| `num_sage_layers`                  | Number of sage layers                                                           |
+| `upload_candidate_to_google_drive` | Indicator value whether to upload generated candidates to google drive or not   |
 
 Note: `weighted_edge`, `use_metadata` arguments are temporarily used. They will not be required once training main script is updated.
 
