@@ -27,7 +27,7 @@ class DatasetLoader:
         diner_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
         X_columns: List[str] = ["diner_idx", "reviewer_id"],
         y_columns: List[str] = ["reviewer_review_score"],
-        n_samples: int = 10,
+        num_neg_samples: int = 10,
         random_state: int = 42,
         stratify: str = "reviewer_id",
         is_graph_model: bool = False,
@@ -57,7 +57,7 @@ class DatasetLoader:
         self.diner_engineered_feature_names = diner_engineered_feature_names
         self.X_columns = X_columns
         self.y_columns = y_columns
-        self.n_samples = n_samples
+        self.num_neg_samples = num_neg_samples
         self.random_state = random_state
         self.stratify = stratify
         self.is_graph_model = is_graph_model
@@ -179,11 +179,15 @@ class DatasetLoader:
             # negative sampling
             train = self.create_target_column(train)
             pos_train = train[train["target"] == 1]
-            train = self.negative_sampling(pos_train, self.n_samples, self.random_state)
+            train = self.negative_sampling(
+                pos_train, self.num_neg_samples, self.random_state
+            )
 
             val = self.create_target_column(val)
             pos_val = val[val["target"] == 1]
-            val = self.negative_sampling(pos_val, self.n_samples, self.random_state)
+            val = self.negative_sampling(
+                pos_val, self.num_neg_samples, self.random_state
+            )
 
             train = train.sort_values(by=["reviewer_id"])
             val = val.sort_values(by=["reviewer_id"])
@@ -295,7 +299,7 @@ class DatasetLoader:
         return train, val
 
     def negative_sampling(
-        self: Self, df: pd.DataFrame, n_samples: int, random_state: int
+        self: Self, df: pd.DataFrame, num_neg_samples: int, random_state: int
     ):
         """
         Negative sampling for ranking task.
@@ -345,13 +349,13 @@ class DatasetLoader:
                 # Sample based on popularity
                 sampled_diners = np.random.choice(
                     available_diners,
-                    size=n_samples,
+                    size=num_neg_samples,
                     p=available_probs,
-                    replace=len(available_diners) < n_samples,
+                    replace=len(available_diners) < num_neg_samples,
                 )
                 batch_neg_diners.extend(sampled_diners)
 
-            batch_user_ids = np.repeat(batch_users, n_samples)
+            batch_user_ids = np.repeat(batch_users, num_neg_samples)
             batch_df = pd.DataFrame(
                 {
                     "reviewer_id": batch_user_ids,

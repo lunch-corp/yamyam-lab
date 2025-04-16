@@ -21,7 +21,7 @@ def main(cfg: DictConfig):
         test_size=cfg.data.test_size,
         min_reviews=cfg.data.min_reviews,
         category_column_for_meta=cfg.data.category_column_for_meta,
-        n_samples=cfg.data.n_samples,
+        num_neg_samples=cfg.data.num_neg_samples,
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
         test=cfg.data.test,

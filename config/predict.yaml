@@ -24,10 +24,13 @@ defaults:
 
 model_path: res/models/
 results: lightgbm_ranker
-user_name: 3830746302
+user_name: 1074190142
 top_n: 20
 user_address: 강남역
 distance_threshold: 0.5
 diner_category_large:
 - 치킨
 - 양식
+- 한식
+- 일식
+- 중식
