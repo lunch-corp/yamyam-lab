@@ -5,7 +5,7 @@ import os
 import pickle
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../src"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
 
 from datetime import datetime
 
@@ -16,7 +16,7 @@ from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
 from tools.zip import zip_files_in_directory
 
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/embedding/{model}.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
@@ -39,12 +39,17 @@ def parse_args():
     parser.add_argument("--num_neighbor_samples", type=int, default=3)
     parser.add_argument("--candidate_top_k", type=int, required=False, default=100)
     parser.add_argument("--device", type=str, required=False, default="cpu")
-    parser.add_argument("--reusable_token_path", type=str, required=True)
+    parser.add_argument("--reusable_token_path", type=str, required=False, default="")
+    parser.add_argument("--upload_candidate_to_google_drive", action="store_true")
     return parser.parse_args()
 
 
 def main(args):
     config = load_yaml(CONFIG_PATH.format(model=args.model))
+    if args.upload_candidate_to_google_drive and args.reusable_token_path == "":
+        raise ValueError(
+            "path for google credential token.json should be specified in reusable_token_path argument."
+        )
     file_name = config.post_training.file_name
     data = pickle.load(open(args.data_obj_path, "rb"))
     # Note: train_graph, val_graph will be loaded from saved files.
@@ -103,15 +108,15 @@ def main(args):
     logging.info("Done loading pre-trained weights")
 
     # generate candidates and zip related files
-    test_flag = "untest"
-    dt = datetime.now().strftime("%Y%m%d%H%M")
-    zip_path = ZIP_PATH.format(test=test_flag, model=args.model, dt=dt)
-    os.makedirs(zip_path, exist_ok=True)
     candidates_df = model.generate_candidates_for_each_user(
         top_k_value=args.candidate_top_k
     )
     logging.info("Done generating candidates from pre-trained weights")
 
+    test_flag = "untest"
+    dt = datetime.now().strftime("%Y%m%d%H%M")
+    zip_path = ZIP_PATH.format(test=test_flag, model=args.model, dt=dt)
+    os.makedirs(zip_path, exist_ok=True)
     # save files to zip
     pickle.dump(
         data["user_mapping"],
@@ -129,18 +134,20 @@ def main(args):
         allowed_type=[".pkl", ".parquet"],
         logger=logging,
     )
-    # upload zip file to google drive
-    manager = GoogleDriveManager(
-        reusable_token_path=args.reusable_token_path,
-        reuse_auth_info=True,
-    )
-    file_id = manager.upload_candidates_result(
-        model_name=args.model,
-        file_path=os.path.join(zip_path, f"{dt}.zip"),
-    )
-    logging.info(
-        f"Successfully uploaded candidate results to google drive.File id: {file_id}"
-    )
+
+    if args.upload_candidate_to_google_drive:
+        # upload zip file to google drive
+        manager = GoogleDriveManager(
+            reusable_token_path=args.reusable_token_path,
+            reuse_auth_info=True,
+        )
+        file_id = manager.upload_candidates_result(
+            model_name=args.model,
+            file_path=os.path.join(zip_path, f"{dt}.zip"),
+        )
+        logging.info(
+            f"Successfully uploaded candidate results to google drive.File id: {file_id}"
+        )
 
 
 if __name__ == "__main__":

@@ -6,9 +6,12 @@
 | Python script                          | Description                                                        |
 |----------------------------------------|--------------------------------------------------------------------|
 | `scripts/create_google_drive_token.py` | Used when creating token.json in ci                                |
-| `scripts/download_candidate_result.py` | Used when downloading candidate generation or trained model result |
+| `scripts/download_result.py`           | Used when downloading candidate generation or trained model result |
+| `scripts/generate_candidate.py`        | Used when generating candidates from trained model                 |
 
 ## How to download candidate generation or trained model result
+
+Here, we run `scripts/download_result.py` python file to download results.
 
 Place credential file to authenticate google drive api to `credentials/` directory.
 
@@ -52,11 +55,18 @@ Latest version of each embedding model is given below. Note that identical versi
 
 ## How to generate candidates from trained embedding model
 
-Place credential file to authenticate google drive api to `credentials/` directory.
+Here, we run `scripts/generate_candidate.py` python file to download results.
 
-Refer to [this discussion](https://github.com/LearningnRunning/yamyam-lab/discussions/118#discussioncomment-12590729) about how to download credential json file from gcp.
+There are two required files when generating candidates from trained embedding model.
 
-You should specify path for trained pytorch weight and data object saved when embedding training.
+- weight.pt
+- data_object.pkl
+
+You could directly download those files in [google drive](https://drive.google.com/drive/u/0/folders/1zdqZldExdYZ2eH-Gfabnh8rHkWamPnVG) unzipping training results.
+
+Or you could download them running `scripts/download_result.py` script. Please refer to `How to download candidate generation or trained model result` section for more details.
+
+You should specify path for trained pytorch weight and data object when running `scripts/generate_candidate.py`.
 
 Depending on the embedding model you want, different arguments are required.
 
@@ -73,6 +83,8 @@ Refer to description of each parameter.
 | `reusable_token_path` | Path to reusable token path                                                     |
 | `use_metadata`        | Indicator for using metadata                                                    |
 | `num_sage_layers`     | Number of sage layers                                                           |
+
+Note: `weighted_edge`, `use_metadata` arguments are temporarily used. They will not be required once training main script is updated.
 
 ### node2vec
 
