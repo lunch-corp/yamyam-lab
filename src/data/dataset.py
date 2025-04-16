@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 from data.validator import DataValidator
 from preprocess.preprocess import (
@@ -26,6 +27,7 @@ class DatasetLoader:
         diner_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
         X_columns: List[str] = ["diner_idx", "reviewer_id"],
         y_columns: List[str] = ["reviewer_review_score"],
+        n_samples: int = 10,
         random_state: int = 42,
         stratify: str = "reviewer_id",
         is_graph_model: bool = False,
@@ -55,6 +57,7 @@ class DatasetLoader:
         self.diner_engineered_feature_names = diner_engineered_feature_names
         self.X_columns = X_columns
         self.y_columns = y_columns
+        self.n_samples = n_samples
         self.random_state = random_state
         self.stratify = stratify
         self.is_graph_model = is_graph_model
@@ -92,7 +95,7 @@ class DatasetLoader:
         Create the target column for classification.
         """
         review["target"] = (
-            review["reviewer_review_score"] > review["reviewer_avg"]
+            review["reviewer_review_score"] >= review["reviewer_avg"]
         ).astype(np.int8)
         return review
 
@@ -172,11 +175,22 @@ class DatasetLoader:
             val = reduce_mem_usage(val)
             user_feature = reduce_mem_usage(user_feature)
             diner_feature = reduce_mem_usage(diner_feature)
-            diner_meta_feature = reduce_mem_usage(diner_meta_feature)
+
+            # negative sampling
+            train = self.create_target_column(train)
+            pos_train = train[train["target"] == 1]
+            train = self.negative_sampling(pos_train, self.n_samples, self.random_state)
+
+            val = self.create_target_column(val)
+            pos_val = val[val["target"] == 1]
+            val = self.negative_sampling(pos_val, self.n_samples, self.random_state)
+
+            train = train.sort_values(by=["reviewer_id"])
+            val = val.sort_values(by=["reviewer_id"])
 
             # 순위 관련 특성 병합
             train, val = self.merge_rank_features(
-                train, val, user_feature, diner_feature, diner_meta_feature
+                train, val, user_feature, diner_feature
             )
 
             user_mapping = mapped_res["user_mapping"]
@@ -186,9 +200,7 @@ class DatasetLoader:
                 return self.create_rank_dataset(train, val, mapped_res)
 
             candidates, candidate_user_mapping, candidate_diner_mapping = (
-                self.load_candidate_dataset(
-                    user_feature, diner_feature, diner_meta_feature
-                )
+                self.load_candidate_dataset(user_feature, diner_feature)
             )
 
             # 후보군 생성 모델과 재순위화 모델의 사용자 ID 매핑 검증
@@ -199,7 +211,7 @@ class DatasetLoader:
                 diner_mapping=diner_mapping,
             )
 
-            # dat
+            # rank dataset
             data = self.create_rank_dataset(train, val, mapped_res)
             data["candidates"] = candidates
             data["candidate_user_mapping"] = candidate_user_mapping
@@ -253,7 +265,6 @@ class DatasetLoader:
         val: pd.DataFrame,
         user_feature: pd.DataFrame,
         diner_feature: pd.DataFrame,
-        diner_meta_feature: pd.DataFrame,
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Merge rank-specific features to the train and validation sets.
@@ -274,21 +285,77 @@ class DatasetLoader:
         train = train.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
-        train = train.merge(
-            diner_meta_feature, on="diner_idx", how="left"
-        ).drop_duplicates(subset=["reviewer_id", "diner_idx"])
-
         val = val.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
         val = val.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
             subset=["reviewer_id", "diner_idx"]
         )
-        val = val.merge(diner_meta_feature, on="diner_idx", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
 
         return train, val
+
+    def negative_sampling(
+        self: Self, df: pd.DataFrame, n_samples: int, random_state: int
+    ):
+        """
+        Negative sampling for ranking task.
+
+        Args:
+            df: pd.DataFrame
+            n_samples: int
+            random_state: int
+
+        Returns (pd.DataFrame):
+            A DataFrame with negative samples
+        """
+        # set random seed
+        np.random.seed(random_state)
+
+        # Get list of restaurants reviewed by each user
+        user_2_diner_df = df.groupby("reviewer_id").agg({"diner_idx": list})
+        user_2_diner_map = dict(
+            zip(user_2_diner_df.index, user_2_diner_df["diner_idx"])
+        )
+
+        # Get all unique diners
+        candidate_pool = df["diner_idx"].unique().tolist()
+        all_users = list(user_2_diner_map.keys())
+
+        # Generate negative samples efficiently using vectorized operations
+        neg_samples_list = []
+
+        # Process in batches to manage memory
+        batch_size = 1000
+        for i in tqdm(range(0, len(all_users), batch_size), desc="negative sampling"):
+            batch_users = all_users[i : i + batch_size]
+            batch_neg_diners = []
+
+            for user_id in batch_users:
+                user_diners = set(user_2_diner_map[user_id])
+                available_diners = list(set(candidate_pool) - user_diners)
+
+                sampled_diners = np.random.choice(
+                    available_diners, size=n_samples, replace=False
+                )
+                batch_neg_diners.extend(sampled_diners)
+
+            batch_user_ids = np.repeat(batch_users, n_samples)
+            batch_df = pd.DataFrame(
+                {
+                    "reviewer_id": batch_user_ids,
+                    "diner_idx": batch_neg_diners,
+                    "target": 0,
+                }
+            )
+            neg_samples_list.append(batch_df)
+
+        neg_samples = pd.concat(neg_samples_list, ignore_index=True)
+
+        # Combine positive and negative samples
+        neg_df = pd.DataFrame(neg_samples)
+        all_data = pd.concat([df, neg_df], ignore_index=True)
+
+        return all_data
 
     def create_rank_dataset(
         self: Self, train: pd.DataFrame, val: pd.DataFrame, mapped_res: Dict[str, Any]
@@ -304,12 +371,6 @@ class DatasetLoader:
         Returns (Dict[str, Any]):
             A dictionary containing the training and validation sets.
         """
-        train = self.create_target_column(train)
-        val = self.create_target_column(val)
-
-        train = train.sort_values(by=["reviewer_id"])
-        val = val.sort_values(by=["reviewer_id"])
-
         return {
             "X_train": train.drop(columns=["target"]),
             "y_train": train["target"],
@@ -322,8 +383,7 @@ class DatasetLoader:
         self: Self,
         user_feature: pd.DataFrame,
         diner_feature: pd.DataFrame,
-        diner_meta_feature: pd.DataFrame,
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, Dict[str, Any], Dict[str, Any]]:
         """
         Load candidate dataset.
         """
@@ -364,7 +424,6 @@ class DatasetLoader:
 
         candidate = candidate.merge(user_feature, on="reviewer_id", how="left")
         candidate = candidate.merge(diner_feature, on="diner_idx", how="left")
-        candidate = candidate.merge(diner_meta_feature, on="diner_idx", how="left")
 
         # reduce memory usage
         candidate = reduce_mem_usage(candidate)

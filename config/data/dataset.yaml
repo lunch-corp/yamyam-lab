@@ -38,3 +38,5 @@ cat_features:
 target: target
 size: 30
 is_candidate_dataset: true
+batch_size: 1000000
+n_samples: 30
