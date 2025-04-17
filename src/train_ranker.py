@@ -21,6 +21,7 @@ def main(cfg: DictConfig):
         test_size=cfg.data.test_size,
         min_reviews=cfg.data.min_reviews,
         category_column_for_meta=cfg.data.category_column_for_meta,
+        num_neg_samples=cfg.data.num_neg_samples,
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
         test=cfg.data.test,
@@ -52,7 +53,7 @@ def main(cfg: DictConfig):
     try:
         # candidate predictions
         candidates = data["candidates"]
-        batch_size = 100000
+        batch_size = cfg.data.batch_size
         num_batches = (len(candidates) + batch_size - 1) // batch_size
         predictions = np.zeros(len(candidates))
         for i in tqdm(range(num_batches)):
@@ -74,7 +75,12 @@ def main(cfg: DictConfig):
         metric_at_K = {K: {"map": 0, "ndcg": 0, "count": 0} for K in [3, 7, 10, 20]}
 
         # Get already liked items from test data
-        test_liked_items = X_test.groupby("reviewer_id")["diner_idx"].apply(np.array)
+        X_test["target"] = y_test
+        test_liked_items = (
+            X_test[X_test["target"] == 1]
+            .groupby("reviewer_id")["diner_idx"]
+            .apply(np.array)
+        )
 
         # Get already liked items from training data
         train_liked_items = X_train.groupby("reviewer_id")["diner_idx"].apply(np.array)

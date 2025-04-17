@@ -17,6 +17,7 @@ class DataConfig:
     user_engineered_feature_names: List[Dict[str, Any]]
     diner_engineered_feature_names: List[Dict[str, Any]]
     test: bool = True
+    num_neg_samples: int = 30
     is_candidate_dataset: bool = False
 
 
@@ -83,6 +84,7 @@ def setup_ranker_config(request) -> TestConfig:
         data=DataConfig(
             test_size=0.3,
             min_reviews=3,
+            num_neg_samples=10,
             features=[
                 "diner_review_cnt_category",
                 "min_price",
