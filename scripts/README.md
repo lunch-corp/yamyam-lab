@@ -6,18 +6,25 @@
 | Python script                          | Description                                                        |
 |----------------------------------------|--------------------------------------------------------------------|
 | `scripts/create_google_drive_token.py` | Used when creating token.json in ci                                |
-| `scripts/download_candidate_result.py` | Used when downloading candidate generation or trained model result |
+| `scripts/download_result.py`           | Used when downloading candidate generation or trained model result |
+| `scripts/generate_candidate.py`        | Used when generating candidates from trained model                 |
 
 ## How to download candidate generation or trained model result
 
-Place credential file to authenticate google drive api to `credentials/` directory.
+Here, we run `scripts/download_result.py` python file to download results.
 
-Refer to [this discussion](https://github.com/LearningnRunning/yamyam-lab/discussions/118#discussioncomment-12590729) about how to download credential json file from gcp.
+Note that you could directly download candidate results or trained model result in [google drive](https://drive.google.com/drive/u/0/folders/1kjoSmJ8bn3NIWbzJlPFXZkt6IFrcWIz4).
 
-Run following command depending on the embedding model and what you want to download, which is either of `candidates` or `models`.
+To download it using python code, please follow below steps.
 
-- If you want to download candidate generation results, place `--download_file_type` argument as `candidates`.
-- If you want to download trained model results with torch weight, logs, metric plot etc, place `--download_file_type` argument as `models`.
+1. Place credential file to authenticate google drive api to `credentials/` directory.
+   - Refer to [this discussion](https://github.com/LearningnRunning/yamyam-lab/discussions/118#discussioncomment-12590729) about how to download credential json file from gcp.
+
+2. Run following command depending on the embedding model and what you want to download, which is either of `candidates` or `models`.
+
+    - If you want to download candidate generation results, place `--download_file_type` argument as `candidates`.
+    - If you want to download trained model results with torch weight, logs, metric plot etc, place `--download_file_type` argument as `models`.
+    - Currently, this script supports downloading latest result, which is denoted as `--latest` argument.
 
 ```bash
 $ poetry run python3 scripts/download_result.py \
@@ -52,32 +59,42 @@ Latest version of each embedding model is given below. Note that identical versi
 
 ## How to generate candidates from trained embedding model
 
-Place credential file to authenticate google drive api to `credentials/` directory.
+Here, we run `scripts/generate_candidate.py` python file to generate candidates.
 
-Refer to [this discussion](https://github.com/LearningnRunning/yamyam-lab/discussions/118#discussioncomment-12590729) about how to download credential json file from gcp.
+There are two required files when generating candidates from trained embedding model.
 
-You should specify path for trained pytorch weight and data object saved when embedding training.
+- weight.pt
+- data_object.pkl
+
+You could directly download those files in [google drive](https://drive.google.com/drive/u/0/folders/1zdqZldExdYZ2eH-Gfabnh8rHkWamPnVG) unzipping training results.
+
+Or you could download them running `scripts/download_result.py` script. Please refer to above `How to download candidate generation or trained model result` section for more details.
+
+You should specify path for trained pytorch weight and data object when running `scripts/generate_candidate.py`.
 
 Depending on the embedding model you want, different arguments are required.
 
 Refer to description of each parameter.
 
-| Parameter name        | Description                                                                     |
-|-----------------------|---------------------------------------------------------------------------------|
-| `model`               | Name of embedding model (`node2vec` / `metapath2vec` / `graphsage` are allowed) |
-| `embedding_dim`       | Embedding dimension for trained model                                           |
-| `data_obj_path`       | Path to data_object.pkl                                                         |
-| `model_pt_path`       | Path to weight.pt                                                               |
-| `weighted_edge`       | Indicator for weighted edge                                                     |
-| `candidate_top_k`     | Number of candidates to generate                                                |
-| `reusable_token_path` | Path to reusable token path                                                     |
-| `use_metadata`        | Indicator for using metadata                                                    |
-| `num_sage_layers`     | Number of sage layers                                                           |
+| Parameter name                     | Description                                                                     |
+|------------------------------------|---------------------------------------------------------------------------------|
+| `model`                            | Name of embedding model (`node2vec` / `metapath2vec` / `graphsage` are allowed) |
+| `embedding_dim`                    | Embedding dimension for trained model                                           |
+| `data_obj_path`                    | Path to data_object.pkl                                                         |
+| `model_pt_path`                    | Path to weight.pt                                                               |
+| `weighted_edge`                    | Indicator for weighted edge                                                     |
+| `candidate_top_k`                  | Number of candidates to generate                                                |
+| `reusable_token_path`              | Path to reusable token path                                                     |
+| `use_metadata`                     | Indicator for using metadata                                                    |
+| `num_sage_layers`                  | Number of sage layers                                                           |
+| `upload_candidate_to_google_drive` | Indicator value whether to upload generated candidates to google drive or not   |
+
+Note: `weighted_edge`, `use_metadata` arguments are temporarily used. They will not be required once training main script is updated.
 
 ### node2vec
 
 ```bash
-$ poetry run python3 scripts/candidate/generate_candidate.py \
+$ poetry run python3 scripts/generate_candidate.py \
   --model node2vec \
   --embedding_dim 32 \
   --data_obj_path /PATH/TO/NODE2VEC/data_object.pkl \
@@ -89,7 +106,7 @@ $ poetry run python3 scripts/candidate/generate_candidate.py \
 
 ### metapath2vec
 ```bash
-$ poetry run python3 scripts/candidate/generate_candidate.py \
+$ poetry run python3 scripts/generate_candidate.py \
   --model metapath2vec \
   --embedding_dim 32 \
   --data_obj_path /PATH/TO/METAPATH2VEC/data_object.pkl \
@@ -104,7 +121,7 @@ $ poetry run python3 scripts/candidate/generate_candidate.py \
 ### graphsage
 
 ```bash
-$ poetry run python3 scripts/candidate/generate_candidate.py \
+$ poetry run python3 scripts/generate_candidate.py \
   --model graphsage \
   --embedding_dim 32 \
   --data_obj_path /PATH/TO/GRAPHSAGE/data_object.pkl \
