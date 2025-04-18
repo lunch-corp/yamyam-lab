@@ -30,6 +30,7 @@ class DatasetLoader:
         num_neg_samples: int = 10,
         random_state: int = 42,
         stratify: str = "reviewer_id",
+        sampling_type: str = "popularity",
         is_graph_model: bool = False,
         is_candidate_dataset: bool = False,
         category_column_for_meta: str = "diner_category_large",
@@ -64,7 +65,7 @@ class DatasetLoader:
         self.is_candidate_dataset = is_candidate_dataset
         self.category_column_for_meta = category_column_for_meta
         self.test = test
-
+        self.sampling_type = sampling_type
         self.data_paths = ensure_data_files()
         self.candidate_paths = Path("candidates/node2vec")
 
@@ -180,13 +181,13 @@ class DatasetLoader:
             train = self.create_target_column(train)
             pos_train = train[train["target"] == 1]
             train = self.negative_sampling(
-                pos_train, self.num_neg_samples, self.random_state
+                self.sampling_type, pos_train, self.num_neg_samples, self.random_state
             )
 
             val = self.create_target_column(val)
             pos_val = val[val["target"] == 1]
             val = self.negative_sampling(
-                pos_val, self.num_neg_samples, self.random_state
+                self.sampling_type, pos_val, self.num_neg_samples, self.random_state
             )
 
             train = train.sort_values(by=["reviewer_id"])
@@ -299,7 +300,11 @@ class DatasetLoader:
         return train, val
 
     def negative_sampling(
-        self: Self, review: pd.DataFrame, num_neg_samples: int, random_state: int
+        self: Self,
+        sampling_type: str,
+        review: pd.DataFrame,
+        num_neg_samples: int,
+        random_state: int,
     ):
         """
         Negative sampling for ranking task.
@@ -341,17 +346,29 @@ class DatasetLoader:
                 user_diners = set(user_2_diner_map[user_id])
                 available_diners = list(set(candidate_pool) - user_diners)
 
-                # Calculate probabilities for available diners
-                available_probs = diner_popularity[available_diners]
-                available_probs = available_probs / available_probs.sum()
+                if sampling_type == "popularity":
+                    # Calculate probabilities for available diners
+                    available_probs = diner_popularity[available_diners]
+                    available_probs = available_probs / available_probs.sum()
 
-                # Sample based on popularity
-                sampled_diners = np.random.choice(
-                    available_diners,
-                    size=num_neg_samples,
-                    p=available_probs,
-                    replace=len(available_diners) < num_neg_samples,
-                )
+                    # Sample based on popularity
+                    sampled_diners = np.random.choice(
+                        available_diners,
+                        size=num_neg_samples,
+                        p=available_probs,
+                        replace=len(available_diners) < num_neg_samples,
+                    )
+
+                elif sampling_type == "random":
+                    sampled_diners = np.random.choice(
+                        available_diners,
+                        size=num_neg_samples,
+                        replace=len(available_diners) < num_neg_samples,
+                    )
+
+                else:
+                    raise ValueError(f"Invalid sampling type: {sampling_type}")
+
                 batch_neg_diners.extend(sampled_diners)
 
             batch_user_ids = np.repeat(batch_users, num_neg_samples)
@@ -403,8 +420,8 @@ class DatasetLoader:
         Load candidate dataset.
         """
         # 데이터 로드
-
         candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
+
         if self.test:
             candidate = candidate.head(100)
 

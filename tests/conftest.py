@@ -19,6 +19,7 @@ class DataConfig:
     test: bool = True
     num_neg_samples: int = 30
     is_candidate_dataset: bool = False
+    sampling_type: str = "popularity"
 
 
 @dataclass

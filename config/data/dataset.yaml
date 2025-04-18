@@ -40,3 +40,4 @@ size: 30
 is_candidate_dataset: true
 batch_size: 1000000
 num_neg_samples: 10
+sampling_type: popularity

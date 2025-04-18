@@ -24,6 +24,7 @@ def main(cfg: DictConfig):
         num_neg_samples=cfg.data.num_neg_samples,
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
+        sampling_type=cfg.data.sampling_type,
         test=cfg.data.test,
     )
     data = data_loader.prepare_train_val_dataset(
