@@ -24,6 +24,7 @@ def main(cfg: DictConfig):
         num_neg_samples=cfg.data.num_neg_samples,
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
+        sampling_type=cfg.data.sampling_type,
         test=cfg.data.test,
     )
     data = data_loader.prepare_train_val_dataset(
@@ -83,7 +84,12 @@ def main(cfg: DictConfig):
         )
 
         # Get already liked items from training data
-        train_liked_items = X_train.groupby("reviewer_id")["diner_idx"].apply(np.array)
+        X_train["target"] = y_train
+        train_liked_items = (
+            X_train[X_train["target"] == 1]
+            .groupby("reviewer_id")["diner_idx"]
+            .apply(np.array)
+        )
 
         # Calculate metrics for each user
         for user in tqdm(user_predictions.index):
