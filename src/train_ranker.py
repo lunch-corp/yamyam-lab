@@ -84,7 +84,12 @@ def main(cfg: DictConfig):
         )
 
         # Get already liked items from training data
-        train_liked_items = X_train.groupby("reviewer_id")["diner_idx"].apply(np.array)
+        X_train["target"] = y_train
+        train_liked_items = (
+            X_train[X_train["target"] == 1]
+            .groupby("reviewer_id")["diner_idx"]
+            .apply(np.array)
+        )
 
         # Calculate metrics for each user
         for user in tqdm(user_predictions.index):
