@@ -1,7 +1,8 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 from implicit.als import AlternatingLeastSquares
 from scipy.sparse import coo_matrix
+
 
 class ALSPipeline:
     """
@@ -18,18 +19,19 @@ class ALSPipeline:
         - use_gpu: False
         - calculate_training_loss: True
     """
+
     def __init__(self, als_params: dict = None):
         # Use defaults if no parameters provided
         params = als_params or {}
         # Confidence scaling parameter
-        self.alpha = params.get('alpha', 40)
+        self.alpha = params.get("alpha", 40)
         # Initialize ALS model with provided or default hyperparameters
         self.model = AlternatingLeastSquares(
-            factors=params.get('factors', 20),
-            regularization=params.get('regularization', 0.1),
-            iterations=params.get('iterations', 15),
-            use_gpu=params.get('use_gpu', False),
-            calculate_training_loss=params.get('calculate_training_loss', True)
+            factors=params.get("factors", 20),
+            regularization=params.get("regularization", 0.1),
+            iterations=params.get("iterations", 15),
+            use_gpu=params.get("use_gpu", False),
+            calculate_training_loss=params.get("calculate_training_loss", True),
         )
         # Attributes to be populated after fitting
         self.user_cat = None
@@ -48,17 +50,20 @@ class ALSPipeline:
             DataFrame containing columns ['reviewer_id', 'diner_idx', 'reviewer_review_score'].
         """
         # 1) Data preprocessing: drop NA and encode user/item IDs
-        df2 = review_df[['reviewer_id', 'diner_idx', 'reviewer_review_score']].dropna()
-        self.user_cat = df2['reviewer_id'].astype('category')
-        self.item_cat = df2['diner_idx'].astype('category')
+        df2 = review_df[["reviewer_id", "diner_idx", "reviewer_review_score"]].dropna()
+        self.user_cat = df2["reviewer_id"].astype("category")
+        self.item_cat = df2["diner_idx"].astype("category")
         rows = self.user_cat.cat.codes
         cols = self.item_cat.cat.codes
-        data = df2['reviewer_review_score'].astype(np.float32)
+        data = df2["reviewer_review_score"].astype(np.float32)
 
         # 2) Build sparse user-item matrix (raw ratings)
         self.Cui_csr = coo_matrix(
             (data, (rows, cols)),
-            shape=(self.user_cat.cat.categories.size, self.item_cat.cat.categories.size)
+            shape=(
+                self.user_cat.cat.categories.size,
+                self.item_cat.cat.categories.size,
+            ),
         ).tocsr()
 
         # 3) Scale confidence: c_ui = 1 + alpha * rating
@@ -125,12 +130,12 @@ class ALSPipeline:
 
         # 5) Convert internal indices back to raw item IDs
         return list(self.item_cat.cat.categories[top_idx])
-    
-    
-    
+
+
 if __name__ == "__main__":
-    from src.tools.google_drive import ensure_data_files
     import pandas as pd
+
+    from src.tools.google_drive import ensure_data_files
 
     # Ensure required data files are available
     data_paths = ensure_data_files()
@@ -138,7 +143,7 @@ if __name__ == "__main__":
     # Load data into Pandas DataFrames
     print(data_paths)
     review = pd.read_csv(data_paths["review"], index_col=0)
-    
+
     als_pipeline = ALSPipeline()
     als_pipeline.fit(review_df=review)
     top10 = als_pipeline.recommend_for_user(user_id=256114348, N=10)
