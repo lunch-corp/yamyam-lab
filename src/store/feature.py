@@ -380,6 +380,7 @@ class UserFeatureStore(BaseFeatureStore):
         self.feature_methods = {
             "categorical_feature_count": self.calculate_categorical_feature_count,
             "user_mean_review_score": self.calculate_user_mean_review_score,
+            "user_activity_patterns": self.calculate_activity_patterns,
             # "scaled_scores": self.calculate_scaled_scores,
         }
         for feat, arg in feature_param_pair.items():
@@ -456,6 +457,46 @@ class UserFeatureStore(BaseFeatureStore):
         self.user = pd.merge(
             left=self.user,
             right=score_feat,
+            how="inner",
+            on="reviewer_id",
+        )
+
+    def calculate_activity_patterns(self: Self, **kwargs) -> None:
+        """
+        Calculate features related to user's activity patterns.
+        """
+        # 리뷰 작성 날짜 정보 추출
+        review_date = pd.to_datetime(self.review["reviewer_review_date"])
+
+        # 요일별 패턴 (0: 월요일, 6: 일요일)
+        day_patterns = pd.get_dummies(review_date.dt.dayofweek).astype(int)
+        day_patterns.columns = [f"day_{col}" for col in day_patterns.columns]
+        day_patterns["reviewer_id"] = self.review["reviewer_id"]
+
+        # 요일별 합계 계산
+        daily_counts = day_patterns.groupby("reviewer_id").sum().reset_index()
+
+        # 최근성 feature
+        recency = (
+            self.review.groupby("reviewer_id")["reviewer_review_date"]
+            .max()
+            .reset_index()
+        )
+        recency["days_since_last_review"] = (
+            pd.Timestamp.now() - pd.to_datetime(recency["reviewer_review_date"])
+        ).dt.days
+
+        # 요일 패턴과 최근성 정보를 사용자 데이터에 병합
+        self.user = pd.merge(
+            left=self.user,
+            right=daily_counts,
+            how="inner",
+            on="reviewer_id",
+        )
+
+        self.user = pd.merge(
+            left=self.user,
+            right=recency[["reviewer_id", "days_since_last_review"]],
             how="inner",
             on="reviewer_id",
         )

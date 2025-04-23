@@ -336,9 +336,7 @@ class DatasetLoader:
         neg_samples_list = []
         batch_size = 1000
 
-        for i in tqdm(
-            range(0, len(all_users), batch_size), desc="popularity-based sampling"
-        ):
+        for i in tqdm(range(0, len(all_users), batch_size), desc="sampling"):
             batch_users = all_users[i : i + batch_size]
             batch_neg_diners = []
 
