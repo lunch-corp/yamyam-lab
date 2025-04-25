@@ -141,15 +141,28 @@ class DatasetLoader:
         # Convert review date to datetime
         review["reviewer_review_date"] = pd.to_datetime(review["reviewer_review_date"])
 
-        # Sort by date
-        review = review.sort_values("reviewer_review_date")
+        # Group by reviewer and sort by date within each group
+        review = review.sort_values(["reviewer_id", "reviewer_review_date"])
 
-        # Get the split point based on test_size
-        split_idx = int(len(review) * (1 - self.test_size))
+        # Create train/val splits for each reviewer based on time
+        train_indices = []
+        val_indices = []
 
-        # Split the data
-        train = review.iloc[:split_idx]
-        val = review.iloc[split_idx:]
+        for reviewer_id in review["reviewer_id"].unique():
+            reviewer_mask = review["reviewer_id"] == reviewer_id
+            reviewer_reviews = review[reviewer_mask]
+
+            # Calculate split point for this reviewer
+            split_idx = int(len(reviewer_reviews) * (1 - self.test_size))
+
+            # Get indices for train/val split
+            reviewer_indices = reviewer_reviews.index
+            train_indices.extend(reviewer_indices[:split_idx])
+            val_indices.extend(reviewer_indices[split_idx:])
+
+        # Split the data using the collected indices
+        train = review.loc[train_indices]
+        val = review.loc[val_indices]
 
         return train, val
 
@@ -188,9 +201,7 @@ class DatasetLoader:
         }
 
         # Split data into train and validation
-        train, val = self.train_test_split_stratify(
-            review
-        )  # self.train_test_split_timeseries(review)
+        train, val = self.train_test_split_timeseries(review)
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
