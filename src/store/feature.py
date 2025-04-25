@@ -94,14 +94,7 @@ class DinerFeatureStore(BaseFeatureStore):
         # 결과를 DataFrame으로 변환 및 병합
         self.diner[["taste", "kind", "mood", "chip", "parking"]] = scores
         self.engineered_feature_names.extend(
-            [
-                "diner_review_cnt_category",
-                "taste",
-                "kind",
-                "mood",
-                "chip",
-                "parking",
-            ]
+            ["diner_review_cnt_category", "taste", "kind", "mood", "chip", "parking"]
         )
 
     def calculate_diner_price(self: Self, **kwargs) -> None:
@@ -123,13 +116,7 @@ class DinerFeatureStore(BaseFeatureStore):
             self.diner[col] = self.diner[col].fillna(self.diner[col].median())
 
         self.engineered_feature_names.extend(
-            [
-                "min_price",
-                "max_price",
-                "mean_price",
-                "median_price",
-                "menu_count",
-            ]
+            ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
         )
 
     def calculate_diner_mean_review_score(self: Self, **kwargs) -> None:
@@ -224,10 +211,7 @@ class DinerFeatureStore(BaseFeatureStore):
             lambda row: row[category_column_for_meta] + "_" + row["h3_index"], axis=1
         )
         self.engineered_meta_feature_names.extend(
-            [
-                "metadata_id",
-                "metadata_id_neighbors",
-            ]
+            ["metadata_id", "metadata_id_neighbors"]
         )
 
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
