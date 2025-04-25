@@ -125,6 +125,34 @@ class DatasetLoader:
         )
         return train, val
 
+    def train_test_split_timeseries(
+        self: Self, review: pd.DataFrame
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Split data into train and validation sets based on time series order.
+        This ensures that earlier reviews are in the training set and later reviews are in the validation set.
+
+        Args:
+            review: pd.DataFrame
+
+        Returns (Tuple[pd.DataFrame, pd.DataFrame]):
+            train, val
+        """
+        # Convert review date to datetime
+        review["reviewer_review_date"] = pd.to_datetime(review["reviewer_review_date"])
+
+        # Sort by date
+        review = review.sort_values("reviewer_review_date")
+
+        # Get the split point based on test_size
+        split_idx = int(len(review) * (1 - self.test_size))
+
+        # Split the data
+        train = review.iloc[:split_idx]
+        val = review.iloc[split_idx:]
+
+        return train, val
+
     def prepare_train_val_dataset(
         self: Self,
         is_rank: bool = False,
@@ -160,7 +188,7 @@ class DatasetLoader:
         }
 
         # Split data into train and validation
-        train, val = self.train_test_split_stratify(review)
+        train, val = self.train_test_split_timeseries(review)
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(

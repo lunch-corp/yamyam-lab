@@ -46,10 +46,6 @@ def haversine(
     return radius * c
 
 
-# 예제 데이터 : df_shake
-# 컬럼 정보 : name, branch, addr
-
-
 # 위도, 경도 반환하는 함수
 def geocoding(address: str) -> list[float]:
     try:
@@ -69,7 +65,6 @@ def _main(cfg: DictConfig):
         cfg.data.user_engineered_feature_names[0],
         cfg.data.diner_engineered_feature_names[0],
     )
-
     user_lat, user_lon = geocoding(cfg.user_address)
     test["distance"] = haversine(
         user_lat, user_lon, test["diner_lat"], test["diner_lon"]
@@ -87,11 +82,21 @@ def _main(cfg: DictConfig):
     test = test.head(cfg.top_n)
 
     table = PrettyTable()
-    table.field_names = ["diner_name", "diner_category_middle", "prediction"]
+    table.field_names = [
+        "diner_name",
+        "diner_category_large",
+        "diner_category_middle",
+        "prediction",
+    ]
 
     for _, row in test.iterrows():
         table.add_row(
-            [row["diner_name"], row["diner_category_middle"], row["prediction"]]
+            [
+                row["diner_name"],
+                row["diner_category_large"],
+                row["diner_category_middle"],
+                row["prediction"],
+            ]
         )
 
     logging.info(
