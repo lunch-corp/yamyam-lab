@@ -188,7 +188,9 @@ class DatasetLoader:
         }
 
         # Split data into train and validation
-        train, val = self.train_test_split_timeseries(review)
+        train, val = self.train_test_split_stratify(
+            review
+        )  # self.train_test_split_timeseries(review)
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
