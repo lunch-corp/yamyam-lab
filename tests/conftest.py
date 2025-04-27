@@ -20,6 +20,7 @@ class DataConfig:
     num_neg_samples: int = 30
     is_candidate_dataset: bool = False
     sampling_type: str = "popularity"
+    is_timeseries: bool = False
 
 
 @dataclass

@@ -31,6 +31,7 @@ class DatasetLoader:
         random_state: int = 42,
         stratify: str = "reviewer_id",
         sampling_type: str = "popularity",
+        is_timeseries: bool = False,
         is_graph_model: bool = False,
         is_candidate_dataset: bool = False,
         category_column_for_meta: str = "diner_category_large",
@@ -62,6 +63,7 @@ class DatasetLoader:
         self.random_state = random_state
         self.stratify = stratify
         self.is_graph_model = is_graph_model
+        self.is_timeseries = is_timeseries
         self.is_candidate_dataset = is_candidate_dataset
         self.category_column_for_meta = category_column_for_meta
         self.test = test
@@ -201,7 +203,11 @@ class DatasetLoader:
         }
 
         # Split data into train and validation
-        train, val = self.train_test_split_timeseries(review)
+        train, val = (
+            self.train_test_split_timeseries(review)
+            if self.is_timeseries
+            else self.train_test_split_stratify(review)
+        )
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
