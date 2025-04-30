@@ -211,13 +211,43 @@ class BaseEmbedding(nn.Module):
 
         return negative_samples
 
-    def recommend_all(
+    def generate_recommendations_and_calculate_metric(
         self,
         X_train: Tensor,
-        X_val: Tensor,
+        X_val_warm_users: Tensor,
+        X_val_cold_users: Tensor,
         top_k_values: List[int],
+        metric_at_k: Dict,
+        most_popular_diner_ids: List[int],
         filter_already_liked: bool = True,
-    ) -> None:
+    ) -> Dict:
+        metric_at_k_warm_users_updated = (
+            self._generate_recommendations_and_calculate_metric_for_warm_start_users(
+                X_train=X_train,
+                X_val_warm_users=X_val_warm_users,
+                top_k_values=top_k_values,
+                metric_at_k=metric_at_k,
+                filter_already_liked=filter_already_liked,
+            )
+        )
+        metric_at_k_warm_cold_users_updated = (
+            self._generate_recommendations_and_calculate_metric_for_cold_start_users(
+                X_val_cold_users=X_val_cold_users,
+                top_k_values=top_k_values,
+                most_popular_diner_ids=most_popular_diner_ids,
+                metric_at_k=metric_at_k_warm_users_updated,
+            )
+        )
+        return metric_at_k_warm_cold_users_updated
+
+    def _generate_recommendations_and_calculate_metric_for_warm_start_users(
+        self,
+        X_train: Tensor,
+        X_val_warm_users: Tensor,
+        top_k_values: List[int],
+        metric_at_k: Dict,
+        filter_already_liked: bool = True,
+    ) -> Dict:
         """
         Generate diner recommendations for all users.
         Suppose number of users is U and number of diners is D.
@@ -230,17 +260,6 @@ class BaseEmbedding(nn.Module):
              top_k_values (List[int]): a list of k values.
              filter_already_liked (bool): whether filtering pre-liked diner in train dataset or not.
         """
-        # prepare for metric calculation
-        # refresh at every epoch
-        metric_at_k = {
-            k: {
-                Metric.MAP: 0,
-                Metric.NDCG: 0,
-                Metric.RECALL: 0,
-                Metric.COUNT: 0,
-            }
-            for k in top_k_values
-        }
         max_k = max(top_k_values)
         start = 0
         diner_embeds = self.get_embedding(self.diner_ids)
@@ -256,7 +275,7 @@ class BaseEmbedding(nn.Module):
             .assign(num_liked_items=lambda df: df["diner_idx"].apply(len))
         )
         self.val_liked_series = (
-            pd.DataFrame(X_val, columns=["diner_idx", "reviewer_id"])
+            pd.DataFrame(X_val_warm_users, columns=["diner_idx", "reviewer_id"])
             .groupby("reviewer_id")["diner_idx"]
             .apply(np.array)
         )
@@ -264,6 +283,7 @@ class BaseEmbedding(nn.Module):
             self.val_liked_series.to_frame()
             .reset_index()
             .assign(num_liked_items=lambda df: df["diner_idx"].apply(len))
+            .sort_values(by="reviewer_id")
         )
 
         liked_items_count2user_ids = (
@@ -310,13 +330,57 @@ class BaseEmbedding(nn.Module):
 
                 start += self.recommend_batch_size
 
-        self.calculate_metric_at_current_epoch(
-            metric_at_k=metric_at_k,
-            top_k_values=top_k_values,
+        return metric_at_k
+
+    def _generate_recommendations_and_calculate_metric_for_cold_start_users(
+        self,
+        X_val_cold_users: torch.Tensor,
+        most_popular_diner_ids: List[int],
+        top_k_values: List[int],
+        metric_at_k: Dict,
+    ) -> Dict:
+        if X_val_cold_users.size(0) == 0:
+            return metric_at_k
+        val_liked_cold_users = (
+            pd.DataFrame(X_val_cold_users, columns=["diner_idx", "reviewer_id"])
+            .groupby("reviewer_id")["diner_idx"]
+            .apply(np.array)
+            .to_frame()
+            .reset_index()
+            .assign(num_liked_items=lambda df: df["diner_idx"].apply(len))
+            .sort_values(by="reviewer_id")
+        )
+        liked_items_count2user_ids = (
+            val_liked_cold_users.groupby("num_liked_items")["reviewer_id"]
+            .apply(np.array)
+            .to_dict()
         )
 
-    def recommen_all_for_cold_start_users(self, cold_start_user_ids: List[int]):
-        pass
+        for count, user_ids in liked_items_count2user_ids.items():
+            num_users = len(user_ids)
+            start = 0
+            while start < num_users:
+                batch_users = user_ids[start : start + self.recommend_batch_size]
+                most_popular_reco_items = np.tile(
+                    most_popular_diner_ids, (len(batch_users), 1)
+                )
+
+                liked_items_by_batch_users = np.vstack(
+                    val_liked_cold_users[lambda x: x["reviewer_id"].isin(batch_users)][
+                        "diner_idx"
+                    ].values
+                )
+
+                self.calculate_metric_at_current_batch(
+                    metric_at_k=metric_at_k,
+                    top_k_id=most_popular_reco_items,
+                    liked_items=liked_items_by_batch_users,
+                    top_k_values=top_k_values,
+                )
+
+                start += self.recommend_batch_size
+
+        return metric_at_k
 
     def calculate_metric_at_current_epoch(
         self, metric_at_k: Dict, top_k_values: List[int]

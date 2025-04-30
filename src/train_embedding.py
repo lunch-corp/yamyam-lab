@@ -176,11 +176,28 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             logger.info(f"epoch {epoch}: train loss {total_loss:.4f}")
 
-            model.recommend_all(
+            # calculate metric for current epoch
+            metric_at_k = {
+                k: {
+                    Metric.MAP: 0,
+                    Metric.NDCG: 0,
+                    Metric.RECALL: 0,
+                    Metric.COUNT: 0,
+                }
+                for k in top_k_values
+            }
+            metric_at_k = model.generate_recommendations_and_calculate_metric(
                 X_train=data["X_train"],
-                X_val=data["X_val_warm_users"],
+                X_val_warm_users=data["X_val_warm_users"],
+                X_val_cold_users=data["X_val_cold_users"],
                 top_k_values=top_k_values,
+                metric_at_k=metric_at_k,
+                most_popular_diner_ids=data["most_popular_diner_ids"],
                 filter_already_liked=True,
+            )
+            model.calculate_metric_at_current_epoch(
+                metric_at_k=metric_at_k,
+                top_k_values=top_k_values,
             )
 
             maps = []
