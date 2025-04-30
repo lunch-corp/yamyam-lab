@@ -73,6 +73,16 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
 
+        logger.info(
+            f"train dataset period: {config.preprocess.data.train_time_point} <= dt < {config.preprocess.data.val_time_point}"
+        )
+        logger.info(
+            f"val dataset period: {config.preprocess.data.val_time_point} <= dt < {config.preprocess.data.test_time_point}"
+        )
+        logger.info(
+            f"test dataset period: {config.preprocess.data.test_time_point} <= dt < {config.preprocess.data.end_time_point}"
+        )
+
         data_loader = DatasetLoader(
             test_size=args.test_ratio,
             min_reviews=config.preprocess.data.min_review,
@@ -103,8 +113,17 @@ def main(args: ArgumentParser.parse_args) -> None:
             use_metadata=args.use_metadata,
         )
 
-        logger.info(f"Number of warm start users: {len(data['warm_start_user_ids'])}")
-        logger.info(f"Number of cold start users: {len(data['warm_cold_user_ids'])}")
+        logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
+        logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
+        logger.info(
+            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
+        )
+        logger.info(
+            f"Number of warm start users in val: {len(data['warm_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of cold start users in val: {len(data['cold_start_user_ids'])}"
+        )
 
         # for qualitative eval
         pickle.dump(data, open(os.path.join(result_path, file_name.data_object), "wb"))
@@ -220,10 +239,10 @@ def main(args: ArgumentParser.parse_args) -> None:
                 count = model.metric_at_k_total_epochs[k][Metric.COUNT]
 
                 logger.info(
-                    f"maP@{k}: {map} with {count} users out of all {model.num_users} users"
+                    f"maP@{k}: {map} with {count} users out of all {len(data['val_user_ids'])} users"
                 )
                 logger.info(
-                    f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users"
+                    f"ndcg@{k}: {ndcg} with {count} users out of all {len(data['val_user_ids'])} users"
                 )
 
                 maps.append(str(map))
@@ -237,7 +256,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                 recall = round(model.metric_at_k_total_epochs[k][Metric.RECALL][-1], 5)
                 count = model.metric_at_k_total_epochs[k][Metric.COUNT]
                 logger.info(
-                    f"recall@{k}: {recall} with {count} users out of all {model.num_users} users"
+                    f"recall@{k}: {recall} with {count} users out of all {len(data['val_user_ids'])} users"
                 )
                 recalls.append(str(recall))
 

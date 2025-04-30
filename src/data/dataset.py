@@ -346,6 +346,8 @@ class DatasetLoader:
             train_review=train,
             test_review=val,
         )
+        train_user_ids = train["reviewer_id"].unique()
+        val_user_ids = val["reviewer_id"].unique()
         val_warm_users = val[lambda x: x["reviewer_id"].isin(warm_start_user_ids)]
         val_cold_users = val[lambda x: x["reviewer_id"].isin(cold_start_user_ids)]
 
@@ -422,6 +424,8 @@ class DatasetLoader:
         return self.create_graph_dataset(
             train,
             val,
+            train_user_ids,
+            val_user_ids,
             warm_start_user_ids,
             cold_start_user_ids,
             val_warm_users,
@@ -660,6 +664,8 @@ class DatasetLoader:
         self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
+        train_user_ids: NDArray,
+        val_user_ids: NDArray,
         warm_start_user_ids: NDArray,
         cold_start_user_ids: NDArray,
         val_warm_users: pd.DataFrame,
@@ -714,6 +720,8 @@ class DatasetLoader:
             ),
             "warm_start_user_ids": warm_start_user_ids,
             "cold_start_user_ids": cold_start_user_ids,
+            "train_user_ids": train_user_ids,
+            "val_user_ids": val_user_ids,
             **mapped_res,
         }
 
