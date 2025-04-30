@@ -331,25 +331,16 @@ class DatasetLoader:
 
         # Split data into train and validation
         if self.is_timeseries_by_users and not self.is_timeseries:
-            train, val = self.train_test_split_timeseries_by_users(review)
+            train, test = self.train_test_split_timeseries_by_users(review)
         elif not self.is_timeseries_by_users and self.is_timeseries_by_time_point:
-            train, val = self.train_test_split_timeseries_by_time_point(
+            train, test = self.train_test_split_timeseries_by_time_point(
                 review=review,
                 train_time_point=self.train_time_point,
                 test_time_point=self.test_time_point,
                 end_time_point=self.end_time_point,
             )
         else:
-            train, val = self.train_test_split_stratify(review)
-
-        warm_start_user_ids, cold_start_user_ids = self.get_warm_cold_start_user_ids(
-            train_review=train,
-            test_review=val,
-        )
-        train_user_ids = train["reviewer_id"].unique()
-        val_user_ids = val["reviewer_id"].unique()
-        val_warm_users = val[lambda x: x["reviewer_id"].isin(warm_start_user_ids)]
-        val_cold_users = val[lambda x: x["reviewer_id"].isin(cold_start_user_ids)]
+            train, test = self.train_test_split_stratify(review)
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
@@ -362,7 +353,7 @@ class DatasetLoader:
         if is_rank:
             # reduce memory usage
             train = reduce_mem_usage(train)
-            val = reduce_mem_usage(val)
+            test = reduce_mem_usage(test)
             user_feature = reduce_mem_usage(user_feature)
             diner_feature = reduce_mem_usage(diner_feature)
 
@@ -373,25 +364,25 @@ class DatasetLoader:
                 self.sampling_type, pos_train, self.num_neg_samples, self.random_state
             )
 
-            val = self.create_target_column(val)
-            pos_val = val[val["target"] == 1]
-            val = self.negative_sampling(
-                self.sampling_type, pos_val, self.num_neg_samples, self.random_state
+            test = self.create_target_column(test)
+            pos_test = test[test["target"] == 1]
+            test = self.negative_sampling(
+                self.sampling_type, pos_test, self.num_neg_samples, self.random_state
             )
 
             train = train.sort_values(by=["reviewer_id"])
-            val = val.sort_values(by=["reviewer_id"])
+            test = test.sort_values(by=["reviewer_id"])
 
             # 순위 관련 특성 병합
-            train, val = self.merge_rank_features(
-                train, val, user_feature, diner_feature
+            train, test = self.merge_rank_features(
+                train, test, user_feature, diner_feature
             )
 
             user_mapping = mapped_res["user_mapping"]
             diner_mapping = mapped_res["diner_mapping"]
 
             if not is_candidate_dataset:
-                return self.create_rank_dataset(train, val, mapped_res)
+                return self.create_rank_dataset(train, test, mapped_res)
 
             candidates, candidate_user_mapping, candidate_diner_mapping = (
                 self.load_candidate_dataset(user_feature, diner_feature)
@@ -406,12 +397,39 @@ class DatasetLoader:
             )
 
             # rank dataset
-            data = self.create_rank_dataset(train, val, mapped_res)
+            data = self.create_rank_dataset(train, test, mapped_res)
             data["candidates"] = candidates
             data["candidate_user_mapping"] = candidate_user_mapping
             data["candidate_diner_mapping"] = candidate_diner_mapping
 
             return data
+
+        train, val = self.train_test_split_timeseries_by_time_point(
+            review=review,
+            train_time_point=self.train_time_point,
+            test_time_point=self.val_time_point,
+            end_time_point=self.test_time_point,
+        )
+
+        val_warm_start_user_ids, val_cold_start_user_ids = (
+            self.get_warm_cold_start_user_ids(
+                train_review=train,
+                test_review=val,
+            )
+        )
+        test_warm_start_user_ids, test_cold_start_user_ids = (
+            self.get_warm_cold_start_user_ids(
+                train_review=train,
+                test_review=test,
+            )
+        )
+        train_user_ids = train["reviewer_id"].unique()
+        val_user_ids = val["reviewer_id"].unique()
+        test_user_ids = test["reviewer_id"].unique()
+        val_warm_users = val[lambda x: x["reviewer_id"].isin(val_warm_start_user_ids)]
+        val_cold_users = val[lambda x: x["reviewer_id"].isin(val_cold_start_user_ids)]
+        test_warm_users = val[lambda x: x["reviewer_id"].isin(test_warm_start_user_ids)]
+        test_cold_users = val[lambda x: x["reviewer_id"].isin(test_cold_start_user_ids)]
 
         if use_metadata:
             meta_mapping_info = meta_mapping(
@@ -422,18 +440,24 @@ class DatasetLoader:
             mapped_res.update(meta_mapping_info)
 
         return self.create_graph_dataset(
-            train,
-            val,
-            train_user_ids,
-            val_user_ids,
-            warm_start_user_ids,
-            cold_start_user_ids,
-            val_warm_users,
-            val_cold_users,
-            user_feature,
-            diner_feature,
-            diner_meta_feature,
-            mapped_res,
+            train=train,
+            val=val,
+            test=test,
+            train_user_ids=train_user_ids,
+            val_user_ids=val_user_ids,
+            test_user_ids=test_user_ids,
+            val_warm_start_user_ids=val_warm_start_user_ids,
+            val_cold_start_user_ids=val_cold_start_user_ids,
+            test_warm_start_user_ids=test_warm_start_user_ids,
+            test_cold_start_user_ids=test_cold_start_user_ids,
+            val_warm_users=val_warm_users,
+            val_cold_users=val_cold_users,
+            test_warm_users=test_warm_users,
+            test_cold_users=test_cold_users,
+            user_feature=user_feature,
+            diner_feature=diner_feature,
+            diner_meta_feature=diner_meta_feature,
+            mapped_res=mapped_res,
         )
 
     def _validate_user_mappings(
@@ -664,12 +688,18 @@ class DatasetLoader:
         self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
+        test: pd.DataFrame,
         train_user_ids: NDArray,
         val_user_ids: NDArray,
-        warm_start_user_ids: NDArray,
-        cold_start_user_ids: NDArray,
+        test_user_ids: NDArray,
+        val_warm_start_user_ids: NDArray,
+        val_cold_start_user_ids: NDArray,
+        test_warm_start_user_ids: NDArray,
+        test_cold_start_user_ids: NDArray,
         val_warm_users: pd.DataFrame,
         val_cold_users: pd.DataFrame,
+        test_warm_users: pd.DataFrame,
+        test_cold_users: pd.DataFrame,
         user_feature: pd.DataFrame,
         diner_feature: pd.DataFrame,
         diner_meta_feature: pd.DataFrame,
@@ -694,6 +724,8 @@ class DatasetLoader:
             "y_train": torch.tensor(train[self.y_columns].values, dtype=torch.float32),
             "X_val": torch.tensor(val[self.X_columns].values),
             "y_val": torch.tensor(val[self.y_columns].values, dtype=torch.float32),
+            "X_test": torch.tensor(test[self.X_columns].values),
+            "y_test": torch.tensor(test[self.y_columns].values, dtype=torch.float32),
             "X_val_warm_users": torch.tensor(val_warm_users[self.X_columns].values),
             "y_val_warm_users": torch.tensor(
                 val_warm_users[self.y_columns].values, dtype=torch.float32
@@ -701,6 +733,14 @@ class DatasetLoader:
             "X_val_cold_users": torch.tensor(val_cold_users[self.X_columns].values),
             "y_val_cold_users": torch.tensor(
                 val_cold_users[self.y_columns].values, dtype=torch.float32
+            ),
+            "X_test_warm_users": torch.tensor(test_warm_users[self.X_columns].values),
+            "y_test_warm_users": torch.tensor(
+                test_warm_users[self.y_columns].values, dtype=torch.float32
+            ),
+            "X_test_cold_users": torch.tensor(test_cold_users[self.X_columns].values),
+            "y_test_cold_users": torch.tensor(
+                test_cold_users[self.y_columns].values, dtype=torch.float32
             ),
             "diner": diner_meta_feature,
             "user_feature": torch.tensor(
@@ -718,10 +758,13 @@ class DatasetLoader:
             "most_popular_diner_ids": self.get_most_popular_diner_ids(
                 train_review=train
             ),
-            "warm_start_user_ids": warm_start_user_ids,
-            "cold_start_user_ids": cold_start_user_ids,
+            "val_warm_start_user_ids": val_warm_start_user_ids,
+            "val_cold_start_user_ids": val_cold_start_user_ids,
+            "test_warm_start_user_ids": test_warm_start_user_ids,
+            "test_cold_start_user_ids": test_cold_start_user_ids,
             "train_user_ids": train_user_ids,
             "val_user_ids": val_user_ids,
+            "test_user_ids": test_user_ids,
             **mapped_res,
         }
 

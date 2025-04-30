@@ -17,6 +17,7 @@ from tools.google_drive import GoogleDriveManager
 from tools.logger import setup_logger
 from tools.parse_args import parse_args_embedding, save_command_to_file
 from tools.plot import plot_metric_at_k
+from tools.utils import safe_divide
 from tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
@@ -113,16 +114,29 @@ def main(args: ArgumentParser.parse_args) -> None:
             use_metadata=args.use_metadata,
         )
 
+        logger.info(f"Number of reviews in train: {data['X_train'].size(0)}")
+        logger.info(f"Number of reviews in val: {data['X_val'].size(0)}")
+        logger.info(f"Number of reviews in test: {data['X_test'].size(0)}")
         logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
         logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
+        logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
         logger.info(
-            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
+            f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
         )
         logger.info(
-            f"Number of warm start users in val: {len(data['warm_start_user_ids'])}"
+            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
         )
         logger.info(
-            f"Number of cold start users in val: {len(data['cold_start_user_ids'])}"
+            f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
         )
 
         # for qualitative eval
@@ -231,6 +245,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             ndcgs = []
             recalls = []
 
+            logger.info("[ Metric report calculated from val data ]")
             for k in top_k_values_for_pred:
                 # no candidate metric
                 map = round(model.metric_at_k_total_epochs[k][Metric.MAP][-1], 5)
@@ -278,6 +293,50 @@ def main(args: ArgumentParser.parse_args) -> None:
                 open(os.path.join(result_path, file_name.metric), "wb"),
             )
             logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
+
+        # calculate metric for test data
+        metric_at_k = {
+            k: {
+                Metric.MAP: 0,
+                Metric.NDCG: 0,
+                Metric.RECALL: 0,
+                Metric.COUNT: 0,
+            }
+            for k in top_k_values
+        }
+        metric_at_k = model.generate_recommendations_and_calculate_metric(
+            X_train=data["X_train"],
+            X_val_warm_users=data["X_test_warm_users"],
+            X_val_cold_users=data["X_test_cold_users"],
+            top_k_values=top_k_values,
+            metric_at_k=metric_at_k,
+            most_popular_diner_ids=data["most_popular_diner_ids"],
+            filter_already_liked=True,
+        )
+        maps_test = []
+        ndcgs_test = []
+        recalls_test = []
+        logger.info("[ Metric report calculated from test data ]")
+        for k in top_k_values_for_pred:
+            map = safe_divide(
+                numerator=metric_at_k[k][Metric.MAP],
+                denominator=metric_at_k[k][Metric.COUNT],
+            )
+            ndcg = safe_divide(
+                numerator=metric_at_k[k][Metric.NDCG],
+                denominator=metric_at_k[k][Metric.COUNT],
+            )
+            maps_test.append(str(round(map, 5)))
+            ndcgs_test.append(str(round(ndcg, 5)))
+        logger.info(f"map result: {'|'.join(maps_test)}")
+        logger.info(f"ndcg result: {'|'.join(ndcgs_test)}")
+        for k in top_k_values_for_candidate:
+            recall = safe_divide(
+                numerator=metric_at_k[k][Metric.RECALL],
+                denominator=metric_at_k[k][Metric.COUNT],
+            )
+            recalls_test.append(str(round(recall, 5)))
+        logger.info(f"recall result: {'|'.join(recalls_test)}")
 
         # plot metrics
         plot_metric_at_k(
