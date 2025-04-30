@@ -12,7 +12,7 @@ from torch.nn import Embedding
 from torch.utils.data import DataLoader
 
 from constant.metric.metric import Metric, NearCandidateMetric
-from evaluation.metric import fully_vectorized_ranking_metrics_at_k, ranked_precision
+from evaluation.metric import fully_vectorized_ranking_metrics_at_k
 from tools.generate_walks import generate_walks
 from tools.utils import safe_divide
 
@@ -238,10 +238,6 @@ class BaseEmbedding(nn.Module):
                 Metric.NDCG: 0,
                 Metric.RECALL: 0,
                 Metric.COUNT: 0,
-                NearCandidateMetric.RANKED_PREC: 0,
-                NearCandidateMetric.RANKED_PREC_COUNT: 0,
-                NearCandidateMetric.NEAR_RECALL: 0,
-                NearCandidateMetric.RECALL_COUNT: 0,
             }
             for k in top_k_values
         }
@@ -387,64 +383,6 @@ class BaseEmbedding(nn.Module):
             metric_at_k[k][Metric.COUNT] += batch_num_users
 
         return metric_at_k
-
-    def calculate_near_candidate_metric(
-        self,
-        user_ids: Tensor,
-        scores: Tensor,
-        nearby_candidates: Dict[int, list],
-        top_k_values: List[int],
-    ) -> None:
-        """
-        After calculating scores in `recommend_all` function, calculate metric with near candidates.
-        Metrics calculated in this function are ranked_prec and recall.
-        Note that this function does consider locality, which means recommendations
-        could be given based on user's location and diner's location.
-        Each row in validation dataset contains latitude ad longitude of user's rating's diner.
-        We suppose that location of each user in each row in val dataset is location of each diner.
-
-        Args:
-             user_ids (Tensor): batch of user ids.
-             scores (Tensor): calculated scores with all users and diners.
-             nearby_candidates (Dict[int, List[int]]): near diners around ref diners with 1km
-             top_k_values (List[int]): a list of k values.
-        """
-        # TODO: change for loop to more efficient program
-        # calculate metric
-        for i, user_id in enumerate(user_ids):
-            user_id = user_id.item()
-            for k in top_k_values:
-                # diner_ids visited by user in validation dataset
-                locations = self.val_liked_series[user_id]
-                for location in locations:
-                    # filter only near diner
-                    near_diner_ids = torch.tensor(nearby_candidates[location]).to(
-                        self.device
-                    )
-                    near_diner_scores = scores[i][near_diner_ids]
-
-                    # sort indices using predicted score
-                    sorted_indices = torch.argsort(near_diner_scores, descending=True)
-                    near_diner_ids_sorted = near_diner_ids[sorted_indices].to(
-                        self.device
-                    )
-
-                    # top k filtering
-                    near_diner_ids_sorted = near_diner_ids_sorted[:k]
-
-                    # calculate metric
-                    self.metric_at_k[k][NearCandidateMetric.RANKED_PREC] += (
-                        ranked_precision(
-                            liked_item=location,
-                            reco_items=near_diner_ids_sorted.detach().cpu().numpy(),
-                        )
-                    )
-                    self.metric_at_k[k][NearCandidateMetric.RANKED_PREC_COUNT] += 1
-
-                    if near_diner_ids.shape[0] > k:
-                        recall = 1 if location in near_diner_ids_sorted else 0
-                        self.metric_at_k[k][NearCandidateMetric.NEAR_RECALL] += recall
-                        self.metric_at_k[k][NearCandidateMetric.RECALL_COUNT] += 1
 
     def _recommend(
         self,
