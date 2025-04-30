@@ -548,7 +548,26 @@ class DatasetLoader:
                 .values,
                 dtype=torch.float32,
             ),
+            "most_popular_diner_ids": self.get_most_popular_diner_ids(
+                train_review=train
+            ),
             **mapped_res,
+        }
+
+    def get_most_popular_diner_ids(
+        self: Self, train_review: pd.DataFrame, top_k: int = 1000
+    ) -> List[int]:
+        diner_agg = train_review.value_counts("diner_idx")[:top_k]
+        return diner_agg.index.tolist()
+
+    def get_warm_cold_start_user_ids(
+        self: Self, train_review: pd.DataFrame, test_review: pd.DataFrame
+    ) -> Dict[str, List[int]]:
+        warm_start_user_ids = train_review["reviewer_id"].unique()
+        cold_start_user_ids = test_review["reviewer_id"].unique()
+        return {
+            "warm": warm_start_user_ids,
+            "cold": cold_start_user_ids,
         }
 
 

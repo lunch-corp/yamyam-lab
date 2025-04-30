@@ -232,7 +232,7 @@ class BaseEmbedding(nn.Module):
         """
         # prepare for metric calculation
         # refresh at every epoch
-        self.metric_at_k = {
+        metric_at_k = {
             k: {
                 Metric.MAP: 0,
                 Metric.NDCG: 0,
@@ -305,7 +305,8 @@ class BaseEmbedding(nn.Module):
                 top_k = torch.topk(scores, k=max_k)
                 top_k_id = top_k.indices
 
-                self.calculate_no_candidate_metric(
+                self.calculate_metric_at_current_batch(
+                    metric_at_k=metric_at_k,
                     top_k_id=top_k_id.detach().cpu().numpy(),
                     liked_items=liked_items_by_batch_users,
                     top_k_values=top_k_values,
@@ -313,45 +314,54 @@ class BaseEmbedding(nn.Module):
 
                 start += self.recommend_batch_size
 
+        self.calculate_metric_at_current_epoch(
+            metric_at_k=metric_at_k,
+            top_k_values=top_k_values,
+        )
+
+    def calculate_metric_at_current_epoch(
+        self, metric_at_k: Dict, top_k_values: List[int]
+    ) -> None:
         for k in top_k_values:
             # save map
-            self.metric_at_k[k][Metric.MAP] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.MAP],
-                denominator=self.metric_at_k[k][Metric.COUNT],
+            metric_at_k[k][Metric.MAP] = safe_divide(
+                numerator=metric_at_k[k][Metric.MAP],
+                denominator=metric_at_k[k][Metric.COUNT],
             )
             self.metric_at_k_total_epochs[k][Metric.MAP].append(
-                self.metric_at_k[k][Metric.MAP]
+                metric_at_k[k][Metric.MAP]
             )
 
             # save ndcg
-            self.metric_at_k[k][Metric.NDCG] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.NDCG],
-                denominator=self.metric_at_k[k][Metric.COUNT],
+            metric_at_k[k][Metric.NDCG] = safe_divide(
+                numerator=metric_at_k[k][Metric.NDCG],
+                denominator=metric_at_k[k][Metric.COUNT],
             )
             self.metric_at_k_total_epochs[k][Metric.NDCG].append(
-                self.metric_at_k[k][Metric.NDCG]
+                metric_at_k[k][Metric.NDCG]
             )
 
             # save recall
-            self.metric_at_k[k][Metric.RECALL] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.RECALL],
-                denominator=self.metric_at_k[k][Metric.COUNT],
+            metric_at_k[k][Metric.RECALL] = safe_divide(
+                numerator=metric_at_k[k][Metric.RECALL],
+                denominator=metric_at_k[k][Metric.COUNT],
             )
             self.metric_at_k_total_epochs[k][Metric.RECALL].append(
-                self.metric_at_k[k][Metric.RECALL]
+                metric_at_k[k][Metric.RECALL]
             )
 
             # save count
-            self.metric_at_k_total_epochs[k][Metric.COUNT] = self.metric_at_k[k][
+            self.metric_at_k_total_epochs[k][Metric.COUNT] = metric_at_k[k][
                 Metric.COUNT
             ]
 
-    def calculate_no_candidate_metric(
+    def calculate_metric_at_current_batch(
         self,
+        metric_at_k: Dict,
         top_k_id: NDArray,
         liked_items: NDArray,
         top_k_values: List[int],
-    ) -> None:
+    ) -> Dict:
         """
         After calculating scores in `recommend_all` function, calculate metric without any candidates.
         Metrics calculated in this function are NDCG, mAP and recall.
@@ -371,10 +381,12 @@ class BaseEmbedding(nn.Module):
             metric = fully_vectorized_ranking_metrics_at_k(
                 liked_items, pred_liked_item_id
             )
-            self.metric_at_k[k][Metric.MAP] += metric[Metric.AP].sum()
-            self.metric_at_k[k][Metric.NDCG] += metric[Metric.NDCG].sum()
-            self.metric_at_k[k][Metric.RECALL] += metric[Metric.RECALL].sum()
-            self.metric_at_k[k][Metric.COUNT] += batch_num_users
+            metric_at_k[k][Metric.MAP] += metric[Metric.AP].sum()
+            metric_at_k[k][Metric.NDCG] += metric[Metric.NDCG].sum()
+            metric_at_k[k][Metric.RECALL] += metric[Metric.RECALL].sum()
+            metric_at_k[k][Metric.COUNT] += batch_num_users
+
+        return metric_at_k
 
     def calculate_near_candidate_metric(
         self,
