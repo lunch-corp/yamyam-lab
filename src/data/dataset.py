@@ -589,8 +589,8 @@ class DatasetLoader:
     ) -> Dict[str, List[int]]:
         train_user_ids = set(train_review["reviewer_id"].unique())
         test_user_ids = set(test_review["reviewer_id"].unique())
-        warm_start_user_ids = np.array(list(test_user_ids - train_user_ids))
-        cold_start_user_ids = np.array(list(train_user_ids & test_user_ids))
+        warm_start_user_ids = np.array(list(train_user_ids & test_user_ids))
+        cold_start_user_ids = np.array(list(test_user_ids - train_user_ids))
         return warm_start_user_ids, cold_start_user_ids
 
 
