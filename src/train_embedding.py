@@ -76,6 +76,11 @@ def main(args: ArgumentParser.parse_args) -> None:
         data_loader = DatasetLoader(
             test_size=args.test_ratio,
             min_reviews=config.preprocess.data.min_review,
+            is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
+            train_time_point=config.preprocess.data.train_time_point,
+            val_time_point=config.preprocess.data.val_time_point,
+            test_time_point=config.preprocess.data.test_time_point,
+            end_time_point=config.preprocess.data.end_time_point,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             is_graph_model=True,
@@ -97,6 +102,9 @@ def main(args: ArgumentParser.parse_args) -> None:
             weighted=args.weighted_edge,
             use_metadata=args.use_metadata,
         )
+
+        logger.info(f"Number of warm start users: {len(data['warm_start_user_ids'])}")
+        logger.info(f"Number of cold start users: {len(data['warm_cold_user_ids'])}")
 
         # for qualitative eval
         pickle.dump(data, open(os.path.join(result_path, file_name.data_object), "wb"))

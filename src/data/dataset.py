@@ -1,9 +1,12 @@
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Self, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
+from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
@@ -21,8 +24,8 @@ from tools.utils import reduce_mem_usage
 class DatasetLoader:
     def __init__(
         self: Self,
-        test_size: float,
-        min_reviews: int,
+        test_size: float = None,
+        min_reviews: int = None,
         user_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
         diner_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
         X_columns: List[str] = ["diner_idx", "reviewer_id"],
@@ -32,6 +35,11 @@ class DatasetLoader:
         stratify: str = "reviewer_id",
         sampling_type: str = "popularity",
         is_timeseries_by_users: bool = False,
+        is_timeseries_by_time_point: bool = False,
+        train_time_point: str = None,
+        test_time_point: str = None,
+        val_time_point: str = None,
+        end_time_point: str = None,
         is_graph_model: bool = False,
         is_candidate_dataset: bool = False,
         category_column_for_meta: str = "diner_category_large",
@@ -39,6 +47,23 @@ class DatasetLoader:
     ):
         """
         Initialize the DatasetLoader class.
+
+        There are 3 types of strategies when splitting reviews into train / test.
+            Case 1) is_timeseries_by_users == False & is_timeseries_by_time_point == False
+                -> split reviews stratified with reviewer_id without considering timeseries
+            Case 2) is_timeseries_by_users == True & is_timeseries_by_time_point == False
+                -> split reviews into train / test considering timeseries within each user
+            Case 3) is_timeseries_by_users == False & is_timeseries_by_time_point == True
+                -> split reviews into train / test based on a specific time point
+                if val_time_point is not None:
+                    train_time_point <= dt < val_time_point : train dataset
+                    val_time_pint <= dt < test_time_point : val dataset
+                    test_time_point <= dt < end_time_point : test dataset
+                else:
+                    train_time_point <= dt < test_time_point : train dataset
+                    test_time_point <= dt < end_time_point : test dataset
+            Case 4) is_timeseries_by_users == True & is_timeseries_by_time_point == True
+                -> will raise error
 
         Args:
             test_size: float
@@ -64,12 +89,90 @@ class DatasetLoader:
         self.stratify = stratify
         self.is_graph_model = is_graph_model
         self.is_timeseries_by_users = is_timeseries_by_users
+        self.is_timeseries_by_time_point = is_timeseries_by_time_point
+        self.train_time_point = train_time_point
+        self.val_time_point = val_time_point
+        self.test_time_point = test_time_point
+        self.end_time_point = end_time_point
         self.is_candidate_dataset = is_candidate_dataset
         self.category_column_for_meta = category_column_for_meta
         self.test = test
         self.sampling_type = sampling_type
         self.data_paths = ensure_data_files()
         self.candidate_paths = Path("candidates/node2vec")
+
+        self._validate_input_params()
+
+    def _validate_input_params(self):
+        # error case
+        if self.is_timeseries_by_users and self.is_timeseries_by_time_point:
+            raise ValueError(
+                "is_timeseries_by_users and is_timeseries cannot be set to True simultaneously."
+            )
+        # Case 1)
+        elif not self.is_timeseries_by_users and not self.is_timeseries_by_time_point:
+            if self.test_size is None:
+                raise ValueError(
+                    "test_size should be set when splitting train / test with stratified option"
+                )
+            if self.min_reviews is None:
+                raise ValueError(
+                    "min_reviews should be set when splitting train / test with stratified option"
+                )
+        # Case 2)
+        elif self.is_timeseries_by_users and not self.is_timeseries_by_time_point:
+            if self.test_size is None:
+                raise ValueError(
+                    "test_size should be set when splitting train / test with timeseries by users"
+                )
+        # Case 3)
+        elif not self.is_timeseries_by_users and self.is_timeseries_by_time_point:
+            if (
+                self.train_time_point is None
+                or self.test_time_point is None
+                or self.end_time_point is None
+            ):
+                raise ValueError(
+                    "All of train_time_point, test_time_point and end_time_point should not be None when is_timeseries_by_time_point is True"
+                )
+
+            time_points = [
+                self.train_time_point,
+                self.val_time_point,
+                self.test_time_point,
+                self.end_time_point,
+            ]
+            names = [
+                "train_time_point",
+                "val_time_point",
+                "test_time_point",
+                "end_time_point",
+            ]
+            for name, time_point in zip(names, time_points):
+                if time_point is None and name == "val_time_point":
+                    continue
+                if not self.is_valid_date_format(time_point):
+                    raise ValueError(
+                        f"{name} is invalid date format, expected YYYY-MM-DD but got {time_point}"
+                    )
+
+            if self.train_time_point >= self.test_time_point:
+                raise ValueError(
+                    "time point for train data should not be greater or equal than time point for test data"
+                )
+            if self.test_time_point >= self.end_time_point:
+                raise ValueError(
+                    "time point for test data should not be greater or equal than end time point"
+                )
+            if self.val_time_point is not None:
+                if self.train_time_point >= self.val_time_point:
+                    raise ValueError(
+                        "time point for train data should not be greater or equal than time point for val data"
+                    )
+                if self.val_time_point >= self.test_time_point:
+                    raise ValueError(
+                        "time point for val data should not be greater or equal than time point for test data"
+                    )
 
     def load_dataset(self: Self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -168,6 +271,26 @@ class DatasetLoader:
 
         return train, val
 
+    def train_test_split_timeseries_by_time_point(
+        self: Self,
+        review: pd.DataFrame,
+        train_time_point: str,
+        test_time_point: str,
+        end_time_point: str,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        train_time_point = datetime.strptime(train_time_point, "%Y-%m-%d")
+        test_time_point = datetime.strptime(test_time_point, "%Y-%m-%d")
+        end_time_point = datetime.strptime(end_time_point, "%Y-%m-%d")
+        train = review[
+            lambda x: (train_time_point <= x["reviewer_review_date"])
+            & (x["reviewer_review_date"] < test_time_point)
+        ]
+        test = review[
+            lambda x: (test_time_point <= x["reviewer_review_date"])
+            & (x["reviewer_review_date"] < end_time_point)
+        ]
+        return train, test
+
     def prepare_train_val_dataset(
         self: Self,
         is_rank: bool = False,
@@ -190,7 +313,11 @@ class DatasetLoader:
         assert self.category_column_for_meta in diner_with_raw_category.columns
 
         review, diner = preprocess_common(
-            review, diner, diner_with_raw_category, self.min_reviews
+            review=review,
+            diner=diner,
+            diner_with_raw_category=diner_with_raw_category,
+            min_reviews=self.min_reviews,
+            is_timeseries_by_time_point=self.is_timeseries_by_time_point,
         )
 
         # Map reviewer and diner data
@@ -203,11 +330,17 @@ class DatasetLoader:
         }
 
         # Split data into train and validation
-        train, val = (
-            self.train_test_split_timeseries_by_users(review)
-            if self.is_timeseries_by_users
-            else self.train_test_split_stratify(review)
-        )
+        if self.is_timeseries_by_users and not self.is_timeseries:
+            train, val = self.train_test_split_timeseries_by_users(review)
+        elif not self.is_timeseries_by_users and self.is_timeseries_by_time_point:
+            train, val = self.train_test_split_timeseries_by_time_point(
+                review=review,
+                train_time_point=self.train_time_point,
+                test_time_point=self.test_time_point,
+                end_time_point=self.end_time_point,
+            )
+        else:
+            train, val = self.train_test_split_stratify(review)
 
         warm_start_user_ids, cold_start_user_ids = self.get_warm_cold_start_user_ids(
             train_review=train,
@@ -289,6 +422,8 @@ class DatasetLoader:
         return self.create_graph_dataset(
             train,
             val,
+            warm_start_user_ids,
+            cold_start_user_ids,
             val_warm_users,
             val_cold_users,
             user_feature,
@@ -525,6 +660,8 @@ class DatasetLoader:
         self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
+        warm_start_user_ids: NDArray,
+        cold_start_user_ids: NDArray,
         val_warm_users: pd.DataFrame,
         val_cold_users: pd.DataFrame,
         user_feature: pd.DataFrame,
@@ -575,6 +712,8 @@ class DatasetLoader:
             "most_popular_diner_ids": self.get_most_popular_diner_ids(
                 train_review=train
             ),
+            "warm_start_user_ids": warm_start_user_ids,
+            "cold_start_user_ids": cold_start_user_ids,
             **mapped_res,
         }
 
@@ -586,12 +725,17 @@ class DatasetLoader:
 
     def get_warm_cold_start_user_ids(
         self: Self, train_review: pd.DataFrame, test_review: pd.DataFrame
-    ) -> Dict[str, List[int]]:
+    ) -> Tuple[NDArray, NDArray]:
         train_user_ids = set(train_review["reviewer_id"].unique())
         test_user_ids = set(test_review["reviewer_id"].unique())
         warm_start_user_ids = np.array(list(train_user_ids & test_user_ids))
         cold_start_user_ids = np.array(list(test_user_ids - train_user_ids))
         return warm_start_user_ids, cold_start_user_ids
+
+    @staticmethod
+    def is_valid_date_format(date_string):
+        pattern = r"^\d{4}-\d{2}-\d{2}$"
+        return bool(re.match(pattern, date_string))
 
 
 def load_test_dataset(
