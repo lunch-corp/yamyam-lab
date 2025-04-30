@@ -50,4 +50,4 @@ is_candidate_dataset: true
 batch_size: 1000000
 num_neg_samples: 100
 sampling_type: popularity
-is_timeseries: true
+is_timeseries_by_users: true
