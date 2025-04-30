@@ -178,7 +178,7 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             model.recommend_all(
                 X_train=data["X_train"],
-                X_val=data["X_val"],
+                X_val=data["X_val_warm_users"],
                 top_k_values=top_k_values,
                 filter_already_liked=True,
             )

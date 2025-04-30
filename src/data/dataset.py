@@ -209,6 +209,13 @@ class DatasetLoader:
             else self.train_test_split_stratify(review)
         )
 
+        warm_start_user_ids, cold_start_user_ids = self.get_warm_cold_start_user_ids(
+            train_review=train,
+            test_review=val,
+        )
+        val_warm_users = val[lambda x: x["reviewer_id"].isin(warm_start_user_ids)]
+        val_cold_users = val[lambda x: x["reviewer_id"].isin(cold_start_user_ids)]
+
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
             review,
@@ -280,7 +287,14 @@ class DatasetLoader:
             mapped_res.update(meta_mapping_info)
 
         return self.create_graph_dataset(
-            train, val, user_feature, diner_feature, diner_meta_feature, mapped_res
+            train,
+            val,
+            val_warm_users,
+            val_cold_users,
+            user_feature,
+            diner_feature,
+            diner_meta_feature,
+            mapped_res,
         )
 
     def _validate_user_mappings(
@@ -511,6 +525,8 @@ class DatasetLoader:
         self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
+        val_warm_users: pd.DataFrame,
+        val_cold_users: pd.DataFrame,
         user_feature: pd.DataFrame,
         diner_feature: pd.DataFrame,
         diner_meta_feature: pd.DataFrame,
@@ -535,6 +551,14 @@ class DatasetLoader:
             "y_train": torch.tensor(train[self.y_columns].values, dtype=torch.float32),
             "X_val": torch.tensor(val[self.X_columns].values),
             "y_val": torch.tensor(val[self.y_columns].values, dtype=torch.float32),
+            "X_val_warm_users": torch.tensor(val_warm_users[self.X_columns].values),
+            "y_val_warm_users": torch.tensor(
+                val_warm_users[self.y_columns].values, dtype=torch.float32
+            ),
+            "X_val_cold_users": torch.tensor(val_cold_users[self.X_columns].values),
+            "y_val_cold_users": torch.tensor(
+                val_cold_users[self.y_columns].values, dtype=torch.float32
+            ),
             "diner": diner_meta_feature,
             "user_feature": torch.tensor(
                 user_feature.sort_values(by="reviewer_id")
@@ -563,12 +587,11 @@ class DatasetLoader:
     def get_warm_cold_start_user_ids(
         self: Self, train_review: pd.DataFrame, test_review: pd.DataFrame
     ) -> Dict[str, List[int]]:
-        warm_start_user_ids = train_review["reviewer_id"].unique()
-        cold_start_user_ids = test_review["reviewer_id"].unique()
-        return {
-            "warm": warm_start_user_ids,
-            "cold": cold_start_user_ids,
-        }
+        train_user_ids = set(train_review["reviewer_id"].unique())
+        test_user_ids = set(test_review["reviewer_id"].unique())
+        warm_start_user_ids = np.array(list(test_user_ids - train_user_ids))
+        cold_start_user_ids = np.array(list(train_user_ids & test_user_ids))
+        return warm_start_user_ids, cold_start_user_ids
 
 
 def load_test_dataset(

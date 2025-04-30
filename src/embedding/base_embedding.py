@@ -315,6 +315,9 @@ class BaseEmbedding(nn.Module):
             top_k_values=top_k_values,
         )
 
+    def recommen_all_for_cold_start_users(self, cold_start_user_ids: List[int]):
+        pass
+
     def calculate_metric_at_current_epoch(
         self, metric_at_k: Dict, top_k_values: List[int]
     ) -> None:
