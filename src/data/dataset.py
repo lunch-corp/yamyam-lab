@@ -832,7 +832,12 @@ def load_test_dataset(
 
     # feature engineering
     user_feature, diner_feature, diner_meta_feature = build_feature(
-        review, diner, user_feature_param_pair, diner_feature_param_pair
+        review=review,
+        diner=diner,
+        all_user_ids=review["reviewer_id"].unique(),
+        all_diner_ids=review["diner_idx"].unique(),
+        user_engineered_feature_names=user_feature_param_pair,
+        diner_engineered_feature_names=diner_feature_param_pair,
     )
 
     # 사용자별 리뷰한 레스토랑 ID 목록 생성
