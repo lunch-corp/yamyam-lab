@@ -85,8 +85,6 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         data_loader = DatasetLoader(
-            test_size=args.test_ratio,
-            min_reviews=config.preprocess.data.min_review,
             is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
             train_time_point=config.preprocess.data.train_time_point,
             val_time_point=config.preprocess.data.val_time_point,

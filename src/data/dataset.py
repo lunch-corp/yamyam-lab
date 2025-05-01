@@ -344,10 +344,12 @@ class DatasetLoader:
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
-            train,
-            diner,
-            self.user_engineered_feature_names,
-            self.diner_engineered_feature_names,
+            review=train,
+            diner=diner,
+            all_user_ids=list(mapped_res["user_mapping"].values()),
+            all_diner_ids=list(mapped_res["diner_mapping"].values()),
+            user_engineered_feature_names=self.user_engineered_feature_names,
+            diner_engineered_feature_names=self.diner_engineered_feature_names,
         )
 
         if is_rank:
