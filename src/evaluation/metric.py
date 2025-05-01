@@ -77,19 +77,7 @@ def ranking_metrics_at_k(
     # Calculate recall
     recall = safe_divide(hit, len(liked_items))
 
-    return {Metric.AP.value: ap, Metric.NDCG.value: ndcg, Metric.RECALL.value: recall}
-
-
-def batch_safe_divide(a, b):
-    """
-    Vectorized safe division that handles division by zero by returning zeros.
-    """
-    # Create a result array of zeros with same shape as inputs
-    result = np.zeros_like(a, dtype=float)
-    # Only divide where b is not zero
-    non_zero_mask = b != 0
-    result[non_zero_mask] = a[non_zero_mask] / b[non_zero_mask]
-    return result
+    return {Metric.AP: ap, Metric.NDCG: ndcg, Metric.RECALL: recall}
 
 
 def fully_vectorized_ranking_metrics_at_k(
@@ -166,7 +154,7 @@ def fully_vectorized_ranking_metrics_at_k(
     recall_values = total_hits_per_user / n_liked_items
 
     return {
-        Metric.AP.value: ap_values,
-        Metric.NDCG.value: ndcg_values,
-        Metric.RECALL.value: recall_values,
+        Metric.AP: ap_values,
+        Metric.NDCG: ndcg_values,
+        Metric.RECALL: recall_values,
     }
