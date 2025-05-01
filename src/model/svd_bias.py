@@ -1,24 +1,20 @@
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from numpy.typing import NDArray
 from torch import Tensor
 
-from constant.metric.metric import Metric, NearCandidateMetric
-from evaluation.metric import (
-    fully_vectorized_ranking_metrics_at_k,
-)
-from tools.utils import safe_divide
+from constant.metric.metric import Metric
+from embedding.base_embedding import BaseEmbedding
 
 
-class Model(nn.Module):
+class Model(BaseEmbedding):
     def __init__(
         self,
-        num_users: int,
-        num_items: int,
+        user_ids: torch.Tensor,
+        diner_ids: torch.Tensor,
         embedding_dim: int,
         top_k_values: List[int],
         **kwargs,
@@ -29,7 +25,14 @@ class Model(nn.Module):
             num_items (int): number of unique items (diners) across train / validation dataset.
             embedding_dim (int): dimension size of embedding vector.
         """
-        super(Model, self).__init__()
+        super().__init__(
+            user_ids=user_ids,
+            diner_ids=diner_ids,
+            top_k_values=top_k_values,
+            embedding_dim=embedding_dim,
+        )
+        num_users = user_ids.size(0)
+        num_items = diner_ids.size(0)
 
         self.num_users = num_users
         self.num_items = num_items
@@ -53,10 +56,6 @@ class Model(nn.Module):
                 Metric.NDCG: [],
                 Metric.RECALL: [],
                 Metric.COUNT: 0,
-                NearCandidateMetric.RANKED_PREC: [],
-                NearCandidateMetric.RANKED_PREC_COUNT: 0,
-                NearCandidateMetric.NEAR_RECALL: [],
-                NearCandidateMetric.RECALL_COUNT: 0,
             }
             for k in top_k_values
         }
@@ -87,19 +86,16 @@ class Model(nn.Module):
         )  # batch_size * 1
         return output
 
-    def recommend_all(
+    def _generate_recommendations_and_calculate_metric_for_warm_start_users(
         self,
         X_train: Tensor,
-        X_val: Tensor,
-        recommend_batch_size: int,
+        X_val_warm_users: Tensor,
         top_k_values: List[int],
+        metric_at_k: Dict,
         filter_already_liked: bool = True,
-    ) -> None:
+    ) -> Dict:
         """
-        Generate diner recommendations for all users.
-        Suppose number of users is U and number of diners is D.
-        The dimension of associated matrix between users and diners is U x D.
-        However, to avoid out of memory error, batch recommendation is run.
+        Overwrite `_generate_recommendations_and_calculate_metric_for_warm_start_users` method in BaseEmbedding.
 
         Args:
              X_train (Tensor): number of reviews x (diner_id, reviewer_id) in train dataset.
@@ -107,23 +103,9 @@ class Model(nn.Module):
              top_k_values (List[int]): a list of k values.
              filter_already_liked (bool): whether filtering pre-liked diner in train dataset or not.
         """
-        # prepare for metric calculation
-        # refresh at every epoch
-        self.metric_at_k = {
-            k: {
-                Metric.MAP: 0,
-                Metric.NDCG: 0,
-                Metric.RECALL: 0,
-                Metric.COUNT: 0,
-                NearCandidateMetric.RANKED_PREC: 0,
-                NearCandidateMetric.RANKED_PREC_COUNT: 0,
-                NearCandidateMetric.NEAR_RECALL: 0,
-                NearCandidateMetric.RECALL_COUNT: 0,
-            }
-            for k in top_k_values
-        }
         max_k = max(top_k_values)
         start = 0
+        diner_embeds = self.embed_item(self.diner_ids)
 
         self.train_liked_series = (
             pd.DataFrame(X_train, columns=["diner_idx", "reviewer_id"])
@@ -136,7 +118,7 @@ class Model(nn.Module):
             .assign(num_liked_items=lambda df: df["diner_idx"].apply(len))
         )
         self.val_liked_series = (
-            pd.DataFrame(X_val, columns=["diner_idx", "reviewer_id"])
+            pd.DataFrame(X_val_warm_users, columns=["diner_idx", "reviewer_id"])
             .groupby("reviewer_id")["diner_idx"]
             .apply(np.array)
         )
@@ -144,6 +126,7 @@ class Model(nn.Module):
             self.val_liked_series.to_frame()
             .reset_index()
             .assign(num_liked_items=lambda df: df["diner_idx"].apply(len))
+            .sort_values(by="reviewer_id")
         )
 
         liked_items_count2user_ids = (
@@ -155,12 +138,12 @@ class Model(nn.Module):
         for count, user_ids in liked_items_count2user_ids.items():
             num_users = len(user_ids)
             start = 0
-            user_ids = torch.tensor(user_ids)
+            user_ids = torch.tensor(user_ids, device=self.device)
 
             while start < num_users:
-                batch_users = user_ids[start : start + recommend_batch_size]
+                batch_users = user_ids[start : start + self.recommend_batch_size]
                 user_embeds = self.embed_user(batch_users)
-                scores = torch.mm(user_embeds, self.embed_item.weight.T)
+                scores = torch.mm(user_embeds, diner_embeds.t())
                 liked_items_by_batch_users = []
 
                 # TODO: change for loop to more efficient program
@@ -181,73 +164,13 @@ class Model(nn.Module):
                 top_k = torch.topk(scores, k=max_k)
                 top_k_id = top_k.indices
 
-                self.calculate_no_candidate_metric(
+                self.calculate_metric_at_current_batch(
+                    metric_at_k=metric_at_k,
                     top_k_id=top_k_id.detach().cpu().numpy(),
                     liked_items=liked_items_by_batch_users,
                     top_k_values=top_k_values,
                 )
 
-                start += recommend_batch_size
+                start += self.recommend_batch_size
 
-        for k in top_k_values:
-            # save map
-            self.metric_at_k[k][Metric.MAP] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.MAP],
-                denominator=self.metric_at_k[k][Metric.COUNT],
-            )
-            self.metric_at_k_total_epochs[k][Metric.MAP].append(
-                self.metric_at_k[k][Metric.MAP]
-            )
-
-            # save ndcg
-            self.metric_at_k[k][Metric.NDCG] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.NDCG],
-                denominator=self.metric_at_k[k][Metric.COUNT],
-            )
-            self.metric_at_k_total_epochs[k][Metric.NDCG].append(
-                self.metric_at_k[k][Metric.NDCG]
-            )
-
-            # save recall
-            self.metric_at_k[k][Metric.RECALL] = safe_divide(
-                numerator=self.metric_at_k[k][Metric.RECALL],
-                denominator=self.metric_at_k[k][Metric.COUNT],
-            )
-            self.metric_at_k_total_epochs[k][Metric.RECALL].append(
-                self.metric_at_k[k][Metric.RECALL]
-            )
-
-            # save count
-            self.metric_at_k_total_epochs[k][Metric.COUNT] = self.metric_at_k[k][
-                Metric.COUNT
-            ]
-
-    def calculate_no_candidate_metric(
-        self,
-        top_k_id: NDArray,
-        liked_items: NDArray,
-        top_k_values: List[int],
-    ) -> None:
-        """
-        After calculating scores in `recommend_all` function, calculate metric without any candidates.
-        Metrics calculated in this function are NDCG, mAP and recall.
-        Note that this function does not consider locality, which means recommendations
-        could be given regardless of user's location and diner's location
-
-        Args:
-             top_k_id (NDArray): Diner_id whose score is under max_k ranked score. (two dimensional array)
-             liked_items (NDArray): Item ids liked by users. (two dimensional array)
-             top_k_values (List[int]): A list of k values.
-        """
-
-        batch_num_users = liked_items.shape[0]
-
-        for k in top_k_values:
-            pred_liked_item_id = top_k_id[:, :k]
-            metric = fully_vectorized_ranking_metrics_at_k(
-                liked_items, pred_liked_item_id
-            )
-            self.metric_at_k[k][Metric.MAP] += metric[Metric.AP].sum()
-            self.metric_at_k[k][Metric.NDCG] += metric[Metric.NDCG].sum()
-            self.metric_at_k[k][Metric.RECALL] += metric[Metric.RECALL].sum()
-            self.metric_at_k[k][Metric.COUNT] += batch_num_users
+        return metric_at_k

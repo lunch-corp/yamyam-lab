@@ -330,7 +330,7 @@ class DatasetLoader:
         }
 
         # Split data into train and validation
-        if self.is_timeseries_by_users and not self.is_timeseries:
+        if self.is_timeseries_by_users and not self.is_timeseries_by_time_point:
             train, test = self.train_test_split_timeseries_by_users(review)
         elif not self.is_timeseries_by_users and self.is_timeseries_by_time_point:
             train, test = self.train_test_split_timeseries_by_time_point(

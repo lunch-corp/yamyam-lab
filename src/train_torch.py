@@ -16,6 +16,7 @@ from preprocess.preprocess import prepare_torch_dataloader
 from tools.config import load_yaml
 from tools.logger import setup_logger
 from tools.plot import plot_metric_at_k
+from tools.utils import safe_divide
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/{model}.yaml")
@@ -31,7 +32,7 @@ def main(args: ArgumentParser.parse_args):
     config = load_yaml(CONFIG_PATH.format(model=args.model))
 
     # predefine config
-    top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
+    top_k_values = config.training.evaluation.top_k_values_for_pred
     file_name = config.post_training.file_name
 
     logger = setup_logger(os.path.join(result_path, file_name.log))
@@ -51,10 +52,23 @@ def main(args: ArgumentParser.parse_args):
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
 
+        logger.info(
+            f"train dataset period: {config.preprocess.data.train_time_point} <= dt < {config.preprocess.data.val_time_point}"
+        )
+        logger.info(
+            f"val dataset period: {config.preprocess.data.val_time_point} <= dt < {config.preprocess.data.test_time_point}"
+        )
+        logger.info(
+            f"test dataset period: {config.preprocess.data.test_time_point} <= dt < {config.preprocess.data.end_time_point}"
+        )
+
         # generate dataloader for pytorch training pipeline
         data_loader = DatasetLoader(
-            test_size=args.test_ratio,
-            min_reviews=config.preprocess.data.min_review,
+            is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
+            train_time_point=config.preprocess.data.train_time_point,
+            val_time_point=config.preprocess.data.val_time_point,
+            test_time_point=config.preprocess.data.test_time_point,
+            end_time_point=config.preprocess.data.end_time_point,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             test=args.test,
@@ -62,6 +76,31 @@ def main(args: ArgumentParser.parse_args):
         data = data_loader.prepare_train_val_dataset()
         logger.info(f"number of diners: {data['num_diners']}")
         logger.info(f"number of users: {data['num_users']}")
+
+        logger.info(f"Number of reviews in train: {data['X_train'].size(0)}")
+        logger.info(f"Number of reviews in val: {data['X_val'].size(0)}")
+        logger.info(f"Number of reviews in test: {data['X_test'].size(0)}")
+        logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
+        logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
+        logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
+        logger.info(
+            f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
+        )
+        logger.info(
+            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
+        )
+        logger.info(
+            f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
+        )
 
         train_dataloader, val_dataloader = prepare_torch_dataloader(
             data["X_train"], data["y_train"], data["X_val"], data["y_val"]
@@ -74,10 +113,13 @@ def main(args: ArgumentParser.parse_args):
         model_path = f"model.{args.model}"
         model_module = importlib.import_module(model_path).Model
         model = model_module(
-            num_users=data["num_users"],
-            num_items=data["num_diners"],
+            user_ids=torch.tensor(list(data["user_mapping"].values())).to(args.device),
+            diner_ids=torch.tensor(list(data["diner_mapping"].values())).to(
+                args.device
+            ),
             embedding_dim=args.embedding_dim,
-            top_k_values=top_k_values_for_pred,
+            top_k_values=top_k_values,
+            model_name=args.model,
             mu=data["y_train"].mean(),
         ).to(args.device)
 
@@ -136,29 +178,46 @@ def main(args: ArgumentParser.parse_args):
             logger.info(f"Train Loss: {tr_loss}")
             logger.info(f"Validation Loss: {val_loss}")
 
-            model.recommend_all(
+            # calculate metric for current epoch
+            metric_at_k = {
+                k: {
+                    Metric.MAP: 0,
+                    Metric.NDCG: 0,
+                    Metric.RECALL: 0,
+                    Metric.COUNT: 0,
+                }
+                for k in top_k_values
+            }
+            metric_at_k = model.generate_recommendations_and_calculate_metric(
                 X_train=data["X_train"],
-                X_val=data["X_val"],
-                recommend_batch_size=config.training.evaluation.recommend_batch_size,
-                top_k_values=top_k_values_for_pred,
+                X_val_warm_users=data["X_val_warm_users"],
+                X_val_cold_users=data["X_val_cold_users"],
+                top_k_values=top_k_values,
+                metric_at_k=metric_at_k,
+                most_popular_diner_ids=data["most_popular_diner_ids"],
                 filter_already_liked=True,
+            )
+            model.calculate_metric_at_current_epoch(
+                metric_at_k=metric_at_k,
+                top_k_values=top_k_values,
             )
 
             maps = []
             ndcgs = []
 
-            for k in top_k_values_for_pred:
+            logger.info("[ Metric report calculated from val data ]")
+            for k in top_k_values:
                 # no candidate metric
-                map = round(model.metric_at_k[k][Metric.MAP], 5)
-                ndcg = round(model.metric_at_k[k][Metric.NDCG], 5)
+                map = round(model.metric_at_k_total_epochs[k][Metric.MAP][-1], 5)
+                ndcg = round(model.metric_at_k_total_epochs[k][Metric.NDCG][-1], 5)
 
-                count = model.metric_at_k[k][Metric.COUNT]
+                count = model.metric_at_k_total_epochs[k][Metric.COUNT]
 
                 logger.info(
-                    f"maP@{k}: {map} with {count} users out of all {model.num_users} users"
+                    f"maP@{k}: {map} with {count} users out of all {len(data['val_user_ids'])} users"
                 )
                 logger.info(
-                    f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users"
+                    f"ndcg@{k}: {ndcg} with {count} users out of all {len(data['val_user_ids'])} users"
                 )
 
                 maps.append(str(map))
@@ -167,6 +226,20 @@ def main(args: ArgumentParser.parse_args):
             logger.info("top k results for direct prediction @3, @7, @10, @20 in order")
             logger.info(f"map result: {'|'.join(maps)}")
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
+
+            torch.save(
+                model.state_dict(),
+                str(os.path.join(result_path, file_name.weight)),
+            )
+            pickle.dump(
+                model.tr_loss,
+                open(os.path.join(result_path, file_name.training_loss), "wb"),
+            )
+            pickle.dump(
+                model.metric_at_k_total_epochs,
+                open(os.path.join(result_path, file_name.metric), "wb"),
+            )
+            logger.info(f"successfully saved svd_bias torch model: epoch {epoch}")
 
             pickle.dump(
                 model.tr_loss,
@@ -210,12 +283,48 @@ def main(args: ArgumentParser.parse_args):
             )
             logger.info("Save final model")
 
+        # calculate metric for test data
+        metric_at_k = {
+            k: {
+                Metric.MAP: 0,
+                Metric.NDCG: 0,
+                Metric.RECALL: 0,
+                Metric.COUNT: 0,
+            }
+            for k in top_k_values
+        }
+        metric_at_k = model.generate_recommendations_and_calculate_metric(
+            X_train=data["X_train"],
+            X_val_warm_users=data["X_test_warm_users"],
+            X_val_cold_users=data["X_test_cold_users"],
+            top_k_values=top_k_values,
+            metric_at_k=metric_at_k,
+            most_popular_diner_ids=data["most_popular_diner_ids"],
+            filter_already_liked=True,
+        )
+        maps_test = []
+        ndcgs_test = []
+        logger.info("[ Metric report calculated from test data ]")
+        for k in top_k_values:
+            map = safe_divide(
+                numerator=metric_at_k[k][Metric.MAP],
+                denominator=metric_at_k[k][Metric.COUNT],
+            )
+            ndcg = safe_divide(
+                numerator=metric_at_k[k][Metric.NDCG],
+                denominator=metric_at_k[k][Metric.COUNT],
+            )
+            maps_test.append(str(round(map, 5)))
+            ndcgs_test.append(str(round(ndcg, 5)))
+        logger.info(f"map result: {'|'.join(maps_test)}")
+        logger.info(f"ndcg result: {'|'.join(ndcgs_test)}")
+
         # plot metrics
         plot_metric_at_k(
             metric=model.metric_at_k_total_epochs,
             tr_loss=model.tr_loss,
             parent_save_path=result_path,
-            top_k_values_for_pred=top_k_values_for_pred,
+            top_k_values_for_pred=top_k_values,
             top_k_values_for_candidate=[],
         )
     except:

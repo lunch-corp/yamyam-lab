@@ -23,15 +23,15 @@ class BaseEmbedding(nn.Module):
         user_ids: Tensor,
         diner_ids: Tensor,
         top_k_values: List[int],
-        graph: nx.Graph,
-        embedding_dim: int,
-        walks_per_node: int,
-        num_negative_samples: int,
-        num_nodes: int,
-        model_name: str,
-        device: str,
-        recommend_batch_size: int,
-        num_workers: int,
+        graph: nx.Graph = None,
+        embedding_dim: int = 32,
+        walks_per_node: int = 3,
+        num_negative_samples: int = 3,
+        num_nodes: int = None,
+        model_name: str = None,
+        device: str = None,
+        recommend_batch_size: int = 2000,
+        num_workers: int = 4,
     ):
         """
         Base module for node embedding model (node2vec, metapath2vec, graphsage)
@@ -84,11 +84,14 @@ class BaseEmbedding(nn.Module):
         if self.model_name in ["node2vec", "metapath2vec"]:
             # trainable parameters
             self._embedding = Embedding(self.num_nodes, self.embedding_dim)
-        else:
+        elif self.model_name == "graphsage":
             # not trainable parameters, but result tensors from model forwarding
             self._embedding = torch.empty((self.num_nodes, self.embedding_dim)).to(
                 self.device
             )
+        else:
+            # case when svd_bias
+            pass
 
     def forward(self, batch: Tensor) -> Tensor:
         """
@@ -481,11 +484,15 @@ class BaseEmbedding(nn.Module):
         pred_liked_item_score = top_k.values.detach().cpu().numpy()
         return pred_liked_item_id, pred_liked_item_score
 
-    def get_embedding(self, batch_tensor: Tensor):
+    def get_embedding(self, batch_tensor: Tensor) -> Tensor:
         if self.model_name in ["node2vec", "metapath2vec"]:
             return self._embedding(batch_tensor)
-        else:
+        elif self.model_name == "graphsage":
             return self._embedding[batch_tensor]
+        else:
+            raise ValueError(
+                f"get_embedding method must be overwritten when model is not one of node2vec, metapath2vec, graphsage, got :{self.mode_name}"
+            )
 
     def generate_candidates_for_each_user(self, top_k_value: int) -> pd.DataFrame:
         start = 0
