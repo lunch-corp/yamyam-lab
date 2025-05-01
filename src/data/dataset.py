@@ -344,7 +344,7 @@ class DatasetLoader:
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
-            review,
+            train,
             diner,
             self.user_engineered_feature_names,
             self.diner_engineered_feature_names,
