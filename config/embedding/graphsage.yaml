@@ -1,6 +1,11 @@
 preprocess:
   data:
     min_review: 3
+    is_timeseries_by_time_point: true
+    train_time_point: "2024-09-01"
+    val_time_point: "2024-12-01"
+    test_time_point: "2025-01-01"
+    end_time_point: "2025-02-01"
   feature_engineering:
     diner_engineered_feature_names:
       all_review_cnt: {}
