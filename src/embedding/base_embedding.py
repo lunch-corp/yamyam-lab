@@ -11,7 +11,7 @@ from torch import Tensor
 from torch.nn import Embedding
 from torch.utils.data import DataLoader
 
-from constant.metric.metric import Metric, NearCandidateMetric
+from constant.metric.metric import Metric
 from evaluation.metric import fully_vectorized_ranking_metrics_at_k
 from tools.generate_walks import generate_walks
 from tools.utils import safe_divide
@@ -73,10 +73,6 @@ class BaseEmbedding(nn.Module):
                 Metric.NDCG: [],
                 Metric.RECALL: [],
                 Metric.COUNT: 0,
-                NearCandidateMetric.RANKED_PREC: [],
-                NearCandidateMetric.RANKED_PREC_COUNT: 0,
-                NearCandidateMetric.NEAR_RECALL: [],
-                NearCandidateMetric.RECALL_COUNT: 0,
             }
             for k in top_k_values
         }
