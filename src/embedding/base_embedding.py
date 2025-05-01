@@ -224,6 +224,22 @@ class BaseEmbedding(nn.Module):
         most_popular_diner_ids: List[int],
         filter_already_liked: bool = True,
     ) -> Dict:
+        """
+        Generate recommendations for warm / cold start users separately and calculate metric.
+        For warm start users, trained user embedding will be used.
+        For cold start users, most popular items from train data will be used.
+
+        Args:
+            X_train (Tensor): (diner_idx, reviewer_id) tensor from train dataset.
+            X_val_warm_users (Tensor): (diner_idx, reviewer_id) tensor from val dataset with warm_start_users only.
+            X_val_cold_users (Tensor): (diner_idx, reviewer_id) tensor from val dataset with cold_start_users only.
+            top_k_values (List[int]): List of top k values to evaluate.
+            metric_at_k (Dict): Dictionary to store metric result.
+            most_popular_diner_ids (List[int]): List of most popular diner_ids from train dataset.
+
+        Returns (Dict):
+            Dictionary with calculated metric for warm / cold start users.
+        """
         metric_at_k_warm_users_updated = (
             self._generate_recommendations_and_calculate_metric_for_warm_start_users(
                 X_train=X_train,
@@ -252,16 +268,18 @@ class BaseEmbedding(nn.Module):
         filter_already_liked: bool = True,
     ) -> Dict:
         """
-        Generate diner recommendations for all users.
-        Suppose number of users is U and number of diners is D.
-        The dimension of associated matrix between users and diners is U x D.
-        However, to avoid out of memory error, batch recommendation is run.
+        Generate recommendations for warm start users separately and calculate metric.
+        For warm start users, trained user embedding will be used.
 
         Args:
-             X_train (Tensor): number of reviews x (diner_id, reviewer_id) in train dataset.
-             X_val (Tensor): number of reviews x (diner_id, reviewer_id) in val dataset.
-             top_k_values (List[int]): a list of k values.
-             filter_already_liked (bool): whether filtering pre-liked diner in train dataset or not.
+            X_train (Tensor): (diner_idx, reviewer_id) tensor from train dataset.
+            X_val_warm_users (Tensor): (diner_idx, reviewer_id) tensor from val dataset with warm_start_users only.
+            top_k_values (List[int]): List of top k values to evaluate.
+            metric_at_k (Dict): Dictionary to store metric result.
+            filter_already_liked (bool): Filter already liked item in train dataset when generating recommendations to users.
+
+        Returns (Dict):
+            Dictionary with calculated metric for warm start users.
         """
         max_k = max(top_k_values)
         start = 0
@@ -342,6 +360,20 @@ class BaseEmbedding(nn.Module):
         top_k_values: List[int],
         metric_at_k: Dict,
     ) -> Dict:
+        """
+        Generate recommendations for cold start users separately and calculate metric.
+        For cold start users, most popular items from train data will be used.
+        Note that filter_already_liked argument cannot be used because for cold_start_users, there are not any liked items in train dataset.
+
+        Args:
+            X_val_cold_users (Tensor): (diner_idx, reviewer_id) tensor from val dataset with cold_start_users only.
+            most_popular_diner_ids (List[int]): List of most popular diner_ids from train dataset.
+            top_k_values (List[int]): List of top k values to evaluate.
+            metric_at_k (Dict): Dictionary to store metric result.
+
+        Returns (Dict):
+            Dictionary with calculated metric for cold start users.
+        """
         if X_val_cold_users.size(0) == 0:
             return metric_at_k
         val_liked_cold_users = (
@@ -388,6 +420,13 @@ class BaseEmbedding(nn.Module):
     def calculate_metric_at_current_epoch(
         self, metric_at_k: Dict, top_k_values: List[int]
     ) -> None:
+        """
+        Calculate metric at current epoch using validation data.
+
+        Args:
+            metric_at_k (Dict): Dictionary to store metric result.
+            top_k_values (List[int]): List of top k values to evaluate.
+        """
         for k in top_k_values:
             # save map
             metric_at_k[k][Metric.MAP] = safe_divide(
@@ -429,15 +468,18 @@ class BaseEmbedding(nn.Module):
         top_k_values: List[int],
     ) -> Dict:
         """
-        After calculating scores in `recommend_all` function, calculate metric without any candidates.
-        Metrics calculated in this function are NDCG, mAP and recall.
-        Note that this function does not consider locality, which means recommendations
-        could be given regardless of user's location and diner's location
+        For each batch when generating recommendations in warm / cold start users, calculate metric using vectorized function.
+        Note that dimension of top_k_id (num_users_in_batch, 500) and dimension of liked_items is (num_users_in_batch, num_liked_items).
+        Because upper loop is run with users who have identical number of liked items, this vectorized calculation is possible.
 
         Args:
+            metric_at_k (Dict): Dictionary to store metric result.
              top_k_id (NDArray): Diner_id whose score is under max_k ranked score. (two dimensional array)
              liked_items (NDArray): Item ids liked by users. (two dimensional array)
              top_k_values (List[int]): A list of k values.
+
+        Returns (Dict):
+            Calculated metric for each user.
         """
 
         batch_num_users = liked_items.shape[0]
