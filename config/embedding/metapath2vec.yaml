@@ -1,6 +1,5 @@
 preprocess:
   data:
-    min_review: 3
     is_timeseries_by_time_point: true
     train_time_point: "2024-09-01"
     val_time_point: "2024-12-01"
@@ -13,8 +12,6 @@ preprocess:
         h3_resolution: 9
     user_engineered_feature_names: {}
 training:
-  near_candidate:
-    max_distance_km: 1
   evaluation:
     recommend_batch_size: 1000
     top_k_values_for_pred:
