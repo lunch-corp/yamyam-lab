@@ -771,14 +771,37 @@ class DatasetLoader:
         }
 
     def get_most_popular_diner_ids(
-        self: Self, train_review: pd.DataFrame, top_k: int = 1000
+        self: Self, train_review: pd.DataFrame, top_k: int = 2000
     ) -> List[int]:
+        """
+        Get most popular diner_ids from `train review`.
+        It is important that val / test data should not be used due to data leakage.
+        top_k argument should be sufficiently large to cover ndcg@k, map@k and recall@k.
+        Currently, k is largest when calculating recall@2000, therefore we set it as 2000 as default.
+
+        Args:
+            train_review (pd.DataFrame): Train review dataset.
+            top_k (int): Top k value to get most popular diner_ids.
+
+        Returns (List[int]):
+            List of top_k diner_ids.
+        """
         diner_agg = train_review.value_counts("diner_idx")[:top_k]
         return diner_agg.index.tolist()
 
     def get_warm_cold_start_user_ids(
         self: Self, train_review: pd.DataFrame, test_review: pd.DataFrame
     ) -> Tuple[NDArray, NDArray]:
+        """
+        Get warm / cold start user_ids given train/val or train/test dataset.
+
+        Args:
+            train_review (pd.DataFrame): Review data used when training model.
+            test_review (pd.DataFrame): Review data used when validating model or calculating metric for final report.
+
+        Returns (Tuple[NDArray, NDArray]):
+            Tuple of list of warm / cold start user ids.
+        """
         train_user_ids = set(train_review["reviewer_id"].unique())
         test_user_ids = set(test_review["reviewer_id"].unique())
         warm_start_user_ids = np.array(list(train_user_ids & test_user_ids))
@@ -786,7 +809,10 @@ class DatasetLoader:
         return warm_start_user_ids, cold_start_user_ids
 
     @staticmethod
-    def is_valid_date_format(date_string):
+    def is_valid_date_format(date_string: str) -> bool:
+        """
+        Validates whether given date_string is `0000-00-00` format or not.
+        """
         pattern = r"^\d{4}-\d{2}-\d{2}$"
         return bool(re.match(pattern, date_string))
 
