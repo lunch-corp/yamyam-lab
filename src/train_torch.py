@@ -25,7 +25,7 @@ RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 def main(args: ArgumentParser.parse_args):
     # set result path
-    dt = datetime.now().strftime("%Y%m%d%H%M")
+    dt = datetime.now().strftime("%Y%m%d%H%M%S")
     test_flag = "test" if args.test else "untest"
     result_path = RESULT_PATH.format(test=test_flag, model=args.model, dt=dt)
     os.makedirs(result_path, exist_ok=True)
