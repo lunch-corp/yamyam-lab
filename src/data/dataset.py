@@ -104,75 +104,79 @@ class DatasetLoader:
         self._validate_input_params()
 
     def _validate_input_params(self):
-        # error case
-        if self.is_timeseries_by_users and self.is_timeseries_by_time_point:
-            raise ValueError(
-                "is_timeseries_by_users and is_timeseries cannot be set to True simultaneously."
-            )
-        # Case 1)
-        elif not self.is_timeseries_by_users and not self.is_timeseries_by_time_point:
-            if self.test_size is None:
+        match (self.is_timeseries_by_users, self.is_timeseries_by_time_point):
+            # Error case
+            case (True, True):
                 raise ValueError(
-                    "test_size should be set when splitting train / test with stratified option"
-                )
-            if self.min_reviews is None:
-                raise ValueError(
-                    "min_reviews should be set when splitting train / test with stratified option"
-                )
-        # Case 2)
-        elif self.is_timeseries_by_users and not self.is_timeseries_by_time_point:
-            if self.test_size is None:
-                raise ValueError(
-                    "test_size should be set when splitting train / test with timeseries by users"
-                )
-        # Case 3)
-        elif not self.is_timeseries_by_users and self.is_timeseries_by_time_point:
-            if (
-                self.train_time_point is None
-                or self.test_time_point is None
-                or self.end_time_point is None
-            ):
-                raise ValueError(
-                    "All of train_time_point, test_time_point and end_time_point should not be None when is_timeseries_by_time_point is True"
+                    "is_timeseries_by_users and is_timeseries cannot be set to True simultaneously."
                 )
 
-            time_points = [
-                self.train_time_point,
-                self.val_time_point,
-                self.test_time_point,
-                self.end_time_point,
-            ]
-            names = [
-                "train_time_point",
-                "val_time_point",
-                "test_time_point",
-                "end_time_point",
-            ]
-            for name, time_point in zip(names, time_points):
-                if time_point is None and name == "val_time_point":
-                    continue
-                if not self.is_valid_date_format(time_point):
+            # Case 1) Stratified split
+            case (False, False):
+                if self.test_size is None:
                     raise ValueError(
-                        f"{name} is invalid date format, expected YYYY-MM-DD but got {time_point}"
+                        "test_size should be set when splitting train / test with stratified option"
+                    )
+                if self.min_reviews is None:
+                    raise ValueError(
+                        "min_reviews should be set when splitting train / test with stratified option"
                     )
 
-            if self.train_time_point >= self.test_time_point:
-                raise ValueError(
-                    "time point for train data should not be greater or equal than time point for test data"
-                )
-            if self.test_time_point >= self.end_time_point:
-                raise ValueError(
-                    "time point for test data should not be greater or equal than end time point"
-                )
-            if self.val_time_point is not None:
-                if self.train_time_point >= self.val_time_point:
+            # Case 2) Timeseries by users
+            case (True, False):
+                if self.test_size is None:
                     raise ValueError(
-                        "time point for train data should not be greater or equal than time point for val data"
+                        "test_size should be set when splitting train / test with timeseries by users"
                     )
-                if self.val_time_point >= self.test_time_point:
+
+            # Case 3) Timeseries by time point
+            case (False, True):
+                if (
+                    self.train_time_point is None
+                    or self.test_time_point is None
+                    or self.end_time_point is None
+                ):
                     raise ValueError(
-                        "time point for val data should not be greater or equal than time point for test data"
+                        "All of train_time_point, test_time_point and end_time_point should not be None when is_timeseries_by_time_point is True"
                     )
+
+                time_points = [
+                    self.train_time_point,
+                    self.val_time_point,
+                    self.test_time_point,
+                    self.end_time_point,
+                ]
+                names = [
+                    "train_time_point",
+                    "val_time_point",
+                    "test_time_point",
+                    "end_time_point",
+                ]
+                for name, time_point in zip(names, time_points):
+                    if time_point is None and name == "val_time_point":
+                        continue
+                    if not self.is_valid_date_format(time_point):
+                        raise ValueError(
+                            f"{name} is invalid date format, expected YYYY-MM-DD but got {time_point}"
+                        )
+
+                if self.train_time_point >= self.test_time_point:
+                    raise ValueError(
+                        "time point for train data should not be greater or equal than time point for test data"
+                    )
+                if self.test_time_point >= self.end_time_point:
+                    raise ValueError(
+                        "time point for test data should not be greater or equal than end time point"
+                    )
+                if self.val_time_point is not None:
+                    if self.train_time_point >= self.val_time_point:
+                        raise ValueError(
+                            "time point for train data should not be greater or equal than time point for val data"
+                        )
+                    if self.val_time_point >= self.test_time_point:
+                        raise ValueError(
+                            "time point for val data should not be greater or equal than time point for test data"
+                        )
 
     def load_dataset(self: Self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -407,7 +411,7 @@ class DatasetLoader:
             return data
 
         train, val = self.train_test_split_timeseries_by_time_point(
-            review=review,
+            review=train,
             train_time_point=self.train_time_point,
             test_time_point=self.val_time_point,
             end_time_point=self.test_time_point,
