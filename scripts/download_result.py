@@ -17,6 +17,7 @@ def parse_args():
         "--download_file_type", type=str, choices=["candidates", "models"]
     )
     parser.add_argument("--latest", action="store_true")
+    parser.add_argument("--file_id", type=str, required=False)
     parser.add_argument(
         "--credential_file_path_from_gcloud_console", type=str, required=False
     )
@@ -26,6 +27,12 @@ def parse_args():
 
 def main(args: ArgumentParser.parse_args):
     reuse_auth_info = True if args.reusable_token_path else False
+    if not args.latest and args.file_id is None:
+        raise ValueError("file_id should be given when latest option is set as False")
+    if args.latest and args.file_id is not None:
+        raise ValueError(
+            "One of latest and file_id argument should be given, but got both of them"
+        )
     manager = GoogleDriveManager(
         credential_file_path_from_gcloud_console=args.credential_file_path_from_gcloud_console,
         reusable_token_path=args.reusable_token_path,
@@ -35,6 +42,7 @@ def main(args: ArgumentParser.parse_args):
         model_name=args.model_name,
         latest=args.latest,
         download_file_type=args.download_file_type,
+        file_id=args.file_id,
     )
 
 
