@@ -141,9 +141,10 @@ def main(args):
             reusable_token_path=args.reusable_token_path,
             reuse_auth_info=True,
         )
-        file_id = manager.upload_candidates_result(
+        file_id = manager.upload_result(
             model_name=args.model,
             file_path=os.path.join(zip_path, f"{dt}.zip"),
+            download_file_type="candidates",
         )
         logging.info(
             f"Successfully uploaded candidate results to google drive.File id: {file_id}"
