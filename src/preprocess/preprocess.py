@@ -40,6 +40,7 @@ def preprocess_common(
     diner: pd.DataFrame,
     diner_with_raw_category: pd.DataFrame,
     min_reviews: int,
+    is_timeseries_by_time_point: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Common preprocessing identically applied to ranking and candidate generation.
@@ -62,9 +63,10 @@ def preprocess_common(
     )
 
     # step 1: filter reviewers writing reviews greater than or equal to `min_reviews`
-    reviewer_counts = review["reviewer_id"].value_counts()
-    valid_reviewers = reviewer_counts[reviewer_counts >= min_reviews].index
-    review = review[review["reviewer_id"].isin(valid_reviewers)]
+    if not is_timeseries_by_time_point:
+        reviewer_counts = review["reviewer_id"].value_counts()
+        valid_reviewers = reviewer_counts[reviewer_counts >= min_reviews].index
+        review = review[review["reviewer_id"].isin(valid_reviewers)]
 
     # step 2: use diner which has at least one review
     diner_idx_both_exist = set(review["diner_idx"].unique()) & set(
@@ -101,6 +103,11 @@ def preprocess_common(
     # step 4: temporary na filling
     diner["diner_category_large"] = diner["diner_category_large"].fillna("NA")
     diner["diner_category_middle"] = diner["diner_category_middle"].fillna("NA")
+
+    # step 5: convert reviewer_review_date into datetime object
+    review["reviewer_review_date"] = pd.to_datetime(
+        review["reviewer_review_date"].fillna("2015-01-01")
+    )
 
     return review, diner
 

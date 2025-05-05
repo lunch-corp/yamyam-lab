@@ -14,6 +14,7 @@ class DinerFeatureStore(BaseFeatureStore):
         self: Self,
         review: pd.DataFrame,
         diner: pd.DataFrame,
+        all_diner_ids: List[int],
         feature_param_pair: Dict[str, Dict[str, Any]],
     ):
         """
@@ -22,8 +23,9 @@ class DinerFeatureStore(BaseFeatureStore):
         Unimplemented feature name will raise error with `self.feature_methods`.
 
         Args:
-            review (pd.DataFrame): Review data.
+            review (pd.DataFrame): Review data which will be train dataset.
             diner (pd.DataFrame): Diner data.
+            all_diner_ids (List[int]): Diner ids from all of review data, which is train, val and test dataset.
             feature_param_pair (Dict[str, Dict[str, Any]]): Key is name of engineered feature and
                 values are its corresponding parameters.
         """
@@ -32,6 +34,7 @@ class DinerFeatureStore(BaseFeatureStore):
             diner=diner,
             feature_param_pair=feature_param_pair,
         )
+        self.all_diner_ids = all_diner_ids
 
         self.feature_methods = {
             "all_review_cnt": self.calculate_all_review_cnt,
@@ -336,6 +339,7 @@ class UserFeatureStore(BaseFeatureStore):
         self: Self,
         review: pd.DataFrame,
         diner: pd.DataFrame,
+        all_user_ids: List[int],
         feature_param_pair: Dict[str, Dict[str, Any]],
     ):
         """
@@ -344,8 +348,9 @@ class UserFeatureStore(BaseFeatureStore):
         Unimplemented feature name will raise error with `self.feature_methods`.
 
         Args:
-            review (pd.DataFrame): Review data.
+            review (pd.DataFrame): Review data which will be train dataset.
             diner (pd.DataFrame): Diner data.
+            all_user_ids (List[int]): User ids from all of review data, which is train, val and test dataset.
             feature_param_pair (Dict[str, Dict[str, Any]]): Key is name of engineered feature and
                 values are its corresponding parameters.
         """
@@ -371,10 +376,16 @@ class UserFeatureStore(BaseFeatureStore):
             if feat not in self.feature_methods.keys():
                 raise ValueError(f"{feat} not matched with implemented method")
         self.feature_param_pair = feature_param_pair
+
         # initial user feature dataframe to merge with other engineered features
-        self.user = pd.DataFrame(
-            {"reviewer_id": sorted(review["reviewer_id"].unique())}
-        )
+        # Note: reviewer_id is initialized from `all_user_ids`, not from train review data.
+        # self.user will be continuously left merged with features calculated from train review data.
+        # This means that, for cold start users in val and test data, feature value will be nan.
+        # If we decide to recommend items to cold start users using most popular items,
+        # we do not have to fill na values for cold start users.
+        # Filling with zeros will be used as temporary na filling strategy, so please be aware of it.
+        self.user = pd.DataFrame({"reviewer_id": sorted(all_user_ids)})
+
         self.feature_dict = {
             "한식": "korean",
             "중식": "chinese",
@@ -393,6 +404,11 @@ class UserFeatureStore(BaseFeatureStore):
         """
         for feat, params in self.feature_param_pair.items():
             self.feature_methods[feat](**params)
+
+        # temporary na fill logic, which fills na value with 0.
+        # If we do not use most popular items recommendation to cold start users,
+        # this line should be updated with customized na filling logic.
+        self.user.fillna(0)
 
     def calculate_categorical_feature_count(
         self: Self, categorical_feature_names: List[str], **kwargs
@@ -422,7 +438,7 @@ class UserFeatureStore(BaseFeatureStore):
             self.user = pd.merge(
                 left=self.user,
                 right=category_feat,
-                how="inner",
+                how="left",
                 on="reviewer_id",
             )
 
@@ -441,7 +457,7 @@ class UserFeatureStore(BaseFeatureStore):
         self.user = pd.merge(
             left=self.user,
             right=score_feat,
-            how="inner",
+            how="left",
             on="reviewer_id",
         )
 
@@ -474,14 +490,14 @@ class UserFeatureStore(BaseFeatureStore):
         self.user = pd.merge(
             left=self.user,
             right=daily_counts,
-            how="inner",
+            how="left",
             on="reviewer_id",
         )
 
         self.user = pd.merge(
             left=self.user,
             right=recency[["reviewer_id", "days_since_last_review"]],
-            how="inner",
+            how="left",
             on="reviewer_id",
         )
 
@@ -578,7 +594,7 @@ class UserFeatureStore(BaseFeatureStore):
         self.user = pd.merge(
             left=self.user,
             right=scaled_features,
-            how="inner",
+            how="left",
             on="reviewer_id",
         )
 
@@ -667,6 +683,8 @@ def min_max_scaling(
 def build_feature(
     review: pd.DataFrame,
     diner: pd.DataFrame,
+    all_user_ids: List[int],
+    all_diner_ids: List[int],
     user_engineered_feature_names: Dict[str, Dict[str, Any]],
     diner_engineered_feature_names: Dict[str, Dict[str, Any]],
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -674,6 +692,7 @@ def build_feature(
     user_fs = UserFeatureStore(
         review=review,
         diner=diner,
+        all_user_ids=all_user_ids,
         feature_param_pair=user_engineered_feature_names,
     )
     user_fs.make_features()
@@ -683,6 +702,7 @@ def build_feature(
     diner_fs = DinerFeatureStore(
         review=review,
         diner=diner,
+        all_diner_ids=all_diner_ids,
         feature_param_pair=diner_engineered_feature_names,
     )
     diner_fs.make_features()

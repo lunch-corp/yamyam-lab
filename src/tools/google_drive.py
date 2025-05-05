@@ -434,7 +434,7 @@ class GoogleDriveManager:
         self,
         model_name: str,
         download_file_type: str,
-        latest: bool = True,
+        latest: bool = False,
         file_id: str = None,
     ):
         """
@@ -451,6 +451,8 @@ class GoogleDriveManager:
             Path to the downloaded file.
 
         """
+        if not latest and file_id is None:
+            raise ValueError("file_id should not be None when latest is False")
         model_folder_id = self._get_model_folder_id(
             model_name=model_name, download_file_type=download_file_type
         )

@@ -1,9 +1,12 @@
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Self, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
+from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
@@ -21,8 +24,8 @@ from tools.utils import reduce_mem_usage
 class DatasetLoader:
     def __init__(
         self: Self,
-        test_size: float,
-        min_reviews: int,
+        test_size: float = None,
+        min_reviews: int = None,
         user_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
         diner_engineered_feature_names: Dict[str, Dict[str, Any]] = {},
         X_columns: List[str] = ["diner_idx", "reviewer_id"],
@@ -31,7 +34,12 @@ class DatasetLoader:
         random_state: int = 42,
         stratify: str = "reviewer_id",
         sampling_type: str = "popularity",
-        is_timeseries: bool = False,
+        is_timeseries_by_users: bool = False,
+        is_timeseries_by_time_point: bool = False,
+        train_time_point: str = None,
+        test_time_point: str = None,
+        val_time_point: str = None,
+        end_time_point: str = None,
         is_graph_model: bool = False,
         is_candidate_dataset: bool = False,
         category_column_for_meta: str = "diner_category_large",
@@ -39,6 +47,23 @@ class DatasetLoader:
     ):
         """
         Initialize the DatasetLoader class.
+
+        There are 3 types of strategies when splitting reviews into train / test.
+            Case 1) is_timeseries_by_users == False & is_timeseries_by_time_point == False
+                -> split reviews stratified with reviewer_id without considering timeseries
+            Case 2) is_timeseries_by_users == True & is_timeseries_by_time_point == False
+                -> split reviews into train / test considering timeseries within each user
+            Case 3) is_timeseries_by_users == False & is_timeseries_by_time_point == True
+                -> split reviews into train / test based on a specific time point
+                if val_time_point is not None:
+                    train_time_point <= dt < val_time_point : train dataset
+                    val_time_pint <= dt < test_time_point : val dataset
+                    test_time_point <= dt < end_time_point : test dataset
+                else:
+                    train_time_point <= dt < test_time_point : train dataset
+                    test_time_point <= dt < end_time_point : test dataset
+            Case 4) is_timeseries_by_users == True & is_timeseries_by_time_point == True
+                -> will raise error
 
         Args:
             test_size: float
@@ -63,13 +88,95 @@ class DatasetLoader:
         self.random_state = random_state
         self.stratify = stratify
         self.is_graph_model = is_graph_model
-        self.is_timeseries = is_timeseries
+        self.is_timeseries_by_users = is_timeseries_by_users
+        self.is_timeseries_by_time_point = is_timeseries_by_time_point
+        self.train_time_point = train_time_point
+        self.val_time_point = val_time_point
+        self.test_time_point = test_time_point
+        self.end_time_point = end_time_point
         self.is_candidate_dataset = is_candidate_dataset
         self.category_column_for_meta = category_column_for_meta
         self.test = test
         self.sampling_type = sampling_type
         self.data_paths = ensure_data_files()
         self.candidate_paths = Path("candidates/node2vec")
+
+        self._validate_input_params()
+
+    def _validate_input_params(self):
+        match (self.is_timeseries_by_users, self.is_timeseries_by_time_point):
+            # Error case
+            case (True, True):
+                raise ValueError(
+                    "is_timeseries_by_users and is_timeseries cannot be set to True simultaneously."
+                )
+
+            # Case 1) Stratified split
+            case (False, False):
+                if self.test_size is None:
+                    raise ValueError(
+                        "test_size should be set when splitting train / test with stratified option"
+                    )
+                if self.min_reviews is None:
+                    raise ValueError(
+                        "min_reviews should be set when splitting train / test with stratified option"
+                    )
+
+            # Case 2) Timeseries by users
+            case (True, False):
+                if self.test_size is None:
+                    raise ValueError(
+                        "test_size should be set when splitting train / test with timeseries by users"
+                    )
+
+            # Case 3) Timeseries by time point
+            case (False, True):
+                if (
+                    self.train_time_point is None
+                    or self.test_time_point is None
+                    or self.end_time_point is None
+                ):
+                    raise ValueError(
+                        "All of train_time_point, test_time_point and end_time_point should not be None when is_timeseries_by_time_point is True"
+                    )
+
+                time_points = [
+                    self.train_time_point,
+                    self.val_time_point,
+                    self.test_time_point,
+                    self.end_time_point,
+                ]
+                names = [
+                    "train_time_point",
+                    "val_time_point",
+                    "test_time_point",
+                    "end_time_point",
+                ]
+                for name, time_point in zip(names, time_points):
+                    if time_point is None and name == "val_time_point":
+                        continue
+                    if not self.is_valid_date_format(time_point):
+                        raise ValueError(
+                            f"{name} is invalid date format, expected YYYY-MM-DD but got {time_point}"
+                        )
+
+                if self.train_time_point >= self.test_time_point:
+                    raise ValueError(
+                        "time point for train data should not be greater or equal than time point for test data"
+                    )
+                if self.test_time_point >= self.end_time_point:
+                    raise ValueError(
+                        "time point for test data should not be greater or equal than end time point"
+                    )
+                if self.val_time_point is not None:
+                    if self.train_time_point >= self.val_time_point:
+                        raise ValueError(
+                            "time point for train data should not be greater or equal than time point for val data"
+                        )
+                    if self.val_time_point >= self.test_time_point:
+                        raise ValueError(
+                            "time point for val data should not be greater or equal than time point for test data"
+                        )
 
     def load_dataset(self: Self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -127,7 +234,7 @@ class DatasetLoader:
         )
         return train, val
 
-    def train_test_split_timeseries(
+    def train_test_split_timeseries_by_users(
         self: Self, review: pd.DataFrame
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -168,6 +275,26 @@ class DatasetLoader:
 
         return train, val
 
+    def train_test_split_timeseries_by_time_point(
+        self: Self,
+        review: pd.DataFrame,
+        train_time_point: str,
+        test_time_point: str,
+        end_time_point: str,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        train_time_point = datetime.strptime(train_time_point, "%Y-%m-%d")
+        test_time_point = datetime.strptime(test_time_point, "%Y-%m-%d")
+        end_time_point = datetime.strptime(end_time_point, "%Y-%m-%d")
+        train = review[
+            lambda x: (train_time_point <= x["reviewer_review_date"])
+            & (x["reviewer_review_date"] < test_time_point)
+        ]
+        test = review[
+            lambda x: (test_time_point <= x["reviewer_review_date"])
+            & (x["reviewer_review_date"] < end_time_point)
+        ]
+        return train, test
+
     def prepare_train_val_dataset(
         self: Self,
         is_rank: bool = False,
@@ -190,7 +317,11 @@ class DatasetLoader:
         assert self.category_column_for_meta in diner_with_raw_category.columns
 
         review, diner = preprocess_common(
-            review, diner, diner_with_raw_category, self.min_reviews
+            review=review,
+            diner=diner,
+            diner_with_raw_category=diner_with_raw_category,
+            min_reviews=self.min_reviews,
+            is_timeseries_by_time_point=self.is_timeseries_by_time_point,
         )
 
         # Map reviewer and diner data
@@ -203,24 +334,32 @@ class DatasetLoader:
         }
 
         # Split data into train and validation
-        train, val = (
-            self.train_test_split_timeseries(review)
-            if self.is_timeseries
-            else self.train_test_split_stratify(review)
-        )
+        if self.is_timeseries_by_users and not self.is_timeseries_by_time_point:
+            train, test = self.train_test_split_timeseries_by_users(review)
+        elif not self.is_timeseries_by_users and self.is_timeseries_by_time_point:
+            train, test = self.train_test_split_timeseries_by_time_point(
+                review=review,
+                train_time_point=self.train_time_point,
+                test_time_point=self.test_time_point,
+                end_time_point=self.end_time_point,
+            )
+        else:
+            train, test = self.train_test_split_stratify(review)
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
-            review,
-            diner,
-            self.user_engineered_feature_names,
-            self.diner_engineered_feature_names,
+            review=train,
+            diner=diner,
+            all_user_ids=list(mapped_res["user_mapping"].values()),
+            all_diner_ids=list(mapped_res["diner_mapping"].values()),
+            user_engineered_feature_names=self.user_engineered_feature_names,
+            diner_engineered_feature_names=self.diner_engineered_feature_names,
         )
 
         if is_rank:
             # reduce memory usage
             train = reduce_mem_usage(train)
-            val = reduce_mem_usage(val)
+            test = reduce_mem_usage(test)
             user_feature = reduce_mem_usage(user_feature)
             diner_feature = reduce_mem_usage(diner_feature)
 
@@ -231,25 +370,25 @@ class DatasetLoader:
                 self.sampling_type, pos_train, self.num_neg_samples, self.random_state
             )
 
-            val = self.create_target_column(val)
-            pos_val = val[val["target"] == 1]
-            val = self.negative_sampling(
-                self.sampling_type, pos_val, self.num_neg_samples, self.random_state
+            test = self.create_target_column(test)
+            pos_test = test[test["target"] == 1]
+            test = self.negative_sampling(
+                self.sampling_type, pos_test, self.num_neg_samples, self.random_state
             )
 
             train = train.sort_values(by=["reviewer_id"])
-            val = val.sort_values(by=["reviewer_id"])
+            test = test.sort_values(by=["reviewer_id"])
 
             # 순위 관련 특성 병합
-            train, val = self.merge_rank_features(
-                train, val, user_feature, diner_feature
+            train, test = self.merge_rank_features(
+                train, test, user_feature, diner_feature
             )
 
             user_mapping = mapped_res["user_mapping"]
             diner_mapping = mapped_res["diner_mapping"]
 
             if not is_candidate_dataset:
-                return self.create_rank_dataset(train, val, mapped_res)
+                return self.create_rank_dataset(train, test, mapped_res)
 
             candidates, candidate_user_mapping, candidate_diner_mapping = (
                 self.load_candidate_dataset(user_feature, diner_feature)
@@ -264,12 +403,39 @@ class DatasetLoader:
             )
 
             # rank dataset
-            data = self.create_rank_dataset(train, val, mapped_res)
+            data = self.create_rank_dataset(train, test, mapped_res)
             data["candidates"] = candidates
             data["candidate_user_mapping"] = candidate_user_mapping
             data["candidate_diner_mapping"] = candidate_diner_mapping
 
             return data
+
+        train, val = self.train_test_split_timeseries_by_time_point(
+            review=train,
+            train_time_point=self.train_time_point,
+            test_time_point=self.val_time_point,
+            end_time_point=self.test_time_point,
+        )
+
+        val_warm_start_user_ids, val_cold_start_user_ids = (
+            self.get_warm_cold_start_user_ids(
+                train_review=train,
+                test_review=val,
+            )
+        )
+        test_warm_start_user_ids, test_cold_start_user_ids = (
+            self.get_warm_cold_start_user_ids(
+                train_review=train,
+                test_review=test,
+            )
+        )
+        train_user_ids = train["reviewer_id"].unique()
+        val_user_ids = val["reviewer_id"].unique()
+        test_user_ids = test["reviewer_id"].unique()
+        val_warm_users = val[lambda x: x["reviewer_id"].isin(val_warm_start_user_ids)]
+        val_cold_users = val[lambda x: x["reviewer_id"].isin(val_cold_start_user_ids)]
+        test_warm_users = val[lambda x: x["reviewer_id"].isin(test_warm_start_user_ids)]
+        test_cold_users = val[lambda x: x["reviewer_id"].isin(test_cold_start_user_ids)]
 
         if use_metadata:
             meta_mapping_info = meta_mapping(
@@ -280,7 +446,24 @@ class DatasetLoader:
             mapped_res.update(meta_mapping_info)
 
         return self.create_graph_dataset(
-            train, val, user_feature, diner_feature, diner_meta_feature, mapped_res
+            train=train,
+            val=val,
+            test=test,
+            train_user_ids=train_user_ids,
+            val_user_ids=val_user_ids,
+            test_user_ids=test_user_ids,
+            val_warm_start_user_ids=val_warm_start_user_ids,
+            val_cold_start_user_ids=val_cold_start_user_ids,
+            test_warm_start_user_ids=test_warm_start_user_ids,
+            test_cold_start_user_ids=test_cold_start_user_ids,
+            val_warm_users=val_warm_users,
+            val_cold_users=val_cold_users,
+            test_warm_users=test_warm_users,
+            test_cold_users=test_cold_users,
+            user_feature=user_feature,
+            diner_feature=diner_feature,
+            diner_meta_feature=diner_meta_feature,
+            mapped_res=mapped_res,
         )
 
     def _validate_user_mappings(
@@ -511,6 +694,18 @@ class DatasetLoader:
         self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
+        test: pd.DataFrame,
+        train_user_ids: NDArray,
+        val_user_ids: NDArray,
+        test_user_ids: NDArray,
+        val_warm_start_user_ids: NDArray,
+        val_cold_start_user_ids: NDArray,
+        test_warm_start_user_ids: NDArray,
+        test_cold_start_user_ids: NDArray,
+        val_warm_users: pd.DataFrame,
+        val_cold_users: pd.DataFrame,
+        test_warm_users: pd.DataFrame,
+        test_cold_users: pd.DataFrame,
         user_feature: pd.DataFrame,
         diner_feature: pd.DataFrame,
         diner_meta_feature: pd.DataFrame,
@@ -535,6 +730,24 @@ class DatasetLoader:
             "y_train": torch.tensor(train[self.y_columns].values, dtype=torch.float32),
             "X_val": torch.tensor(val[self.X_columns].values),
             "y_val": torch.tensor(val[self.y_columns].values, dtype=torch.float32),
+            "X_test": torch.tensor(test[self.X_columns].values),
+            "y_test": torch.tensor(test[self.y_columns].values, dtype=torch.float32),
+            "X_val_warm_users": torch.tensor(val_warm_users[self.X_columns].values),
+            "y_val_warm_users": torch.tensor(
+                val_warm_users[self.y_columns].values, dtype=torch.float32
+            ),
+            "X_val_cold_users": torch.tensor(val_cold_users[self.X_columns].values),
+            "y_val_cold_users": torch.tensor(
+                val_cold_users[self.y_columns].values, dtype=torch.float32
+            ),
+            "X_test_warm_users": torch.tensor(test_warm_users[self.X_columns].values),
+            "y_test_warm_users": torch.tensor(
+                test_warm_users[self.y_columns].values, dtype=torch.float32
+            ),
+            "X_test_cold_users": torch.tensor(test_cold_users[self.X_columns].values),
+            "y_test_cold_users": torch.tensor(
+                test_cold_users[self.y_columns].values, dtype=torch.float32
+            ),
             "diner": diner_meta_feature,
             "user_feature": torch.tensor(
                 user_feature.sort_values(by="reviewer_id")
@@ -548,8 +761,64 @@ class DatasetLoader:
                 .values,
                 dtype=torch.float32,
             ),
+            "most_popular_diner_ids": self.get_most_popular_diner_ids(
+                train_review=train
+            ),
+            "val_warm_start_user_ids": val_warm_start_user_ids,
+            "val_cold_start_user_ids": val_cold_start_user_ids,
+            "test_warm_start_user_ids": test_warm_start_user_ids,
+            "test_cold_start_user_ids": test_cold_start_user_ids,
+            "train_user_ids": train_user_ids,
+            "val_user_ids": val_user_ids,
+            "test_user_ids": test_user_ids,
             **mapped_res,
         }
+
+    def get_most_popular_diner_ids(
+        self: Self, train_review: pd.DataFrame, top_k: int = 2000
+    ) -> List[int]:
+        """
+        Get most popular diner_ids from `train review`.
+        It is important that val / test data should not be used due to data leakage.
+        top_k argument should be sufficiently large to cover ndcg@k, map@k and recall@k.
+        Currently, k is largest when calculating recall@2000, therefore we set it as 2000 as default.
+
+        Args:
+            train_review (pd.DataFrame): Train review dataset.
+            top_k (int): Top k value to get most popular diner_ids.
+
+        Returns (List[int]):
+            List of top_k diner_ids.
+        """
+        diner_agg = train_review.value_counts("diner_idx")[:top_k]
+        return diner_agg.index.tolist()
+
+    def get_warm_cold_start_user_ids(
+        self: Self, train_review: pd.DataFrame, test_review: pd.DataFrame
+    ) -> Tuple[NDArray, NDArray]:
+        """
+        Get warm / cold start user_ids given train/val or train/test dataset.
+
+        Args:
+            train_review (pd.DataFrame): Review data used when training model.
+            test_review (pd.DataFrame): Review data used when validating model or calculating metric for final report.
+
+        Returns (Tuple[NDArray, NDArray]):
+            Tuple of list of warm / cold start user ids.
+        """
+        train_user_ids = set(train_review["reviewer_id"].unique())
+        test_user_ids = set(test_review["reviewer_id"].unique())
+        warm_start_user_ids = np.array(list(train_user_ids & test_user_ids))
+        cold_start_user_ids = np.array(list(test_user_ids - train_user_ids))
+        return warm_start_user_ids, cold_start_user_ids
+
+    @staticmethod
+    def is_valid_date_format(date_string: str) -> bool:
+        """
+        Validates whether given date_string is `0000-00-00` format or not.
+        """
+        pattern = r"^\d{4}-\d{2}-\d{2}$"
+        return bool(re.match(pattern, date_string))
 
 
 def load_test_dataset(
@@ -593,7 +862,12 @@ def load_test_dataset(
 
     # feature engineering
     user_feature, diner_feature, diner_meta_feature = build_feature(
-        review, diner, user_feature_param_pair, diner_feature_param_pair
+        review=review,
+        diner=diner,
+        all_user_ids=review["reviewer_id"].unique(),
+        all_diner_ids=review["diner_idx"].unique(),
+        user_engineered_feature_names=user_feature_param_pair,
+        diner_engineered_feature_names=diner_feature_param_pair,
     )
 
     # 사용자별 리뷰한 레스토랑 ID 목록 생성

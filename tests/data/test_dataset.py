@@ -17,8 +17,11 @@ from data.dataset import DatasetLoader, load_test_dataset
 
 def test_loader_dataset():
     data_loader = DatasetLoader(
-        test_size=0.3,
-        min_reviews=3,
+        is_timeseries_by_time_point=True,
+        train_time_point="2024-09-01",
+        val_time_point="2024-12-01",
+        test_time_point="2025-01-01",
+        end_time_point="2025-02-01",
         X_columns=["diner_idx", "reviewer_id"],
         y_columns=["reviewer_review_score"],
         random_state=42,
@@ -39,8 +42,10 @@ def test_loader_dataset():
 
     assert data["X_train"].shape[0] > 0
     assert data["X_val"].shape[0] > 0
+    assert data["X_test"].shape[0] > 0
     assert data["y_train"].shape[0] > 0
     assert data["y_val"].shape[0] > 0
+    assert data["y_test"].shape[0] > 0
     assert data["num_diners"] > 0
     assert data["num_users"] > 0
     assert data["diner_mapping"] is not None

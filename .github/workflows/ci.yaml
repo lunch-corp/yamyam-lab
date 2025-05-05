@@ -90,9 +90,10 @@ jobs:
           poetry run python3 scripts/download_result.py \
             --model_name "node2vec" \
             --download_file_type "candidates" \
-            --latest \
+            --file_id "11W-SMdy4KiR-rqppiPUSPOInadiDt-ju" \
             --reusable_token_path "credentials/token.json"
           ls candidates/node2vec
+          echo "above file_id corresponds to node2vec candidate zip file whose file name is 202504070010"
 
       - name: Run pytest
         run: |

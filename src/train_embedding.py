@@ -17,6 +17,7 @@ from tools.google_drive import GoogleDriveManager
 from tools.logger import setup_logger
 from tools.parse_args import parse_args_embedding, save_command_to_file
 from tools.plot import plot_metric_at_k
+from tools.utils import safe_divide
 from tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
@@ -27,7 +28,7 @@ ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
 def main(args: ArgumentParser.parse_args) -> None:
     # set result path
-    dt = datetime.now().strftime("%Y%m%d%H%M")
+    dt = datetime.now().strftime("%Y%m%d%H%M%S")
     test_flag = "test" if args.test else "untest"
     result_path = RESULT_PATH.format(test=test_flag, model=args.model, dt=dt)
     os.makedirs(result_path, exist_ok=True)
@@ -73,9 +74,22 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
 
+        logger.info(
+            f"train dataset period: {config.preprocess.data.train_time_point} <= dt < {config.preprocess.data.val_time_point}"
+        )
+        logger.info(
+            f"val dataset period: {config.preprocess.data.val_time_point} <= dt < {config.preprocess.data.test_time_point}"
+        )
+        logger.info(
+            f"test dataset period: {config.preprocess.data.test_time_point} <= dt < {config.preprocess.data.end_time_point}"
+        )
+
         data_loader = DatasetLoader(
-            test_size=args.test_ratio,
-            min_reviews=config.preprocess.data.min_review,
+            is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
+            train_time_point=config.preprocess.data.train_time_point,
+            val_time_point=config.preprocess.data.val_time_point,
+            test_time_point=config.preprocess.data.test_time_point,
+            end_time_point=config.preprocess.data.end_time_point,
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
             is_graph_model=True,
@@ -96,6 +110,31 @@ def main(args: ArgumentParser.parse_args) -> None:
             meta_mapping=data["meta_mapping"] if args.use_metadata else None,
             weighted=args.weighted_edge,
             use_metadata=args.use_metadata,
+        )
+
+        logger.info(f"Number of reviews in train: {data['X_train'].size(0)}")
+        logger.info(f"Number of reviews in val: {data['X_val'].size(0)}")
+        logger.info(f"Number of reviews in test: {data['X_test'].size(0)}")
+        logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
+        logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
+        logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
+        logger.info(
+            f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
+        )
+        logger.info(
+            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
+        )
+        logger.info(
+            f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
+        )
+        logger.info(
+            f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
         )
 
         # for qualitative eval
@@ -176,29 +215,47 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             logger.info(f"epoch {epoch}: train loss {total_loss:.4f}")
 
-            model.recommend_all(
+            # calculate metric for current epoch
+            metric_at_k = {
+                k: {
+                    Metric.MAP: 0,
+                    Metric.NDCG: 0,
+                    Metric.RECALL: 0,
+                    Metric.COUNT: 0,
+                }
+                for k in top_k_values
+            }
+            metric_at_k = model.generate_recommendations_and_calculate_metric(
                 X_train=data["X_train"],
-                X_val=data["X_val"],
+                X_val_warm_users=data["X_val_warm_users"],
+                X_val_cold_users=data["X_val_cold_users"],
                 top_k_values=top_k_values,
+                metric_at_k=metric_at_k,
+                most_popular_diner_ids=data["most_popular_diner_ids"],
                 filter_already_liked=True,
+            )
+            model.calculate_metric_at_current_epoch(
+                metric_at_k=metric_at_k,
+                top_k_values=top_k_values,
             )
 
             maps = []
             ndcgs = []
             recalls = []
 
+            logger.info("[ Metric report calculated from val data ]")
             for k in top_k_values_for_pred:
                 # no candidate metric
-                map = round(model.metric_at_k[k][Metric.MAP], 5)
-                ndcg = round(model.metric_at_k[k][Metric.NDCG], 5)
+                map = round(model.metric_at_k_total_epochs[k][Metric.MAP][-1], 5)
+                ndcg = round(model.metric_at_k_total_epochs[k][Metric.NDCG][-1], 5)
 
-                count = model.metric_at_k[k][Metric.COUNT]
+                count = model.metric_at_k_total_epochs[k][Metric.COUNT]
 
                 logger.info(
-                    f"maP@{k}: {map} with {count} users out of all {model.num_users} users"
+                    f"maP@{k}: {map} with {count} users out of all {len(data['val_user_ids'])} users"
                 )
                 logger.info(
-                    f"ndcg@{k}: {ndcg} with {count} users out of all {model.num_users} users"
+                    f"ndcg@{k}: {ndcg} with {count} users out of all {len(data['val_user_ids'])} users"
                 )
 
                 maps.append(str(map))
@@ -209,10 +266,10 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger.info(f"ndcg result: {'|'.join(ndcgs)}")
 
             for k in top_k_values_for_candidate:
-                recall = round(model.metric_at_k[k][Metric.RECALL], 5)
-                count = model.metric_at_k[k][Metric.COUNT]
+                recall = round(model.metric_at_k_total_epochs[k][Metric.RECALL][-1], 5)
+                count = model.metric_at_k_total_epochs[k][Metric.COUNT]
                 logger.info(
-                    f"recall@{k}: {recall} with {count} users out of all {model.num_users} users"
+                    f"recall@{k}: {recall} with {count} users out of all {len(data['val_user_ids'])} users"
                 )
                 recalls.append(str(recall))
 
@@ -234,6 +291,50 @@ def main(args: ArgumentParser.parse_args) -> None:
                 open(os.path.join(result_path, file_name.metric), "wb"),
             )
             logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
+
+        # calculate metric for test data
+        metric_at_k = {
+            k: {
+                Metric.MAP: 0,
+                Metric.NDCG: 0,
+                Metric.RECALL: 0,
+                Metric.COUNT: 0,
+            }
+            for k in top_k_values
+        }
+        metric_at_k = model.generate_recommendations_and_calculate_metric(
+            X_train=data["X_train"],
+            X_val_warm_users=data["X_test_warm_users"],
+            X_val_cold_users=data["X_test_cold_users"],
+            top_k_values=top_k_values,
+            metric_at_k=metric_at_k,
+            most_popular_diner_ids=data["most_popular_diner_ids"],
+            filter_already_liked=True,
+        )
+        maps_test = []
+        ndcgs_test = []
+        recalls_test = []
+        logger.info("[ Metric report calculated from test data ]")
+        for k in top_k_values_for_pred:
+            map = safe_divide(
+                numerator=metric_at_k[k][Metric.MAP],
+                denominator=metric_at_k[k][Metric.COUNT],
+            )
+            ndcg = safe_divide(
+                numerator=metric_at_k[k][Metric.NDCG],
+                denominator=metric_at_k[k][Metric.COUNT],
+            )
+            maps_test.append(str(round(map, 5)))
+            ndcgs_test.append(str(round(ndcg, 5)))
+        logger.info(f"map result: {'|'.join(maps_test)}")
+        logger.info(f"ndcg result: {'|'.join(ndcgs_test)}")
+        for k in top_k_values_for_candidate:
+            recall = safe_divide(
+                numerator=metric_at_k[k][Metric.RECALL],
+                denominator=metric_at_k[k][Metric.COUNT],
+            )
+            recalls_test.append(str(round(recall, 5)))
+        logger.info(f"recall result: {'|'.join(recalls_test)}")
 
         # plot metrics
         plot_metric_at_k(

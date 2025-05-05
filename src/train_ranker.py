@@ -25,7 +25,7 @@ def main(cfg: DictConfig):
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
         sampling_type=cfg.data.sampling_type,
-        is_timeseries=cfg.data.is_timeseries,
+        is_timeseries_by_users=cfg.data.is_timeseries_by_users,
         test=cfg.data.test,
     )
     data = data_loader.prepare_train_val_dataset(
