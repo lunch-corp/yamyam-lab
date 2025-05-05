@@ -63,9 +63,7 @@ def preprocess_common(
     )
 
     # step 1: filter reviewers writing reviews greater than or equal to `min_reviews`
-    if is_timeseries_by_time_point:
-        pass
-    else:
+    if not is_timeseries_by_time_point:
         reviewer_counts = review["reviewer_id"].value_counts()
         valid_reviewers = reviewer_counts[reviewer_counts >= min_reviews].index
         review = review[review["reviewer_id"].isin(valid_reviewers)]
