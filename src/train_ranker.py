@@ -18,6 +18,11 @@ from tools.utils import safe_divide
 def main(cfg: DictConfig):
     # load dataset
     data_loader = DatasetLoader(
+        is_timeseries_by_time_point=cfg.data.is_timeseries_by_time_point,
+        train_time_point=cfg.data.train_time_point,
+        val_time_point=cfg.data.val_time_point,
+        test_time_point=cfg.data.test_time_point,
+        end_time_point=cfg.data.end_time_point,
         test_size=cfg.data.test_size,
         min_reviews=cfg.data.min_reviews,
         category_column_for_meta=cfg.data.category_column_for_meta,
@@ -33,18 +38,20 @@ def main(cfg: DictConfig):
     )
 
     # mapping reverse
-    X_train, y_train, X_test, y_test = (
+    X_train, y_train, X_val, y_val, X_test, y_test = (
         data["X_train"],
         data["y_train"],
         data["X_val"],
         data["y_val"],
+        data["X_test"],
+        data["y_test"],
     )
 
     # build Pmodel
     trainer = build_model(cfg)
 
     # train model
-    trainer.fit(X_train, y_train, X_test, y_test)
+    trainer.fit(X_train, y_train, X_val, y_val)
 
     # save model
     trainer.save_model()

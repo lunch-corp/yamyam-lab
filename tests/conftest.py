@@ -21,6 +21,11 @@ class DataConfig:
     is_candidate_dataset: bool = False
     sampling_type: str = "popularity"
     is_timeseries_by_users: bool = False
+    is_timeseries_by_time_point: bool = True
+    train_time_point: str = "2024-09-01"
+    val_time_point: str = "2024-12-01"
+    test_time_point: str = "2025-01-01"
+    end_time_point: str = "2025-02-01"
 
 
 @dataclass
