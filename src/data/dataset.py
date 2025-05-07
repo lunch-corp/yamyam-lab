@@ -336,15 +336,27 @@ class DatasetLoader:
         # Split data into train and validation
         if self.is_timeseries_by_users and not self.is_timeseries_by_time_point:
             train, test = self.train_test_split_timeseries_by_users(review)
+            train, val = self.train_test_split_timeseries_by_users(train)
+
         elif not self.is_timeseries_by_users and self.is_timeseries_by_time_point:
+            # split train and test by time point
             train, test = self.train_test_split_timeseries_by_time_point(
                 review=review,
                 train_time_point=self.train_time_point,
                 test_time_point=self.test_time_point,
                 end_time_point=self.end_time_point,
             )
+            # split train and val by time point
+            train, val = self.train_test_split_timeseries_by_time_point(
+                review=review,
+                train_time_point=self.train_time_point,
+                test_time_point=self.val_time_point,
+                end_time_point=self.test_time_point,
+            )
+
         else:
             train, test = self.train_test_split_stratify(review)
+            train, val = self.train_test_split_stratify(train)
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
@@ -359,9 +371,20 @@ class DatasetLoader:
         if is_rank:
             # reduce memory usage
             train = reduce_mem_usage(train)
+            val = reduce_mem_usage(val)
             test = reduce_mem_usage(test)
             user_feature = reduce_mem_usage(user_feature)
             diner_feature = reduce_mem_usage(diner_feature)
+
+            # Identify cold start users
+            train_users = set(train["reviewer_id"].unique())
+            val_cold_users = set(val["reviewer_id"].unique()) - train_users
+            test_cold_users = set(test["reviewer_id"].unique()) - train_users
+
+            val_cold_start_user = val[val["reviewer_id"].isin(val_cold_users)]
+            val_warm_start_user = val[~val["reviewer_id"].isin(val_cold_users)]
+            test_cold_start_user = test[test["reviewer_id"].isin(test_cold_users)]
+            test_warm_start_user = test[~test["reviewer_id"].isin(test_cold_users)]
 
             # negative sampling
             train = self.create_target_column(train)
@@ -370,25 +393,72 @@ class DatasetLoader:
                 self.sampling_type, pos_train, self.num_neg_samples, self.random_state
             )
 
-            test = self.create_target_column(test)
-            pos_test = test[test["target"] == 1]
-            test = self.negative_sampling(
-                self.sampling_type, pos_test, self.num_neg_samples, self.random_state
+            val_warm_start_user = self.create_target_column(val_warm_start_user)
+            pos_val_warm_start_user = val_warm_start_user[
+                val_warm_start_user["target"] == 1
+            ]
+            val_warm_start_user = self.negative_sampling(
+                self.sampling_type,
+                pos_val_warm_start_user,
+                self.num_neg_samples,
+                self.random_state,
             )
 
+            val = self.create_target_column(val)
+            pos_val = val[val["target"] == 1]
+            val = self.negative_sampling(
+                self.sampling_type, pos_val, self.num_neg_samples, self.random_state
+            )
+
+            val_cold_start_user = self.create_target_column(val_cold_start_user)
+            pos_val_cold_start_user = val_cold_start_user[
+                val_cold_start_user["target"] == 1
+            ]
+            val_cold_start_user = self.negative_sampling(
+                self.sampling_type,
+                pos_val_cold_start_user,
+                self.num_neg_samples,
+                self.random_state,
+            )
+
+            test = self.create_target_column(test)
+            test_cold_start_user = self.create_target_column(test_cold_start_user)
+            test_warm_start_user = self.create_target_column(test_warm_start_user)
+
+            # sort by reviewer_id
             train = train.sort_values(by=["reviewer_id"])
+            val = val.sort_values(by=["reviewer_id"])
+            val_cold_start_user = val_cold_start_user.sort_values(by=["reviewer_id"])
+            val_warm_start_user = val_warm_start_user.sort_values(by=["reviewer_id"])
             test = test.sort_values(by=["reviewer_id"])
+            test_cold_start_user = test_cold_start_user.sort_values(by=["reviewer_id"])
+            test_warm_start_user = test_warm_start_user.sort_values(by=["reviewer_id"])
 
             # 순위 관련 특성 병합
-            train, test = self.merge_rank_features(
-                train, test, user_feature, diner_feature
+            train = self.merge_rank_features(train, user_feature, diner_feature)
+            val = self.merge_rank_features(val, user_feature, diner_feature)
+            val_cold_start_user = self.merge_rank_features(
+                val_cold_start_user, user_feature, diner_feature
             )
+            val_warm_start_user = self.merge_rank_features(
+                val_warm_start_user, user_feature, diner_feature
+            )
+            test = self.merge_rank_features(test, user_feature, diner_feature)
 
             user_mapping = mapped_res["user_mapping"]
             diner_mapping = mapped_res["diner_mapping"]
 
             if not is_candidate_dataset:
-                return self.create_rank_dataset(train, test, mapped_res)
+                return self.create_rank_dataset(
+                    train,
+                    val,
+                    test,
+                    val_cold_start_user,
+                    val_warm_start_user,
+                    test_cold_start_user,
+                    test_warm_start_user,
+                    mapped_res,
+                )
 
             candidates, candidate_user_mapping, candidate_diner_mapping = (
                 self.load_candidate_dataset(user_feature, diner_feature)
@@ -403,19 +473,21 @@ class DatasetLoader:
             )
 
             # rank dataset
-            data = self.create_rank_dataset(train, test, mapped_res)
+            data = self.create_rank_dataset(
+                train,
+                val,
+                test,
+                val_cold_start_user,
+                val_warm_start_user,
+                test_cold_start_user,
+                test_warm_start_user,
+                mapped_res,
+            )
             data["candidates"] = candidates
             data["candidate_user_mapping"] = candidate_user_mapping
             data["candidate_diner_mapping"] = candidate_diner_mapping
 
             return data
-
-        train, val = self.train_test_split_timeseries_by_time_point(
-            review=train,
-            train_time_point=self.train_time_point,
-            test_time_point=self.val_time_point,
-            end_time_point=self.test_time_point,
-        )
 
         val_warm_start_user_ids, val_cold_start_user_ids = (
             self.get_warm_cold_start_user_ids(
@@ -496,11 +568,10 @@ class DatasetLoader:
 
     def merge_rank_features(
         self: Self,
-        train: pd.DataFrame,
-        val: pd.DataFrame,
+        df: pd.DataFrame,
         user_feature: pd.DataFrame,
         diner_feature: pd.DataFrame,
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> pd.DataFrame:
         """
         Merge rank-specific features to the train and validation sets.
 
@@ -514,20 +585,10 @@ class DatasetLoader:
         Returns Tuple[pd.DataFrame, pd.DataFrame]:
             tuple: A tuple containing the training and validation sets
         """
-        train = train.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
-        train = train.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
-        val = val.merge(user_feature, on="reviewer_id", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
-        val = val.merge(diner_feature, on="diner_idx", how="left").drop_duplicates(
-            subset=["reviewer_id", "diner_idx"]
-        )
+        df = df.merge(user_feature, on="reviewer_id", how="left").fillna(0)
+        df = df.merge(diner_feature, on="diner_idx", how="left").fillna(0)
 
-        return train, val
+        return df
 
     def negative_sampling(
         self: Self,
@@ -618,7 +679,15 @@ class DatasetLoader:
         return all_data
 
     def create_rank_dataset(
-        self: Self, train: pd.DataFrame, val: pd.DataFrame, mapped_res: Dict[str, Any]
+        self: Self,
+        train: pd.DataFrame,
+        val: pd.DataFrame,
+        test: pd.DataFrame,
+        val_cold_start_user: pd.DataFrame,
+        val_warm_start_user: pd.DataFrame,
+        test_cold_start_user: pd.DataFrame,
+        test_warm_start_user: pd.DataFrame,
+        mapped_res: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Prepare the output for ranking tasks.
@@ -626,6 +695,11 @@ class DatasetLoader:
         Args:
             train: pd.DataFrame
             val: pd.DataFrame
+            test: pd.DataFrame
+            val_cold_start_user: pd.DataFrame
+            val_warm_start_user: pd.DataFrame
+            test_cold_start_user: pd.DataFrame
+            test_warm_start_user: pd.DataFrame
             mapped_res: Dict[str, Any]
 
         Returns (Dict[str, Any]):
@@ -636,6 +710,16 @@ class DatasetLoader:
             "y_train": train["target"],
             "X_val": val.drop(columns=["target"]),
             "y_val": val["target"],
+            "X_test": test.drop(columns=["target"]),
+            "y_test": test["target"],
+            "X_val_cold_start_user": val_cold_start_user.drop(columns=["target"]),
+            "y_val_cold_start_user": val_cold_start_user["target"],
+            "X_val_warm_start_user": val_warm_start_user.drop(columns=["target"]),
+            "y_val_warm_start_user": val_warm_start_user["target"],
+            "X_test_cold_start_user": test_cold_start_user.drop(columns=["target"]),
+            "y_test_cold_start_user": test_cold_start_user["target"],
+            "X_test_warm_start_user": test_warm_start_user.drop(columns=["target"]),
+            "y_test_warm_start_user": test_warm_start_user["target"],
             **mapped_res,
         }
 
@@ -782,11 +866,9 @@ class DatasetLoader:
         It is important that val / test data should not be used due to data leakage.
         top_k argument should be sufficiently large to cover ndcg@k, map@k and recall@k.
         Currently, k is largest when calculating recall@2000, therefore we set it as 2000 as default.
-
         Args:
             train_review (pd.DataFrame): Train review dataset.
             top_k (int): Top k value to get most popular diner_ids.
-
         Returns (List[int]):
             List of top_k diner_ids.
         """
@@ -798,11 +880,9 @@ class DatasetLoader:
     ) -> Tuple[NDArray, NDArray]:
         """
         Get warm / cold start user_ids given train/val or train/test dataset.
-
         Args:
             train_review (pd.DataFrame): Review data used when training model.
             test_review (pd.DataFrame): Review data used when validating model or calculating metric for final report.
-
         Returns (Tuple[NDArray, NDArray]):
             Tuple of list of warm / cold start user ids.
         """

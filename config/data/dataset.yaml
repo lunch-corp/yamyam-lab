@@ -4,14 +4,6 @@ random_state: 42
 test: false
 path: data/
 features:
-  - days_since_last_review
-  - day_0
-  - day_1
-  - day_2
-  - day_3
-  - day_4
-  - day_5
-  - day_6
   - diner_review_cnt_category
   - min_price
   - max_price
@@ -50,4 +42,9 @@ is_candidate_dataset: true
 batch_size: 1000000
 num_neg_samples: 100
 sampling_type: popularity
-is_timeseries_by_users: true
+is_timeseries_by_users: false
+is_timeseries_by_time_point: true
+train_time_point: "2024-09-01"
+val_time_point: "2024-12-01"
+test_time_point: "2025-01-01"
+end_time_point: "2025-02-01"
