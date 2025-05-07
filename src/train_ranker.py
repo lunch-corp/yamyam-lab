@@ -41,8 +41,8 @@ def main(cfg: DictConfig):
     X_train, y_train, X_val, y_val, X_test, y_test = (
         data["X_train"],
         data["y_train"],
-        data["X_val"],
-        data["y_val"],
+        data["X_val_warm_start_user"],
+        data["y_val_warm_start_user"],
         data["X_test"],
         data["y_test"],
     )

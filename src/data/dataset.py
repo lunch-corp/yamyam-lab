@@ -379,9 +379,12 @@ class DatasetLoader:
             # Identify cold start users
             train_users = set(train["reviewer_id"].unique())
             val_cold_users = set(val["reviewer_id"].unique()) - train_users
+            test_cold_users = set(test["reviewer_id"].unique()) - train_users
 
-            # remove cold start users from val
-            val = val[~val["reviewer_id"].isin(val_cold_users)]
+            val_cold_start_user = val[val["reviewer_id"].isin(val_cold_users)]
+            val_warm_start_user = val[~val["reviewer_id"].isin(val_cold_users)]
+            test_cold_start_user = test[test["reviewer_id"].isin(test_cold_users)]
+            test_warm_start_user = test[~test["reviewer_id"].isin(test_cold_users)]
 
             # negative sampling
             train = self.create_target_column(train)
@@ -390,28 +393,72 @@ class DatasetLoader:
                 self.sampling_type, pos_train, self.num_neg_samples, self.random_state
             )
 
+            val_warm_start_user = self.create_target_column(val_warm_start_user)
+            pos_val_warm_start_user = val_warm_start_user[
+                val_warm_start_user["target"] == 1
+            ]
+            val_warm_start_user = self.negative_sampling(
+                self.sampling_type,
+                pos_val_warm_start_user,
+                self.num_neg_samples,
+                self.random_state,
+            )
+
             val = self.create_target_column(val)
             pos_val = val[val["target"] == 1]
             val = self.negative_sampling(
                 self.sampling_type, pos_val, self.num_neg_samples, self.random_state
             )
 
-            test = self.create_target_column(test)
+            val_cold_start_user = self.create_target_column(val_cold_start_user)
+            pos_val_cold_start_user = val_cold_start_user[
+                val_cold_start_user["target"] == 1
+            ]
+            val_cold_start_user = self.negative_sampling(
+                self.sampling_type,
+                pos_val_cold_start_user,
+                self.num_neg_samples,
+                self.random_state,
+            )
 
+            test = self.create_target_column(test)
+            test_cold_start_user = self.create_target_column(test_cold_start_user)
+            test_warm_start_user = self.create_target_column(test_warm_start_user)
+
+            # sort by reviewer_id
             train = train.sort_values(by=["reviewer_id"])
             val = val.sort_values(by=["reviewer_id"])
+            val_cold_start_user = val_cold_start_user.sort_values(by=["reviewer_id"])
+            val_warm_start_user = val_warm_start_user.sort_values(by=["reviewer_id"])
             test = test.sort_values(by=["reviewer_id"])
+            test_cold_start_user = test_cold_start_user.sort_values(by=["reviewer_id"])
+            test_warm_start_user = test_warm_start_user.sort_values(by=["reviewer_id"])
 
             # 순위 관련 특성 병합
             train = self.merge_rank_features(train, user_feature, diner_feature)
             val = self.merge_rank_features(val, user_feature, diner_feature)
+            val_cold_start_user = self.merge_rank_features(
+                val_cold_start_user, user_feature, diner_feature
+            )
+            val_warm_start_user = self.merge_rank_features(
+                val_warm_start_user, user_feature, diner_feature
+            )
             test = self.merge_rank_features(test, user_feature, diner_feature)
 
             user_mapping = mapped_res["user_mapping"]
             diner_mapping = mapped_res["diner_mapping"]
 
             if not is_candidate_dataset:
-                return self.create_rank_dataset(train, val, test, mapped_res)
+                return self.create_rank_dataset(
+                    train,
+                    val,
+                    test,
+                    val_cold_start_user,
+                    val_warm_start_user,
+                    test_cold_start_user,
+                    test_warm_start_user,
+                    mapped_res,
+                )
 
             candidates, candidate_user_mapping, candidate_diner_mapping = (
                 self.load_candidate_dataset(user_feature, diner_feature)
@@ -426,7 +473,16 @@ class DatasetLoader:
             )
 
             # rank dataset
-            data = self.create_rank_dataset(train, val, test, mapped_res)
+            data = self.create_rank_dataset(
+                train,
+                val,
+                test,
+                val_cold_start_user,
+                val_warm_start_user,
+                test_cold_start_user,
+                test_warm_start_user,
+                mapped_res,
+            )
             data["candidates"] = candidates
             data["candidate_user_mapping"] = candidate_user_mapping
             data["candidate_diner_mapping"] = candidate_diner_mapping
@@ -627,6 +683,10 @@ class DatasetLoader:
         train: pd.DataFrame,
         val: pd.DataFrame,
         test: pd.DataFrame,
+        val_cold_start_user: pd.DataFrame,
+        val_warm_start_user: pd.DataFrame,
+        test_cold_start_user: pd.DataFrame,
+        test_warm_start_user: pd.DataFrame,
         mapped_res: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
@@ -636,6 +696,10 @@ class DatasetLoader:
             train: pd.DataFrame
             val: pd.DataFrame
             test: pd.DataFrame
+            val_cold_start_user: pd.DataFrame
+            val_warm_start_user: pd.DataFrame
+            test_cold_start_user: pd.DataFrame
+            test_warm_start_user: pd.DataFrame
             mapped_res: Dict[str, Any]
 
         Returns (Dict[str, Any]):
@@ -648,6 +712,14 @@ class DatasetLoader:
             "y_val": val["target"],
             "X_test": test.drop(columns=["target"]),
             "y_test": test["target"],
+            "X_val_cold_start_user": val_cold_start_user.drop(columns=["target"]),
+            "y_val_cold_start_user": val_cold_start_user["target"],
+            "X_val_warm_start_user": val_warm_start_user.drop(columns=["target"]),
+            "y_val_warm_start_user": val_warm_start_user["target"],
+            "X_test_cold_start_user": test_cold_start_user.drop(columns=["target"]),
+            "y_test_cold_start_user": test_cold_start_user["target"],
+            "X_test_warm_start_user": test_warm_start_user.drop(columns=["target"]),
+            "y_test_warm_start_user": test_warm_start_user["target"],
             **mapped_res,
         }
 
