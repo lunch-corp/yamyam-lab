@@ -38,7 +38,7 @@ def main(cfg: DictConfig):
     )
 
     # mapping reverse
-    X_train, y_train, X_val, y_val, X_test, y_test = (
+    X_train, y_train, X_valid, y_valid, X_test, y_test = (
         data["X_train"],
         data["y_train"],
         data["X_val_warm_start_user"],
@@ -51,7 +51,7 @@ def main(cfg: DictConfig):
     trainer = build_model(cfg)
 
     # train model
-    trainer.fit(X_train, y_train, X_val, y_val)
+    trainer.fit(X_train, y_train, X_valid, y_valid)
 
     # save model
     trainer.save_model()
