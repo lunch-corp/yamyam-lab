@@ -4,14 +4,6 @@ random_state: 42
 test: false
 path: data/
 features:
-  - days_since_last_review
-  - day_0
-  - day_1
-  - day_2
-  - day_3
-  - day_4
-  - day_5
-  - day_6
   - diner_review_cnt_category
   - min_price
   - max_price
