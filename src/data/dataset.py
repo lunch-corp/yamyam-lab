@@ -11,12 +11,12 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from data.validator import DataValidator
+from features import build_feature
 from preprocess.preprocess import (
     meta_mapping,
     preprocess_common,
     reviewer_diner_mapping,
 )
-from store.feature import build_feature
 from tools.google_drive import ensure_data_files
 from tools.utils import reduce_mem_usage
 
