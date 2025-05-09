@@ -79,7 +79,8 @@ def parse_args_eval():
     parser.add_argument("--data_obj_path", type=str)
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--embedding_dim", type=int)
-    parser.add_argument("--user_id", type=int)
+    parser.add_argument("--top_k", type=int)
+    parser.add_argument("--user_ids", type=int, nargs="*")
     return parser.parse_args()
 
 

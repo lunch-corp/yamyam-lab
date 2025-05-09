@@ -29,9 +29,7 @@ class BaseQualitativeEvaluation(ABC):
              user_mapping (Dict[int, int]): user mapping dictionary in preprocessing step.
              diner_mapping (Dict[int, int]): diner mapping dictionary in preprocessing step.
         """
-        self.diners = pd.read_csv(
-            os.path.join(DATA_PATH, "diner/diner_df_20241219_yamyam.csv")
-        )
+        self.diners = pd.read_csv(os.path.join(DATA_PATH, "diner.csv"))
         self.user_mapping = user_mapping
         # reverse mapping to original diner_id
         self.diner_mapping = {v: k for k, v in diner_mapping.items()}
@@ -50,27 +48,26 @@ class BaseQualitativeEvaluation(ABC):
 
     def recommend(
         self,
-        user_id: int,
+        user_id_mapping: int,
         tr_liked_diners: List[int],
-        val_liked_diners: List[int],
+        test_liked_diners: List[int] = None,
         top_k: int = 10,
     ) -> PrettyTable:
         """
         Recommend top_k ranked diners to user_id.
         Exclude diners that are already liked by user_id in training dataset.
-        Include various information, such as diner name or whether it is actually hitted.
+        Include various information, such as diner name or whether it is actually hit.
 
         Args:
-             user_id (int): target user_id to recommend before mapping.
+             user_id_mapping (int): target user_id to recommend after mapping.
              tr_liked_diners (List[int]): list of diners liked by user_id in training dataset.
-             val_liked_diners (List[int]): list of diners liked by user_id validation dataset.
+             test_liked_diners (List[int]): list of diners liked by user_id test dataset.
 
         Returns (PrettyTable):
             PrettyTable object.
         """
-        user_id_mapping = self.user_mapping.get(user_id, None)
-        if user_id_mapping is None:
-            raise ValueError(f"No mapping for user {user_id}")
+        if test_liked_diners is None:
+            test_liked_diners = []
         pred_diner_id, pred_diner_score = self._recommend(
             user_id=torch.tensor([user_id_mapping]),
             tr_liked_diners=tr_liked_diners,
@@ -79,17 +76,17 @@ class BaseQualitativeEvaluation(ABC):
         pred_diner_id_mapping = [self.diner_mapping[diner] for diner in pred_diner_id]
 
         tb = PrettyTable(
-            field_names=["diner_name", "diner_category_small", "url", "score", "hitted"]
+            field_names=["diner_name", "score", "hit"],
         )
+        tb._set_markdown_style()
         for diner_idx, score in zip(pred_diner_id_mapping, pred_diner_score):
             info = self.diners[lambda x: x["diner_idx"] == diner_idx].iloc[0]
             tb.add_row(
                 [
                     info["diner_name"],
-                    info["diner_category_small"],
-                    info["diner_url"],
                     score,
-                    1 if diner_idx in val_liked_diners else 0,
+                    1 if diner_idx in test_liked_diners else 0,
                 ]
             )
+
         return tb
