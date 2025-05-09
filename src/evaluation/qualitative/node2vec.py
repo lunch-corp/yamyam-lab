@@ -1,4 +1,7 @@
+import os
 import pickle
+import traceback
+from datetime import datetime
 from typing import Dict, List, Tuple
 
 import networkx as nx
@@ -9,6 +12,7 @@ from torch import Tensor
 from constant.evaluation.qualitative import QualitativeReviewerId
 from embedding.node2vec import Model
 from evaluation.qualitative.base_qualitative_evaluation import BaseQualitativeEvaluation
+from tools.logger import setup_logger
 from tools.parse_args import parse_args_eval
 from tools.utils import convert_tensor
 
@@ -71,12 +75,11 @@ class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):
 
 
 if __name__ == "__main__":
-    import traceback
-
-    from tools.logger import setup_logger
-
+    BASE_PATH = os.path.join(os.path.dirname(__file__), "../../..")
+    dt = datetime.now().strftime("%Y%m%d%H%M%S")
+    LOG_PATH = f"{BASE_PATH}/result/qualitative_eval/node2vec/{dt}"
     args = parse_args_eval()
-    logger = setup_logger(args.log_path)
+    logger = setup_logger(LOG_PATH)
 
     try:
         data = pickle.load(open(args.data_obj_path, "rb"))

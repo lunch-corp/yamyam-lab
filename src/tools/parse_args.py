@@ -79,7 +79,7 @@ def parse_args_eval():
     parser.add_argument("--data_obj_path", type=str)
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--embedding_dim", type=int)
-    parser.add_argument("--log_path", type=str)
+    parser.add_argument("--user_id", type=int)
     return parser.parse_args()
 
 
