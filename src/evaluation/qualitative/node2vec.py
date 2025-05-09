@@ -1,5 +1,6 @@
 import os
 import pickle
+import sys
 import traceback
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -10,6 +11,10 @@ import pandas as pd
 import torch
 from numpy.typing import NDArray
 from torch import Tensor
+
+sys.path.append(
+    os.path.join(os.path.join(os.path.dirname(__file__), "../../.."), "src")
+)
 
 from embedding.node2vec import Model
 from evaluation.qualitative.base_qualitative_evaluation import BaseQualitativeEvaluation
