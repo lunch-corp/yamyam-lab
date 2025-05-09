@@ -8,6 +8,8 @@ from numpy.typing import NDArray
 from prettytable import PrettyTable
 from torch import Tensor
 
+from preprocess.diner_transform import CategoryProcessor
+
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../data")
 
 
@@ -30,6 +32,12 @@ class BaseQualitativeEvaluation(ABC):
              diner_mapping (Dict[int, int]): diner mapping dictionary in preprocessing step.
         """
         self.diners = pd.read_csv(os.path.join(DATA_PATH, "diner.csv"))
+        # merge category
+        diner_category = pd.read_csv(os.path.join(DATA_PATH, "diner_category_raw.csv"))
+        processor = CategoryProcessor(diner_category)
+        self.diners = pd.merge(
+            self.diners, processor.process_all().df, how="left", on="diner_idx"
+        )
         self.user_mapping = user_mapping
         # reverse mapping to original diner_id
         self.diner_mapping = {v: k for k, v in diner_mapping.items()}
@@ -76,7 +84,13 @@ class BaseQualitativeEvaluation(ABC):
         pred_diner_id_mapping = [self.diner_mapping[diner] for diner in pred_diner_id]
 
         tb = PrettyTable(
-            field_names=["diner_name", "score", "hit"],
+            field_names=[
+                "diner_name",
+                "diner_category_large",
+                "diner_category_middle",
+                "score",
+                "hit",
+            ],
         )
         tb._set_markdown_style()
         for diner_idx, score in zip(pred_diner_id_mapping, pred_diner_score):
@@ -84,6 +98,8 @@ class BaseQualitativeEvaluation(ABC):
             tb.add_row(
                 [
                     info["diner_name"],
+                    info["diner_category_large"],
+                    info["diner_category_middle"],
                     score,
                     1 if diner_idx in test_liked_diners else 0,
                 ]
