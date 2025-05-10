@@ -83,11 +83,13 @@ class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):
         user_id: Tensor,
         tr_liked_diners: List[int],
         top_k: int = 10,
+        near_diner_ids: List[int] = None,
     ) -> Tuple[NDArray, NDArray]:
         return self.model._recommend(
             user_id=user_id,
             already_liked_item_id=tr_liked_diners,
             top_k=top_k,
+            near_diner_ids=near_diner_ids,
         )
 
 
@@ -156,8 +158,13 @@ if __name__ == "__main__":
                     )
                 else:
                     logger.info(
-                        f"reviewer_id {reviewer_id} exists in bot of train data and test data"
+                        f"reviewer_id {reviewer_id} exists in both of train data and test data"
                     )
+
+            if args.latitude is not None and args.longitude is not None:
+                logger.info(
+                    f"Diners within {args.near_dist}km based on coordinate {(args.latitude, args.longitude)} will be recommended"
+                )
 
             tb = qualitative_eval.recommend(
                 user_id_mapping=reviewer_id_mapping,

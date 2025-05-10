@@ -497,6 +497,7 @@ class BaseEmbedding(nn.Module):
         user_id: Tensor,
         already_liked_item_id: List[int],
         top_k: int = 10,
+        near_diner_ids: List[int] = None,
     ) -> Tuple[NDArray, NDArray]:
         """
         For qualitative evaluation, calculate score for `one` user.
@@ -505,9 +506,7 @@ class BaseEmbedding(nn.Module):
              user_id (Tensor): target user_id.
              already_liked_item_id (List[int]): diner_ids that are already liked by user_id.
              top_k (int): number of diners to recommend to user_id.
-             # TODO
-             latitude: user's current latitude
-             longitude: user's current longitude
+             near_diner_ids (List[int]): List of diner_ids within specified distance.
 
         Returns (Tuple[NDArray, NDArray]):
             top_k diner_ids and associated scores.
@@ -515,8 +514,13 @@ class BaseEmbedding(nn.Module):
         user_embed = self.get_embedding(user_id)
         diner_embeds = self.get_embedding(self.diner_ids)
         score = torch.mm(user_embed, diner_embeds.t()).squeeze(0)
-        for diner_idx in already_liked_item_id:
-            score[diner_idx] = -float("inf")
+        # filter already liked diner_id
+        for diner_id in already_liked_item_id:
+            score[diner_id] = -float("inf")
+        # filter near diner_id
+        for diner_id in self.diner_ids:
+            if diner_id.item() not in near_diner_ids:
+                score[diner_id] = -float("inf")
         top_k = torch.topk(score, k=top_k)
         pred_liked_item_id = top_k.indices.detach().cpu().numpy()
         pred_liked_item_score = top_k.values.detach().cpu().numpy()

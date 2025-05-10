@@ -44,16 +44,21 @@ class BaseQualitativeEvaluation(ABC):
         )
         self.user_mapping = user_mapping
         # reverse mapping to original diner_id
-        self.diner_mapping = {v: k for k, v in diner_mapping.items()}
+        self.reverse_diner_mapping = {v: k for k, v in diner_mapping.items()}
 
         if latitude is not None and longitude is not None:
             near = NearCandidateGenerator()
-            self.near_diner_ids = near.get_near_candidate(
+            near_diner_ids = near.get_near_candidate(
                 latitude=latitude,
                 longitude=longitude,
                 max_distance_km=near_dist,
                 is_radians=False,
             )
+            self.near_diner_ids = [
+                diner_mapping[id_]
+                for id_ in near_diner_ids
+                if diner_mapping.get(id_) is not None
+            ]
         else:
             self.near_diner_ids = None
 
@@ -63,6 +68,7 @@ class BaseQualitativeEvaluation(ABC):
         user_id: Tensor,
         tr_liked_diners: List[int],
         top_k: int = 10,
+        near_diner_ids: List[int] = None,
     ) -> Tuple[NDArray, NDArray]:
         """
         Abstract method for individual recommendation
@@ -95,8 +101,11 @@ class BaseQualitativeEvaluation(ABC):
             user_id=torch.tensor([user_id_mapping]),
             tr_liked_diners=tr_liked_diners,
             top_k=top_k,
+            near_diner_ids=self.near_diner_ids,
         )
-        pred_diner_id_mapping = [self.diner_mapping[diner] for diner in pred_diner_id]
+        pred_diner_id_mapping = [
+            self.reverse_diner_mapping[diner] for diner in pred_diner_id
+        ]
 
         tb = PrettyTable(
             field_names=[
