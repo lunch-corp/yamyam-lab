@@ -518,9 +518,10 @@ class BaseEmbedding(nn.Module):
         for diner_id in already_liked_item_id:
             score[diner_id] = -float("inf")
         # filter near diner_id
-        for diner_id in self.diner_ids:
-            if diner_id.item() not in near_diner_ids:
-                score[diner_id] = -float("inf")
+        if near_diner_ids is not None:
+            for diner_id in self.diner_ids:
+                if diner_id.item() not in near_diner_ids:
+                    score[diner_id] = -float("inf")
         top_k = torch.topk(score, k=top_k)
         pred_liked_item_id = top_k.indices.detach().cpu().numpy()
         pred_liked_item_score = top_k.values.detach().cpu().numpy()
