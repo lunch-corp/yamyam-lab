@@ -32,6 +32,9 @@ class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):
         embedding_dim: int,
         user_mapping: Dict[int, int],
         diner_mapping: Dict[int, int],
+        latitude: float = None,
+        longitude: float = None,
+        near_dist: float = 0.5,
     ):
         """
         Evaluation class for trained node2vec model.
@@ -50,6 +53,9 @@ class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):
         super().__init__(
             user_mapping=user_mapping,
             diner_mapping=diner_mapping,
+            latitude=latitude,
+            longitude=longitude,
+            near_dist=near_dist,
         )
         self.model = Model(
             user_ids=user_ids,
@@ -119,6 +125,9 @@ if __name__ == "__main__":
             embedding_dim=args.embedding_dim,
             user_mapping=data["user_mapping"],
             diner_mapping=data["diner_mapping"],
+            latitude=args.latitude,
+            longitude=args.longitude,
+            near_dist=args.near_dist,
         )
 
         for reviewer_id in args.user_ids:

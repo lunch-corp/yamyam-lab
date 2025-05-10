@@ -8,6 +8,7 @@ from numpy.typing import NDArray
 from prettytable import PrettyTable
 from torch import Tensor
 
+from candidate.near import NearCandidateGenerator
 from preprocess.diner_transform import CategoryProcessor
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../data")
@@ -18,6 +19,9 @@ class BaseQualitativeEvaluation(ABC):
         self,
         user_mapping: Dict[int, int],
         diner_mapping: Dict[int, int],
+        latitude: float = None,
+        longitude: float = None,
+        near_dist: float = 0.5,
     ):
         """
         Base class for qualitative evaluation.
@@ -41,6 +45,17 @@ class BaseQualitativeEvaluation(ABC):
         self.user_mapping = user_mapping
         # reverse mapping to original diner_id
         self.diner_mapping = {v: k for k, v in diner_mapping.items()}
+
+        if latitude is not None and longitude is not None:
+            near = NearCandidateGenerator()
+            self.near_diner_ids = near.get_near_candidate(
+                latitude=latitude,
+                longitude=longitude,
+                max_distance_km=near_dist,
+                is_radians=False,
+            )
+        else:
+            self.near_diner_ids = None
 
     @abstractmethod
     def _recommend(
