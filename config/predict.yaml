@@ -26,7 +26,7 @@ model_path: res/models/
 results: lightgbm_ranker
 user_name: 3830746302
 top_n: 20
-user_address: 노원역
+user_address: 강남역
 distance_threshold: 0.5
 diner_category_large:
 - 한식
