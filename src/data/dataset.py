@@ -596,13 +596,14 @@ class DatasetLoader:
         review: pd.DataFrame,
         num_neg_samples: int,
         random_state: int,
-    ):
+    ) -> pd.DataFrame:
         """
         Negative sampling for ranking task.
 
         Args:
-            df: pd.DataFrame
-            n_samples: int
+            sampling_type: str - One of ["popularity", "random", "time", "price", "hybrid"]
+            review: pd.DataFrame
+            num_neg_samples: int
             random_state: int
 
         Returns (pd.DataFrame):
@@ -653,6 +654,73 @@ class DatasetLoader:
                         available_diners,
                         size=num_neg_samples,
                         replace=len(available_diners) < num_neg_samples,
+                    )
+
+                elif sampling_type == "hybrid":
+                    # Popularity-based sampling with temperature scaling
+                    available_probs = diner_popularity[available_diners]
+                    temperature = 0.7  # Increased temperature for smoother distribution
+                    available_probs = np.power(available_probs, 1 / temperature)
+                    available_probs = available_probs / available_probs.sum()
+
+                    # Calculate rating differences for hard negative mining
+                    user_avg_rating = review[review["reviewer_id"] == user_id][
+                        "reviewer_review_score"
+                    ].mean()
+                    diner_ratings = review.groupby("diner_idx")[
+                        "reviewer_review_score"
+                    ].mean()
+                    rating_diffs = np.abs(
+                        diner_ratings[available_diners] - user_avg_rating
+                    )
+
+                    # Combine popularity with rating differences
+                    combined_probs = available_probs * (
+                        1 + rating_diffs / rating_diffs.max()
+                    )
+                    combined_probs = combined_probs / combined_probs.sum()
+
+                    # 60% hard negative samples
+                    hard_neg_sampled = np.random.choice(
+                        available_diners,
+                        size=int(num_neg_samples * 0.6),
+                        p=combined_probs,
+                        replace=len(available_diners) < num_neg_samples,
+                    )
+
+                    # 40% balanced samples from mid-popularity restaurants
+                    mid_popularity_mask = (
+                        available_probs >= np.percentile(available_probs, 20)
+                    ) & (available_probs <= np.percentile(available_probs, 80))
+                    mid_popularity_diners = np.array(available_diners)[
+                        mid_popularity_mask
+                    ]
+
+                    if len(mid_popularity_diners) > 0:
+                        # Calculate balanced probabilities considering both popularity and rating
+                        mid_probs = available_probs[mid_popularity_mask]
+                        mid_rating_diffs = rating_diffs[mid_popularity_mask]
+                        balanced_probs = mid_probs * (
+                            1 + mid_rating_diffs / mid_rating_diffs.max()
+                        )
+                        balanced_probs = balanced_probs / balanced_probs.sum()
+
+                        balanced_sampled = np.random.choice(
+                            mid_popularity_diners,
+                            size=int(num_neg_samples * 0.4),
+                            p=balanced_probs,
+                            replace=len(mid_popularity_diners)
+                            < int(num_neg_samples * 0.4),
+                        )
+                    else:
+                        # Fallback to random sampling if no mid-popularity restaurants
+                        balanced_sampled = np.random.choice(
+                            available_diners, size=int(num_neg_samples * 0.4)
+                        )
+
+                    # Combine samples
+                    sampled_diners = np.concatenate(
+                        [hard_neg_sampled, balanced_sampled]
                     )
 
                 else:
@@ -966,7 +1034,9 @@ def load_test_dataset(
     test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": candidates})
     test = test.merge(user_feature, on="reviewer_id", how="left")
     test = test.merge(diner_feature, on="diner_idx", how="left")
-    test = test.merge(review, on="reviewer_id", how="left")
+    test = test.merge(
+        review[["reviewer_id", "reviewer_user_name"]], on="reviewer_id", how="left"
+    )
 
     # reduce memory usage
     test = reduce_mem_usage(test)

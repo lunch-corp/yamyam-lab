@@ -1,4 +1,4 @@
-test_size: 0.3
+test_size: 0.4
 min_reviews: 3
 random_state: 42
 test: false
@@ -41,7 +41,7 @@ size: 30
 is_candidate_dataset: true
 batch_size: 1000000
 num_neg_samples: 100
-sampling_type: popularity
+sampling_type: hybrid
 is_timeseries_by_users: false
 is_timeseries_by_time_point: true
 train_time_point: "2024-09-01"
