@@ -680,7 +680,7 @@ class DatasetLoader:
                     )
                     combined_probs = combined_probs / combined_probs.sum()
 
-                    # 60% hard negative samples
+                    # 30% hard negative samples
                     hard_neg_sampled = np.random.choice(
                         available_diners,
                         size=int(num_neg_samples * 0.3),
@@ -688,7 +688,7 @@ class DatasetLoader:
                         replace=len(available_diners) < num_neg_samples,
                     )
 
-                    # 40% balanced samples from mid-popularity restaurants
+                    # 70% balanced samples from mid-popularity restaurants
                     mid_popularity_mask = (
                         available_probs >= np.percentile(available_probs, 20)
                     ) & (available_probs <= np.percentile(available_probs, 80))
