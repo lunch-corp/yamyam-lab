@@ -31,6 +31,7 @@ class DatasetLoader:
         X_columns: List[str] = ["diner_idx", "reviewer_id"],
         y_columns: List[str] = ["reviewer_review_score"],
         num_neg_samples: int = 10,
+        temperature: float = 1.0,
         random_state: int = 42,
         stratify: str = "reviewer_id",
         sampling_type: str = "popularity",
@@ -85,6 +86,7 @@ class DatasetLoader:
         self.X_columns = X_columns
         self.y_columns = y_columns
         self.num_neg_samples = num_neg_samples
+        self.temperature = temperature
         self.random_state = random_state
         self.stratify = stratify
         self.is_graph_model = is_graph_model
@@ -601,7 +603,7 @@ class DatasetLoader:
         Negative sampling for ranking task.
 
         Args:
-            sampling_type: str - One of ["popularity", "random", "time", "price", "hybrid"]
+            sampling_type: str - One of ["popularity", "random", "hybrid"]
             review: pd.DataFrame
             num_neg_samples: int
             random_state: int
@@ -659,8 +661,8 @@ class DatasetLoader:
                 elif sampling_type == "hybrid":
                     # Popularity-based sampling with temperature scaling
                     available_probs = diner_popularity[available_diners]
-                    temperature = 0.7  # Increased temperature for smoother distribution
-                    available_probs = np.power(available_probs, 1 / temperature)
+                    # Increased temperature for smoother distribution
+                    available_probs = np.power(available_probs, 1 / self.temperature)
                     available_probs = available_probs / available_probs.sum()
 
                     # Calculate rating differences for hard negative mining
@@ -675,13 +677,16 @@ class DatasetLoader:
                     )
 
                     # Combine popularity with rating differences
+                    # 1을 더하는 이유: rating_diffs/rating_diffs.max()는 0~1 사이 값이므로,
+                    # 1을 더하지 않으면 available_probs가 작아질 수 있음
+                    # 1을 더함으로써 available_probs를 유지하면서 rating_diff에 따른 가중치를 부여
                     combined_probs = available_probs * (
                         1 + rating_diffs / rating_diffs.max()
                     )
                     combined_probs = combined_probs / combined_probs.sum()
 
-                    # 30% hard negative samples
-                    hard_neg_sampled = np.random.choice(
+                    # 30% negative samples
+                    neg_sampled = np.random.choice(
                         available_diners,
                         size=int(num_neg_samples * 0.3),
                         p=combined_probs,
@@ -719,9 +724,7 @@ class DatasetLoader:
                         )
 
                     # Combine samples
-                    sampled_diners = np.concatenate(
-                        [hard_neg_sampled, balanced_sampled]
-                    )
+                    sampled_diners = np.concatenate([neg_sampled, balanced_sampled])
 
                 else:
                     raise ValueError(f"Invalid sampling type: {sampling_type}")

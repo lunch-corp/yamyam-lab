@@ -27,6 +27,7 @@ def main(cfg: DictConfig):
         min_reviews=cfg.data.min_reviews,
         category_column_for_meta=cfg.data.category_column_for_meta,
         num_neg_samples=cfg.data.num_neg_samples,
+        temperature=cfg.data.temperature,
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
         sampling_type=cfg.data.sampling_type,

@@ -18,6 +18,7 @@ class DataConfig:
     diner_engineered_feature_names: List[Dict[str, Any]]
     test: bool = True
     num_neg_samples: int = 30
+    temperature: float = 1.0
     is_candidate_dataset: bool = False
     sampling_type: str = "popularity"
     is_timeseries_by_users: bool = False
