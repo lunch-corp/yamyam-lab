@@ -683,7 +683,7 @@ class DatasetLoader:
                     # 60% hard negative samples
                     hard_neg_sampled = np.random.choice(
                         available_diners,
-                        size=int(num_neg_samples * 0.6),
+                        size=int(num_neg_samples * 0.3),
                         p=combined_probs,
                         replace=len(available_diners) < num_neg_samples,
                     )
@@ -707,15 +707,15 @@ class DatasetLoader:
 
                         balanced_sampled = np.random.choice(
                             mid_popularity_diners,
-                            size=int(num_neg_samples * 0.4),
+                            size=int(num_neg_samples * 0.7),
                             p=balanced_probs,
                             replace=len(mid_popularity_diners)
-                            < int(num_neg_samples * 0.4),
+                            < int(num_neg_samples * 0.7),
                         )
                     else:
                         # Fallback to random sampling if no mid-popularity restaurants
                         balanced_sampled = np.random.choice(
-                            available_diners, size=int(num_neg_samples * 0.4)
+                            available_diners, size=int(num_neg_samples * 0.7)
                         )
 
                     # Combine samples
