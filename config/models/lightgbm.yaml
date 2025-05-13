@@ -1,5 +1,4 @@
-_target_: src.model.rank.boosting.LightGBMTrainer
-
+name: lightgbm
 model_path: result/lightgbm/
 results: lgb_ranker
 

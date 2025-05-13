@@ -4,13 +4,13 @@ import logging
 
 import hydra
 import numpy as np
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 from tqdm import tqdm
 
 from data.dataset import DatasetLoader
 from evaluation.metric import ranking_metrics_at_k
+from model.rank import build_model
 from tools.utils import safe_divide
 
 
@@ -27,7 +27,6 @@ def main(cfg: DictConfig):
         min_reviews=cfg.data.min_reviews,
         category_column_for_meta=cfg.data.category_column_for_meta,
         num_neg_samples=cfg.data.num_neg_samples,
-        temperature=cfg.data.temperature,
         user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
         diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
         sampling_type=cfg.data.sampling_type,
@@ -49,7 +48,7 @@ def main(cfg: DictConfig):
     )
 
     # build Pmodel
-    trainer = instantiate(cfg.models)
+    trainer = build_model(cfg)
 
     # train model
     trainer.fit(X_train, y_train, X_valid, y_valid)
