@@ -3,13 +3,12 @@ from __future__ import annotations
 import gc
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Self, TypeVar
+from typing import Any, Self, TypeVar
 
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from omegaconf import DictConfig
 from sklearn.model_selection import KFold
 from tqdm import tqdm
 
@@ -23,8 +22,23 @@ class ModelResult:
 
 
 class BaseModel(ABC):
-    def __init__(self: Self, cfg: DictConfig) -> None:
-        self.cfg = cfg
+    def __init__(
+        self: Self,
+        model_path: str,
+        results: str,
+        params: dict[str, Any],
+        early_stopping_rounds: int,
+        num_boost_round: int,
+        verbose_eval: int,
+        seed: int,
+    ) -> None:
+        self.model_path = model_path
+        self.results = results
+        self.params = params
+        self.early_stopping_rounds = early_stopping_rounds
+        self.num_boost_round = num_boost_round
+        self.verbose_eval = verbose_eval
+        self.seed = seed
         self.model = None
 
     @abstractmethod

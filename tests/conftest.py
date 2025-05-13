@@ -1,50 +1,8 @@
 import argparse
 import os
-from dataclasses import dataclass
-from typing import Any, Dict, List
 
 import pytest
 from omegaconf import OmegaConf
-
-
-@dataclass
-class DataConfig:
-    test_size: float
-    min_reviews: int
-    features: List[str]
-    cat_features: List[str]
-    category_column_for_meta: str
-    user_engineered_feature_names: List[Dict[str, Any]]
-    diner_engineered_feature_names: List[Dict[str, Any]]
-    test: bool = True
-    num_neg_samples: int = 30
-    is_candidate_dataset: bool = False
-    sampling_type: str = "popularity"
-    is_timeseries_by_users: bool = False
-    is_timeseries_by_time_point: bool = True
-    train_time_point: str = "2024-09-01"
-    val_time_point: str = "2024-12-01"
-    test_time_point: str = "2025-01-01"
-    end_time_point: str = "2025-02-01"
-
-
-@dataclass
-class ModelConfig:
-    model_path: str
-    results: str
-    name: str
-    num_boost_round: int
-    verbose_eval: int
-    early_stopping_rounds: int
-    params: Dict[str, Any]
-    seed: int = 42
-
-
-@dataclass
-class TestConfig:
-    __test__ = False
-    data: DataConfig
-    models: ModelConfig
 
 
 @pytest.fixture(scope="function")
@@ -84,15 +42,15 @@ def setup_config(request):
 
 
 @pytest.fixture(scope="function")
-def setup_ranker_config(request) -> TestConfig:
+def setup_ranker_config(request):
     model, params, epoch = request.param
 
-    test_config = TestConfig(
-        data=DataConfig(
-            test_size=0.3,
-            min_reviews=3,
-            num_neg_samples=10,
-            features=[
+    config = {
+        "data": {
+            "test_size": 0.3,
+            "min_reviews": 3,
+            "num_neg_samples": 10,
+            "features": [
                 "diner_review_cnt_category",
                 "min_price",
                 "max_price",
@@ -105,32 +63,41 @@ def setup_ranker_config(request) -> TestConfig:
                 "chip",
                 "parking",
             ],
-            cat_features=["diner_review_cnt_category"],
-            category_column_for_meta="diner_category_large",
-            user_engineered_feature_names=[
+            "cat_features": ["diner_review_cnt_category"],
+            "category_column_for_meta": "diner_category_large",
+            "user_engineered_feature_names": [
                 {
                     "categorical_feature_count": {
                         "categorical_feature_names": ["diner_category_large"]
                     },
                 }
             ],
-            diner_engineered_feature_names=[
+            "diner_engineered_feature_names": [
                 {
                     "all_review_cnt": {},
                     "diner_review_tags": {},
                     "diner_menu_price": {},
                 }
             ],
-        ),
-        models=ModelConfig(
-            model_path=f"result/{model}/",
-            results="ranker",
-            name=model,
-            params=OmegaConf.create(params),
-            num_boost_round=epoch,
-            verbose_eval=epoch,
-            early_stopping_rounds=1,
-            seed=42,
-        ),
-    )
-    return test_config
+            "test": True,
+            "is_candidate_dataset": False,
+            "sampling_type": "popularity",
+            "is_timeseries_by_users": False,
+            "is_timeseries_by_time_point": True,
+            "train_time_point": "2024-09-01",
+            "val_time_point": "2024-12-01",
+            "test_time_point": "2025-01-01",
+            "end_time_point": "2025-02-01",
+        },
+        "models": {
+            "_target_": "src.model.rank.boosting.LightGBMTrainer",
+            "model_path": f"result/{model}/",
+            "results": "ranker",
+            "params": OmegaConf.create(params),
+            "num_boost_round": epoch,
+            "verbose_eval": epoch,
+            "early_stopping_rounds": 1,
+            "seed": 42,
+        },
+    }
+    return OmegaConf.create(config)
