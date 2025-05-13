@@ -1,4 +1,4 @@
-name: catboost
+_target_: src.model.rank.boosting.CatBoostTrainer
 
 model_path: result/catboost/
 results: catboost_rank

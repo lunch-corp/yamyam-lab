@@ -4,13 +4,13 @@ import logging
 
 import hydra
 import numpy as np
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 from tqdm import tqdm
 
 from data.dataset import DatasetLoader
 from evaluation.metric import ranking_metrics_at_k
-from model.rank import build_model
 from tools.utils import safe_divide
 
 
@@ -49,7 +49,7 @@ def main(cfg: DictConfig):
     )
 
     # build Pmodel
-    trainer = build_model(cfg)
+    trainer = instantiate(cfg.models)
 
     # train model
     trainer.fit(X_train, y_train, X_valid, y_valid)
