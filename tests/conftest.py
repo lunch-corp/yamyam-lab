@@ -1,7 +1,7 @@
 import argparse
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Self
 
 import pytest
 from omegaconf import OmegaConf
@@ -9,23 +9,34 @@ from omegaconf import OmegaConf
 
 @dataclass
 class DataConfig:
-    test_size: float
-    min_reviews: int
     features: List[str]
     cat_features: List[str]
-    category_column_for_meta: str
-    user_engineered_feature_names: List[Dict[str, Any]]
-    diner_engineered_feature_names: List[Dict[str, Any]]
-    test: bool = True
-    num_neg_samples: int = 30
-    is_candidate_dataset: bool = False
+    user_engineered_feature_names: Dict[str, Dict[str, Any]] = None
+    diner_engineered_feature_names: Dict[str, Dict[str, Any]] = None
+    X_columns: List[str] = None
+    y_columns: List[str] = None
+    category_column_for_meta: str = "diner_category_large"
+    num_neg_samples: int = 10
     sampling_type: str = "popularity"
+    test_size: float | None = None
+    min_reviews: int | None = None
+    random_state: int = 42
+    stratify: str = "reviewer_id"
     is_timeseries_by_users: bool = False
-    is_timeseries_by_time_point: bool = True
-    train_time_point: str = "2024-09-01"
-    val_time_point: str = "2024-12-01"
-    test_time_point: str = "2025-01-01"
-    end_time_point: str = "2025-02-01"
+    is_timeseries_by_time_point: bool = False
+    train_time_point: str | None = None
+    test_time_point: str | None = None
+    val_time_point: str | None = None
+    end_time_point: str | None = None
+    is_graph_model: bool = False
+    is_candidate_dataset: bool = False
+    test: bool = True
+
+    def __post_init__(self: Self):
+        self.user_engineered_feature_names = self.user_engineered_feature_names or {}
+        self.diner_engineered_feature_names = self.diner_engineered_feature_names or {}
+        self.X_columns = self.X_columns or ["diner_idx", "reviewer_id"]
+        self.y_columns = self.y_columns or ["reviewer_review_score"]
 
 
 @dataclass
@@ -107,20 +118,21 @@ def setup_ranker_config(request) -> TestConfig:
             ],
             cat_features=["diner_review_cnt_category"],
             category_column_for_meta="diner_category_large",
-            user_engineered_feature_names=[
-                {
-                    "categorical_feature_count": {
-                        "categorical_feature_names": ["diner_category_large"]
-                    },
-                }
-            ],
-            diner_engineered_feature_names=[
-                {
-                    "all_review_cnt": {},
-                    "diner_review_tags": {},
-                    "diner_menu_price": {},
-                }
-            ],
+            user_engineered_feature_names={
+                "categorical_feature_count": {
+                    "categorical_feature_names": ["diner_category_large"]
+                },
+            },
+            diner_engineered_feature_names={
+                "all_review_cnt": {},
+                "diner_review_tags": {},
+                "diner_menu_price": {},
+            },
+            is_timeseries_by_time_point=True,
+            train_time_point="2024-09-01",
+            val_time_point="2024-12-01",
+            test_time_point="2025-01-01",
+            end_time_point="2025-02-01",
         ),
         models=ModelConfig(
             model_path=f"result/{model}/",

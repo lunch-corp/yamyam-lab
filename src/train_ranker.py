@@ -8,7 +8,9 @@ from omegaconf import DictConfig
 from prettytable import PrettyTable
 from tqdm import tqdm
 
-from data.dataset import DatasetLoader
+from data.dataset import (
+    DatasetLoader,
+)
 from evaluation.metric import ranking_metrics_at_k
 from model.rank import build_model
 from tools.utils import safe_divide
@@ -17,22 +19,7 @@ from tools.utils import safe_divide
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")
 def main(cfg: DictConfig):
     # load dataset
-    data_loader = DatasetLoader(
-        is_timeseries_by_time_point=cfg.data.is_timeseries_by_time_point,
-        train_time_point=cfg.data.train_time_point,
-        val_time_point=cfg.data.val_time_point,
-        test_time_point=cfg.data.test_time_point,
-        end_time_point=cfg.data.end_time_point,
-        test_size=cfg.data.test_size,
-        min_reviews=cfg.data.min_reviews,
-        category_column_for_meta=cfg.data.category_column_for_meta,
-        num_neg_samples=cfg.data.num_neg_samples,
-        user_engineered_feature_names=cfg.data.user_engineered_feature_names[0],
-        diner_engineered_feature_names=cfg.data.diner_engineered_feature_names[0],
-        sampling_type=cfg.data.sampling_type,
-        is_timeseries_by_users=cfg.data.is_timeseries_by_users,
-        test=cfg.data.test,
-    )
+    data_loader = DatasetLoader(data_config=cfg.data)
     data = data_loader.prepare_train_val_dataset(
         is_rank=True, is_candidate_dataset=cfg.data.is_candidate_dataset
     )

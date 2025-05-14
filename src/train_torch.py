@@ -10,7 +10,10 @@ import torch
 from torch import optim
 
 from constant.metric.metric import Metric
-from data.dataset import DatasetLoader
+from data.dataset import (
+    DataConfig,
+    DatasetLoader,
+)
 from loss.custom import svd_loss
 from preprocess.preprocess import prepare_torch_dataloader
 from tools.config import load_yaml
@@ -64,14 +67,16 @@ def main(args: ArgumentParser.parse_args):
 
         # generate dataloader for pytorch training pipeline
         data_loader = DatasetLoader(
-            is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
-            train_time_point=config.preprocess.data.train_time_point,
-            val_time_point=config.preprocess.data.val_time_point,
-            test_time_point=config.preprocess.data.test_time_point,
-            end_time_point=config.preprocess.data.end_time_point,
-            X_columns=["diner_idx", "reviewer_id"],
-            y_columns=["reviewer_review_score"],
-            test=args.test,
+            data_config=DataConfig(
+                X_columns=["diner_idx", "reviewer_id"],
+                y_columns=["reviewer_review_score"],
+                is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
+                train_time_point=config.preprocess.data.train_time_point,
+                val_time_point=config.preprocess.data.val_time_point,
+                test_time_point=config.preprocess.data.test_time_point,
+                end_time_point=config.preprocess.data.end_time_point,
+                test=args.test,
+            ),
         )
         data = data_loader.prepare_train_val_dataset()
         logger.info(f"number of diners: {data['num_diners']}")

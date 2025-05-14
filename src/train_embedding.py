@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
 from constant.metric.metric import Metric
-from data.dataset import DatasetLoader
+from data.dataset import DataConfig, DatasetLoader
 from preprocess.preprocess import prepare_networkx_undirected_graph
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
@@ -85,18 +85,20 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         data_loader = DatasetLoader(
-            is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
-            train_time_point=config.preprocess.data.train_time_point,
-            val_time_point=config.preprocess.data.val_time_point,
-            test_time_point=config.preprocess.data.test_time_point,
-            end_time_point=config.preprocess.data.end_time_point,
-            X_columns=["diner_idx", "reviewer_id"],
-            y_columns=["reviewer_review_score"],
-            is_graph_model=True,
-            category_column_for_meta=args.category_column_for_meta,
-            user_engineered_feature_names=fe.user_engineered_feature_names,
-            diner_engineered_feature_names=fe.diner_engineered_feature_names,
-            test=args.test,
+            data_config=DataConfig(
+                X_columns=["diner_idx", "reviewer_id"],
+                y_columns=["reviewer_review_score"],
+                category_column_for_meta=args.category_column_for_meta,
+                user_engineered_feature_names=fe.user_engineered_feature_names,
+                diner_engineered_feature_names=fe.diner_engineered_feature_names,
+                is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
+                train_time_point=config.preprocess.data.train_time_point,
+                val_time_point=config.preprocess.data.val_time_point,
+                test_time_point=config.preprocess.data.test_time_point,
+                end_time_point=config.preprocess.data.end_time_point,
+                is_graph_model=True,
+                test=args.test,
+            ),
         )
         data = data_loader.prepare_train_val_dataset(use_metadata=args.use_metadata)
         train_graph, val_graph = prepare_networkx_undirected_graph(
