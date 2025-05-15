@@ -61,26 +61,24 @@ class DatasetLoader:
 
         There are 3 types of strategies when splitting reviews into train / test.
             Case 1) is_timeseries_by_users == False & is_timeseries_by_time_point == False
-                -> split reviews stratified with reviewer_id without considering timeseries
+                -> Split reviews stratified with reviewer_id without considering timeseries
             Case 2) is_timeseries_by_users == True & is_timeseries_by_time_point == False
-                -> split reviews into train / test considering timeseries within each user
+                -> Split reviews into train / test considering timeseries within each user
             Case 3) is_timeseries_by_users == False & is_timeseries_by_time_point == True
-                -> split reviews into train / test based on a specific time point
+                -> Split reviews into train / test based on a specific time point
                 if val_time_point is not None:
                     train_time_point <= dt < val_time_point : train dataset
-                    val_time_pint <= dt < test_time_point : val dataset
+                    val_time_point <= dt < test_time_point : val dataset
                     test_time_point <= dt < end_time_point : test dataset
                 else:
                     train_time_point <= dt < test_time_point : train dataset
                     test_time_point <= dt < end_time_point : test dataset
             Case 4) is_timeseries_by_users == True & is_timeseries_by_time_point == True
-                -> will raise error
+                -> Will raise error
 
         Args:
-            feature_config: Configuration for features and columns
-            split_config: Configuration for data splitting
-            sampling_config: Configuration for negative sampling
-            model_config: Configuration for model type and testing
+            data_config: Configuration for dataset loading including features, splitting strategy,
+                        sampling parameters and model settings
         """
         self.data_config = data_config
 
