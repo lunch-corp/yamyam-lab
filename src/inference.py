@@ -62,8 +62,8 @@ def geocoding(address: str) -> list[float]:
 def _main(cfg: DictConfig):
     test, already_reviewed = load_test_dataset(
         cfg.user_name,
-        cfg.data.user_engineered_feature_names[0],
-        cfg.data.diner_engineered_feature_names[0],
+        cfg.data.user_engineered_feature_names,
+        cfg.data.diner_engineered_feature_names,
     )
     user_lat, user_lon = geocoding(cfg.user_address)
     test["distance"] = haversine(
