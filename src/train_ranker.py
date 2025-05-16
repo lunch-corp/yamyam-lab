@@ -4,6 +4,7 @@ import logging
 
 import hydra
 import numpy as np
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 from tqdm import tqdm
@@ -12,7 +13,6 @@ from data.dataset import (
     DatasetLoader,
 )
 from evaluation.metric import ranking_metrics_at_k
-from model.rank import build_model
 from tools.utils import safe_divide
 
 
@@ -33,9 +33,10 @@ def main(cfg: DictConfig):
         data["X_test"],
         data["y_test"],
     )
-
     # build Pmodel
-    trainer = build_model(cfg)
+    trainer = instantiate(
+        cfg.models, features=cfg.data.features, cat_features=cfg.data.features
+    )
 
     # train model
     trainer.fit(X_train, y_train, X_valid, y_valid)
@@ -106,13 +107,9 @@ def main(cfg: DictConfig):
                 continue
 
             for K in metric_at_K.keys():
-                # if len(liked_items) < K:
-                #     continue
-
                 metric = ranking_metrics_at_k(
                     liked_items=np.array(liked_items), reco_items=pred_items[:K]
                 )
-
                 metric_at_K[K]["map"] += metric["ap"]
                 metric_at_K[K]["ndcg"] += metric["ndcg"]
                 metric_at_K[K]["count"] += 1

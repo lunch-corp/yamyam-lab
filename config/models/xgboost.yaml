@@ -1,4 +1,4 @@
-name: xgboost
+_target_: src.model.rank.boosting.XGBoostTrainer
 
 model_path: result/xgboost/
 results: xgb_ranker

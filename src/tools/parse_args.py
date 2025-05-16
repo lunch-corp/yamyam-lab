@@ -76,10 +76,15 @@ def parse_args_embedding():
 
 def parse_args_eval():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_obj_path", type=str)
-    parser.add_argument("--model_path", type=str)
-    parser.add_argument("--embedding_dim", type=int)
-    parser.add_argument("--log_path", type=str)
+    parser.add_argument("--data_obj_path", type=str, required=True)
+    parser.add_argument("--model_path", type=str, required=True)
+    parser.add_argument("--embedding_dim", type=int, required=True)
+    parser.add_argument("--top_k", type=int, default=10)
+    parser.add_argument("--user_ids", type=int, nargs="*", required=True)
+    # gangnam station: (37.497992, 127.027614)
+    parser.add_argument("--latitude", type=float, default=None)
+    parser.add_argument("--longitude", type=float, default=None)
+    parser.add_argument("--near_dist", type=float, default=0.5)
     return parser.parse_args()
 
 
