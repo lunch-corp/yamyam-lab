@@ -65,21 +65,22 @@ def setup_ranker_config(request):
             ],
             "cat_features": ["diner_review_cnt_category"],
             "category_column_for_meta": "diner_category_large",
-            "user_engineered_feature_names": [
-                {
-                    "categorical_feature_count": {
-                        "categorical_feature_names": ["diner_category_large"]
-                    },
-                }
-            ],
-            "diner_engineered_feature_names": [
-                {
-                    "all_review_cnt": {},
-                    "diner_review_tags": {},
-                    "diner_menu_price": {},
-                }
-            ],
+            "user_engineered_feature_names": {
+                "categorical_feature_count": {
+                    "categorical_feature_names": ["diner_category_large"]
+                },
+            },
+            "diner_engineered_feature_names": {
+                "all_review_cnt": {},
+                "diner_review_tags": {},
+                "diner_menu_price": {},
+            },
+            "X_columns": ["diner_idx", "reviewer_id"],
+            "y_columns": ["reviewer_review_score"],
             "test": True,
+            "random_state": 42,
+            "stratify": "reviewer_id",
+            "is_graph_model": False,
             "is_candidate_dataset": False,
             "sampling_type": "popularity",
             "is_timeseries_by_users": False,
