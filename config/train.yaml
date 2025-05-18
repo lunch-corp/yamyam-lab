@@ -25,7 +25,7 @@ defaults:
 
 training:
   evaluation:
-    recommend_batch_size: 1000
+    recommend_batch_size: 1000000
     top_k_values_for_pred:
       - 3
       - 7

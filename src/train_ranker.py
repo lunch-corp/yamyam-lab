@@ -60,7 +60,7 @@ def main(cfg: DictConfig):
             end_idx = min(
                 (i + 1) * cfg.training.evaluation.recommend_batch_size, len(candidates)
             )
-            batch = candidates[cfg.data.features].iloc[start_idx:end_idx]
+            batch = candidates[cfg.features.store_features].iloc[start_idx:end_idx]
             predictions[start_idx:end_idx] = trainer.predict(batch)
 
         # Group predictions by user
