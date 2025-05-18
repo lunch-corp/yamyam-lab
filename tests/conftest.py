@@ -94,6 +94,30 @@ def setup_ranker_config(request):
                 "western",
             ],
             "cat_features": ["diner_review_cnt_category"],
+            "category_column_for_meta": "diner_category_large",
+            "user_engineered_feature_names": [
+                {
+                    "categorical_feature_count": {
+                        "categorical_feature_names": ["diner_category_large"]
+                    },
+                }
+            ],
+            "diner_engineered_feature_names": [
+                {
+                    "all_review_cnt": {},
+                    "diner_review_tags": {},
+                    "diner_menu_price": {},
+                }
+            ],
+            "test": True,
+            "is_candidate_dataset": False,
+            "sampling_type": "popularity",
+            "is_timeseries_by_users": False,
+            "is_timeseries_by_time_point": True,
+            "train_time_point": "2024-09-01",
+            "val_time_point": "2024-12-01",
+            "test_time_point": "2025-01-01",
+            "end_time_point": "2025-02-01",
         },
         "models": {
             "_target_": "src.model.rank.boosting.LightGBMTrainer",
