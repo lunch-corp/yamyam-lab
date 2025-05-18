@@ -24,8 +24,6 @@ from tools.utils import reduce_mem_usage
 
 @dataclass
 class DataConfig:
-    features: List[str] = None
-    cat_features: List[str] = None
     user_engineered_feature_names: Dict[str, Dict[str, Any]] = None
     diner_engineered_feature_names: Dict[str, Dict[str, Any]] = None
     X_columns: List[str] = None
@@ -741,11 +739,55 @@ class DatasetLoader:
         """
         Load candidate dataset.
         """
+        if self.test:
+            # 테스트용 임의 데이터 생성
+            np.random.seed(42)
+            num_samples = 10
+
+            # candidate 데이터 생성
+            candidate = pd.DataFrame(
+                {
+                    "user_id": np.random.randint(0, 1000, num_samples),
+                    "diner_id": np.random.randint(0, 1000, num_samples),
+                    "score": np.random.rand(num_samples),
+                }
+            )
+
+            # 매핑 데이터 생성
+            user_mapping = {str(i): i for i in range(1000)}
+            diner_mapping = {str(i): i for i in range(1000)}
+
+            candidate_user_mapping = {
+                k: v for k, v in user_mapping.items() if v in candidate["user_id"]
+            }
+            candidate_diner_mapping = {
+                k: v for k, v in diner_mapping.items() if v in candidate["diner_id"]
+            }
+
+            num_diners = len(diner_mapping)
+            min_user_id = min(list(user_mapping.values()))
+
+            # 사용자 ID 변환
+            candidate_user_mapping_convert = {
+                asis_id: tobe_id - num_diners
+                for asis_id, tobe_id in candidate_user_mapping.items()
+            }
+            candidate["user_id"] = candidate["user_id"] - num_diners
+
+            # 특성 병합
+            candidate["reviewer_id"] = candidate["user_id"].copy()
+            candidate["diner_idx"] = candidate["diner_id"].copy()
+
+            candidate = candidate.merge(user_feature, on="reviewer_id", how="left")
+            candidate = candidate.merge(diner_feature, on="diner_idx", how="left")
+
+            # reduce memory usage
+            candidate = reduce_mem_usage(candidate)
+
+            return candidate, candidate_user_mapping_convert, candidate_diner_mapping
+
         # 데이터 로드
         candidate = pd.read_parquet(self.candidate_paths / "candidate.parquet")
-
-        if self.test:
-            candidate = candidate.head(100)
 
         # 매핑 로드 및 검증
         user_mapping = pd.read_pickle(self.candidate_paths / "user_mapping.pkl")

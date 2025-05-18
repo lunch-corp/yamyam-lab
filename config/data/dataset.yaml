@@ -2,31 +2,6 @@ test_size: 0.4
 min_reviews: 3
 random_state: 42
 test: false
-path: data/
-features:
-  - diner_review_cnt_category
-  - min_price
-  - max_price
-  - mean_price
-  - median_price
-  - menu_count
-  - taste
-  - kind
-  - mood
-  - chip
-  - parking
-  - asian
-  - japanese
-  - chinese
-  - korean
-  - western
-
-X_columns:
-  - diner_idx
-  - reviewer_id
-
-y_columns:
-  - reviewer_review_score
 
 category_column_for_meta: diner_category_large
 
@@ -41,13 +16,7 @@ diner_engineered_feature_names:
   diner_review_tags: {}
   diner_menu_price: {}
 
-cat_features:
-  - diner_review_cnt_category
-
-target: target
-size: 30
 is_candidate_dataset: true
-batch_size: 1000000
 num_neg_samples: 100
 sampling_type: popularity
 is_timeseries_by_users: false

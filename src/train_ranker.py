@@ -9,9 +9,7 @@ from omegaconf import DictConfig
 from prettytable import PrettyTable
 from tqdm import tqdm
 
-from data.dataset import (
-    DatasetLoader,
-)
+from data.dataset import DataConfig, DatasetLoader
 from evaluation.metric import ranking_metrics_at_k
 from tools.utils import safe_divide
 
@@ -19,7 +17,7 @@ from tools.utils import safe_divide
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")
 def main(cfg: DictConfig):
     # load dataset
-    data_loader = DatasetLoader(data_config=cfg.data)
+    data_loader = DatasetLoader(data_config=DataConfig(**cfg.data))
     data = data_loader.prepare_train_val_dataset(
         is_rank=True, is_candidate_dataset=cfg.data.is_candidate_dataset
     )
@@ -35,7 +33,9 @@ def main(cfg: DictConfig):
     )
     # build Pmodel
     trainer = instantiate(
-        cfg.models, features=cfg.data.features, cat_features=cfg.data.features
+        cfg.models,
+        features=cfg.features.store_features,
+        cat_features=cfg.features.cat_features,
     )
 
     # train model
@@ -50,12 +50,16 @@ def main(cfg: DictConfig):
     try:
         # candidate predictions
         candidates = data["candidates"]
-        batch_size = cfg.data.batch_size
-        num_batches = (len(candidates) + batch_size - 1) // batch_size
+        num_batches = (
+            len(candidates) + cfg.training.evaluation.recommend_batch_size - 1
+        ) // cfg.training.evaluation.recommend_batch_size
         predictions = np.zeros(len(candidates))
+
         for i in tqdm(range(num_batches)):
-            start_idx = i * batch_size
-            end_idx = min((i + 1) * batch_size, len(candidates))
+            start_idx = i * cfg.training.evaluation.recommend_batch_size
+            end_idx = min(
+                (i + 1) * cfg.training.evaluation.recommend_batch_size, len(candidates)
+            )
             batch = candidates[cfg.data.features].iloc[start_idx:end_idx]
             predictions[start_idx:end_idx] = trainer.predict(batch)
 
@@ -69,7 +73,10 @@ def main(cfg: DictConfig):
         )
 
         # Calculate metrics
-        metric_at_K = {K: {"map": 0, "ndcg": 0, "count": 0} for K in [3, 7, 10, 20]}
+        metric_at_K = {
+            K: {"map": 0, "ndcg": 0, "count": 0}
+            for K in cfg.training.evaluation.top_k_values_for_pred
+        }
 
         # Get already liked items from test data
         X_test["target"] = y_test
