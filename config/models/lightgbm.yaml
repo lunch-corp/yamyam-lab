@@ -3,6 +3,27 @@ _target_: src.model.rank.boosting.LightGBMTrainer
 model_path: result/lightgbm/
 results: lgb_ranker
 
+features:
+  - diner_review_cnt_category
+  - min_price
+  - max_price
+  - mean_price
+  - median_price
+  - menu_count
+  - taste
+  - kind
+  - mood
+  - chip
+  - parking
+  - asian
+  - japanese
+  - chinese
+  - korean
+  - western
+
+cat_features:
+  - diner_review_cnt_category
+
 params:
   objective: lambdarank
   boosting_type: gbdt

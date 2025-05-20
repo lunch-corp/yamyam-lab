@@ -16,38 +16,34 @@ from tools.utils import safe_divide
 
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")
 def main(cfg: DictConfig):
-    # load dataset
-    data_loader = DatasetLoader(data_config=DataConfig(**cfg.data))
-    data = data_loader.prepare_train_val_dataset(
-        is_rank=True, is_candidate_dataset=cfg.data.is_candidate_dataset
-    )
-
-    # mapping reverse
-    X_train, y_train, X_valid, y_valid, X_test, y_test = (
-        data["X_train"],
-        data["y_train"],
-        data["X_val_warm_start_user"],
-        data["y_val_warm_start_user"],
-        data["X_test"],
-        data["y_test"],
-    )
-    # build Pmodel
-    trainer = instantiate(
-        cfg.models,
-        features=cfg.features.store_features,
-        cat_features=cfg.features.cat_features,
-    )
-
-    # train model
-    trainer.fit(X_train, y_train, X_valid, y_valid)
-
-    # save model
-    trainer.save_model()
-
-    # plot feature importance
-    trainer.plot_feature_importance()
-
     try:
+        # load dataset
+        data_loader = DatasetLoader(data_config=DataConfig(**cfg.data))
+        data = data_loader.prepare_train_val_dataset(
+            is_rank=True, is_candidate_dataset=cfg.data.is_candidate_dataset
+        )
+
+        # mapping reverse
+        X_train, y_train, X_valid, y_valid, X_test, y_test = (
+            data["X_train"],
+            data["y_train"],
+            data["X_val_warm_start_user"],
+            data["y_val_warm_start_user"],
+            data["X_test"],
+            data["y_test"],
+        )
+        # build Pmodel
+        trainer = instantiate(cfg.models)
+
+        # train model
+        trainer.fit(X_train, y_train, X_valid, y_valid)
+
+        # save model
+        trainer.save_model()
+
+        # plot feature importance
+        trainer.plot_feature_importance()
+
         # candidate predictions
         candidates = data["candidates"]
         num_batches = (
@@ -60,7 +56,7 @@ def main(cfg: DictConfig):
             end_idx = min(
                 (i + 1) * cfg.training.evaluation.recommend_batch_size, len(candidates)
             )
-            batch = candidates[cfg.features.store_features].iloc[start_idx:end_idx]
+            batch = candidates[cfg.models.features].iloc[start_idx:end_idx]
             predictions[start_idx:end_idx] = trainer.predict(batch)
 
         # Group predictions by user
@@ -136,8 +132,9 @@ def main(cfg: DictConfig):
             )
         logging.info(f"\nEvaluation Results\n{table}")
 
-    except Exception:
-        logging.info("No candidates data found just training model")
+    except Exception as e:
+        logging.error(f"Error: {e}")
+        assert isinstance(e, KeyError)
 
 
 if __name__ == "__main__":

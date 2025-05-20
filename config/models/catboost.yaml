@@ -3,6 +3,27 @@ _target_: src.model.rank.boosting.CatBoostTrainer
 model_path: result/catboost/
 results: catboost_rank
 
+features:
+  - diner_review_cnt_category
+  - min_price
+  - max_price
+  - mean_price
+  - median_price
+  - menu_count
+  - taste
+  - kind
+  - mood
+  - chip
+  - parking
+  - asian
+  - japanese
+  - chinese
+  - korean
+  - western
+
+cat_features:
+  - diner_review_cnt_category
+
 params:
   task_type: GPU
   loss_function: YetiRank
