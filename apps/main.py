@@ -19,6 +19,13 @@ def main():
         title="리뷰어 분석",
         icon=":material/person:",
     )
+
+    review_analysis = st.Page(
+        "./pages/keyword_driven_analytics.py",
+        title="리뷰 키워드 분석",
+        icon=":material/person:",
+    )
+
     diner_analysis = st.Page(
         "./pages/diner_analysis.py",
         title="식당 분석",
@@ -31,7 +38,13 @@ def main():
     )
 
     # 네비게이션 설정
-    pages = [data_overview, reviewer_analysis, diner_analysis, category_analysis]
+    pages = [
+        data_overview,
+        reviewer_analysis,
+        review_analysis,
+        diner_analysis,
+        category_analysis,
+    ]
 
     pg = st.navigation({"맛집 분석 대시보드": pages}, position="sidebar")
 
