@@ -42,7 +42,6 @@ class DataConfig:
     val_time_point: str = "2024-03-01"
     end_time_point: str = "2024-12-31"
     is_graph_model: bool = False
-    is_candidate_dataset: bool = False
     test: bool = False
 
     def __post_init__(self: Self):
@@ -102,7 +101,6 @@ class DatasetLoader:
         self.val_time_point = self.data_config.val_time_point
         self.end_time_point = self.data_config.end_time_point
         self.is_graph_model = self.data_config.is_graph_model
-        self.is_candidate_dataset = self.data_config.is_candidate_dataset
         self.category_column_for_meta = self.data_config.category_column_for_meta
         self.test = self.data_config.test
 
@@ -306,7 +304,6 @@ class DatasetLoader:
     def prepare_train_val_dataset(
         self: Self,
         is_rank: bool = False,
-        is_candidate_dataset: bool = False,
         use_metadata: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -455,18 +452,6 @@ class DatasetLoader:
 
             user_mapping = mapped_res["user_mapping"]
             diner_mapping = mapped_res["diner_mapping"]
-
-            if not is_candidate_dataset:
-                return self.create_rank_dataset(
-                    train,
-                    val,
-                    test,
-                    val_cold_start_user,
-                    val_warm_start_user,
-                    test_cold_start_user,
-                    test_warm_start_user,
-                    mapped_res,
-                )
 
             candidates, candidate_user_mapping, candidate_diner_mapping = (
                 self.load_candidate_dataset(user_feature, diner_feature)

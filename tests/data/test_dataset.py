@@ -53,9 +53,7 @@ def test_loader_dataset():
     assert data["diner_mapping"] is not None
     assert data["user_mapping"] is not None
 
-    rank_data = data_loader.prepare_train_val_dataset(
-        is_rank=True, is_candidate_dataset=True
-    )
+    rank_data = data_loader.prepare_train_val_dataset(is_rank=True)
 
     assert rank_data["X_train"].shape[0] > 0
     assert rank_data["X_val"].shape[0] > 0

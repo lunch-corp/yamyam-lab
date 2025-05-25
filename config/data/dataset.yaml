@@ -16,7 +16,6 @@ diner_engineered_feature_names:
   diner_review_tags: {}
   diner_menu_price: {}
 
-is_candidate_dataset: true
 num_neg_samples: 100
 sampling_type: popularity
 is_timeseries_by_users: false

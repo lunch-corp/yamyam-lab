@@ -65,7 +65,6 @@ def setup_ranker_config(request):
             "random_state": 42,
             "stratify": "reviewer_id",
             "is_graph_model": False,
-            "is_candidate_dataset": True,
             "sampling_type": "popularity",
             "is_timeseries_by_users": False,
             "is_timeseries_by_time_point": True,
