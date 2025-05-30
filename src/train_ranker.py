@@ -38,9 +38,6 @@ def main(cfg: DictConfig):
     # save model
     trainer.save_model()
 
-    # plot feature importance
-    trainer.plot_feature_importance()
-
     # candidate predictions
     candidates = data["candidates"]
     num_batches = (

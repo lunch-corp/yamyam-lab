@@ -301,6 +301,35 @@ class DatasetLoader:
         ]
         return train, test
 
+    def _apply_negative_sampling_if_needed(
+        self: Self,
+        df: pd.DataFrame,
+        sampling_type: str,
+        num_neg_samples: int,
+        random_state: int,
+    ) -> pd.DataFrame:
+        """
+        Apply negative sampling to the dataframe if num_neg_samples is greater than 0.
+
+        Args:
+            df: DataFrame containing positive samples
+            sampling_type: Type of sampling to use ('popularity' or 'random')
+            num_neg_samples: Number of negative samples to generate
+            random_state: Random seed for reproducibility
+
+        Returns:
+            DataFrame with negative samples added if num_neg_samples > 0, otherwise original DataFrame
+        """
+        if num_neg_samples <= 0:
+            return df
+
+        return self.negative_sampling(
+            sampling_type=sampling_type,
+            review=df,
+            num_neg_samples=num_neg_samples,
+            random_state=random_state,
+        )
+
     def prepare_train_val_dataset(
         self: Self,
         is_rank: bool = False,
@@ -391,39 +420,37 @@ class DatasetLoader:
             test_cold_start_user = test[test["reviewer_id"].isin(test_cold_users)]
             test_warm_start_user = test[~test["reviewer_id"].isin(test_cold_users)]
 
-            # negative sampling
+            # Apply negative sampling if configured
             train = self.create_target_column(train)
-            pos_train = train[train["target"] == 1]
-            train = self.negative_sampling(
-                self.sampling_type, pos_train, self.num_neg_samples, self.random_state
+            train = self._apply_negative_sampling_if_needed(
+                df=train[train["target"] == 1],
+                sampling_type=self.sampling_type,
+                num_neg_samples=self.num_neg_samples,
+                random_state=self.random_state,
             )
 
             val_warm_start_user = self.create_target_column(val_warm_start_user)
-            pos_val_warm_start_user = val_warm_start_user[
-                val_warm_start_user["target"] == 1
-            ]
-            val_warm_start_user = self.negative_sampling(
-                self.sampling_type,
-                pos_val_warm_start_user,
-                self.num_neg_samples,
-                self.random_state,
+            val_warm_start_user = self._apply_negative_sampling_if_needed(
+                df=val_warm_start_user[val_warm_start_user["target"] == 1],
+                sampling_type=self.sampling_type,
+                num_neg_samples=self.num_neg_samples,
+                random_state=self.random_state,
             )
 
             val = self.create_target_column(val)
-            pos_val = val[val["target"] == 1]
-            val = self.negative_sampling(
-                self.sampling_type, pos_val, self.num_neg_samples, self.random_state
+            val = self._apply_negative_sampling_if_needed(
+                df=val[val["target"] == 1],
+                sampling_type=self.sampling_type,
+                num_neg_samples=self.num_neg_samples,
+                random_state=self.random_state,
             )
 
             val_cold_start_user = self.create_target_column(val_cold_start_user)
-            pos_val_cold_start_user = val_cold_start_user[
-                val_cold_start_user["target"] == 1
-            ]
-            val_cold_start_user = self.negative_sampling(
-                self.sampling_type,
-                pos_val_cold_start_user,
-                self.num_neg_samples,
-                self.random_state,
+            val_cold_start_user = self._apply_negative_sampling_if_needed(
+                df=val_cold_start_user[val_cold_start_user["target"] == 1],
+                sampling_type=self.sampling_type,
+                num_neg_samples=self.num_neg_samples,
+                random_state=self.random_state,
             )
 
             test = self.create_target_column(test)
