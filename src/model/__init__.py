@@ -1,3 +1,3 @@
-from .als import ALSPipeline
+from .mf.als import ALS
 
-__all__ = ["ALSPipeline"]
+__all__ = ["ALS"]
