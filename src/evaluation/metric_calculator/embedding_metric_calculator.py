@@ -5,7 +5,7 @@ import torch
 from numpy.typing import NDArray
 from torch import Tensor
 
-from metric_calculator.base_metric_calculator import BaseMetricCalculator
+from evaluation.metric_calculator.base_metric_calculator import BaseMetricCalculator
 
 
 class EmbeddingMetricCalculator(BaseMetricCalculator):

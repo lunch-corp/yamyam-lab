@@ -14,8 +14,10 @@ from data.dataset import (
     DataConfig,
     DatasetLoader,
 )
+from evaluation.metric_calculator.svd_bias_metric_calculator import (
+    SVDBiasMetricCalculator,
+)
 from loss.custom import svd_loss
-from metric_calculator.svd_bias_metric_calculator import SVDBiasMetricCalculator
 from preprocess.preprocess import prepare_torch_dataloader
 from tools.config import load_yaml
 from tools.logger import setup_logger
