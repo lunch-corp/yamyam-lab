@@ -196,10 +196,7 @@ class BaseMetricCalculator:
         )
 
         for count, user_ids in liked_items_count2user_ids.items():
-            num_users = len(user_ids)
-            start = 0
-
-            while start < num_users:
+            for start in range(0, len(user_ids), self.recommend_batch_size):
                 batch_users = user_ids[start : start + self.recommend_batch_size]
 
                 top_k_id = self.generate_recommendations(
@@ -219,8 +216,6 @@ class BaseMetricCalculator:
                     top_k_id=top_k_id,
                     liked_items=liked_items_by_batch_users,
                 )
-
-                start += self.recommend_batch_size
 
         num_warm_start_users = len(X_val_warm_users["reviewer_id"].unique())
         for k in self.top_k_values:
@@ -274,9 +269,7 @@ class BaseMetricCalculator:
         )
 
         for count, user_ids in liked_items_count2user_ids.items():
-            num_users = len(user_ids)
-            start = 0
-            while start < num_users:
+            for start in range(0, len(user_ids), self.recommend_batch_size):
                 batch_users = user_ids[start : start + self.recommend_batch_size]
                 most_popular_reco_items = np.tile(
                     most_popular_diner_ids, (len(batch_users), 1)
@@ -293,8 +286,6 @@ class BaseMetricCalculator:
                     top_k_id=most_popular_reco_items,
                     liked_items=liked_items_by_batch_users,
                 )
-
-                start += self.recommend_batch_size
 
         num_cold_start_users = len(X_val_cold_users["reviewer_id"].unique())
         for k in self.top_k_values:
