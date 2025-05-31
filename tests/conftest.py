@@ -42,6 +42,19 @@ def setup_config(request):
 
 
 @pytest.fixture(scope="function")
+def setup_als_config():
+    args = argparse.ArgumentParser()
+    args.alpha = 1
+    args.factors = 100
+    args.regularization = 0.01
+    args.iterations = 15
+    args.use_gpu = False
+    args.calculate_training_loss = True
+    args.test = True
+    return args
+
+
+@pytest.fixture(scope="function")
 def setup_ranker_config(request):
     model, params, epoch = request.param
 
