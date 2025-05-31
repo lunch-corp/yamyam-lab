@@ -6,20 +6,20 @@ import traceback
 from argparse import ArgumentParser
 from datetime import datetime
 
+import pandas as pd
 import torch
 from torch import optim
 
-from constant.metric.metric import Metric
 from data.dataset import (
     DataConfig,
     DatasetLoader,
 )
 from loss.custom import svd_loss
+from metric_calculator.svd_bias_metric_calculator import SVDBiasMetricCalculator
 from preprocess.preprocess import prepare_torch_dataloader
 from tools.config import load_yaml
 from tools.logger import setup_logger
 from tools.plot import plot_metric_at_k
-from tools.utils import safe_divide
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/{model}.yaml")
@@ -79,15 +79,51 @@ def main(args: ArgumentParser.parse_args):
             ),
         )
         data = data_loader.prepare_train_val_dataset()
-        logger.info(f"number of diners: {data['num_diners']}")
-        logger.info(f"number of users: {data['num_users']}")
 
+        logger.info("######## Number of reviews statistics ########")
         logger.info(f"Number of reviews in train: {data['X_train'].size(0)}")
         logger.info(f"Number of reviews in val: {data['X_val'].size(0)}")
         logger.info(f"Number of reviews in test: {data['X_test'].size(0)}")
+
+        logger.info("######## Train data statistics ########")
         logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
+        logger.info(f"Number of diners in train: {len(data['train_diner_ids'])}")
+        logger.info(f"Number of feedbacks in train: {data['X_train'].size(0)}")
+        train_density = round(
+            100
+            * data["X_train"].size(0)
+            / (len(data["train_user_ids"]) * len(data["train_diner_ids"])),
+            4,
+        )
+        logger.info(f"Train data density: {train_density}%")
+
+        logger.info("######## Validation data statistics ########")
         logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
+        logger.info(f"Number of diners in val: {len(data['val_diner_ids'])}")
+        logger.info(f"Number of feedbacks in val: {data['X_val'].size(0)}")
+        val_density = round(
+            100
+            * data["X_val"].size(0)
+            / (len(data["val_user_ids"]) * len(data["val_diner_ids"])),
+            4,
+        )
+        logger.info(f"Validation data density: {val_density}%")
+
+        logger.info("######## Test data statistics ########")
         logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
+        logger.info(f"Number of diners in test: {len(data['test_diner_ids'])}")
+        logger.info(f"Number of feedbacks in test: {data['X_test'].size(0)}")
+        test_density = round(
+            100
+            * data["X_test"].size(0)
+            / (len(data["test_user_ids"]) * len(data["test_diner_ids"])),
+            4,
+        )
+        logger.info(f"Test data density: {test_density}%")
+
+        logger.info(
+            "######## Warm / Cold users analysis in validation and test dataset ########"
+        )
         logger.info(
             f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
         )
@@ -115,7 +151,7 @@ def main(args: ArgumentParser.parse_args):
         pickle.dump(data, open(os.path.join(result_path, file_name.data_object), "wb"))
 
         # import model module
-        model_path = f"model.{args.model}"
+        model_path = f"model.mf.{args.model}"
         model_module = importlib.import_module(model_path).Model
         model = model_module(
             user_ids=torch.tensor(list(data["user_mapping"].values())).to(args.device),
@@ -129,6 +165,16 @@ def main(args: ArgumentParser.parse_args):
         ).to(args.device)
 
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
+
+        # define metric calculator for test data metric
+        metric_calculator = SVDBiasMetricCalculator(
+            diner_ids=list(data["diner_mapping"].values()),
+            model=model,
+            top_k_values=top_k_values,
+            filter_already_liked=True,
+            recommend_batch_size=config.training.evaluation.recommend_batch_size,
+            logger=logger,
+        )
 
         # train model
         best_loss = float("inf")
@@ -183,54 +229,40 @@ def main(args: ArgumentParser.parse_args):
             logger.info(f"Train Loss: {tr_loss}")
             logger.info(f"Validation Loss: {val_loss}")
 
-            # calculate metric for current epoch
-            metric_at_k = {
-                k: {
-                    Metric.MAP: 0,
-                    Metric.NDCG: 0,
-                    Metric.RECALL: 0,
-                    Metric.COUNT: 0,
-                }
-                for k in top_k_values
-            }
-            metric_at_k = model.generate_recommendations_and_calculate_metric(
-                X_train=data["X_train"],
-                X_val_warm_users=data["X_val_warm_users"],
-                X_val_cold_users=data["X_val_cold_users"],
-                top_k_values=top_k_values,
-                metric_at_k=metric_at_k,
-                most_popular_diner_ids=data["most_popular_diner_ids"],
-                filter_already_liked=True,
-            )
-            model.calculate_metric_at_current_epoch(
-                metric_at_k=metric_at_k,
-                top_k_values=top_k_values,
+            # calculate metric for test data with warm / cold / all users separately
+            metric_dict = (
+                metric_calculator.generate_recommendations_and_calculate_metric(
+                    X_train=pd.DataFrame(
+                        data["X_train"], columns=["diner_idx", "reviewer_id"]
+                    ),
+                    X_val_warm_users=pd.DataFrame(
+                        data["X_val_warm_users"], columns=["diner_idx", "reviewer_id"]
+                    ),
+                    X_val_cold_users=pd.DataFrame(
+                        data["X_val_cold_users"], columns=["diner_idx", "reviewer_id"]
+                    ),
+                    most_popular_diner_ids=data["most_popular_diner_ids"],
+                    filter_already_liked=True,
+                )
             )
 
-            maps = []
-            ndcgs = []
+            # for each user type, the metric is not yet averaged but summed, so calculate mean
+            for user_type, metric in metric_dict.items():
+                metric_calculator.calculate_mean_metric(metric)
 
-            logger.info("[ Metric report calculated from val data ]")
-            for k in top_k_values:
-                # no candidate metric
-                map = round(model.metric_at_k_total_epochs[k][Metric.MAP][-1], 5)
-                ndcg = round(model.metric_at_k_total_epochs[k][Metric.NDCG][-1], 5)
+            # for each user type, report map, ndcg, recall
+            logger.info(
+                f"################## Validation data metric report for {epoch} epoch ##################"
+            )
+            metric_calculator.report_metric_with_warm_cold_all_users(
+                metric_dict=metric_dict, data_type="val"
+            )
 
-                count = model.metric_at_k_total_epochs[k][Metric.COUNT]
-
-                logger.info(
-                    f"maP@{k}: {map} with {count} users out of all {len(data['val_user_ids'])} users"
-                )
-                logger.info(
-                    f"ndcg@{k}: {ndcg} with {count} users out of all {len(data['val_user_ids'])} users"
-                )
-
-                maps.append(str(map))
-                ndcgs.append(str(ndcg))
-
-            logger.info("top k results for direct prediction @3, @7, @10, @20 in order")
-            logger.info(f"map result: {'|'.join(maps)}")
-            logger.info(f"ndcg result: {'|'.join(ndcgs)}")
+            # save metric at current epoch for later metric plotting
+            metric_calculator.save_metric_at_current_epoch(
+                metric_at_k=metric_dict["all"],
+                metric_at_k_total_epochs=model.metric_at_k_total_epochs,
+            )
 
             torch.save(
                 model.state_dict(),
@@ -288,41 +320,37 @@ def main(args: ArgumentParser.parse_args):
             )
             logger.info("Save final model")
 
-        # calculate metric for test data
-        metric_at_k = {
-            k: {
-                Metric.MAP: 0,
-                Metric.NDCG: 0,
-                Metric.RECALL: 0,
-                Metric.COUNT: 0,
-            }
-            for k in top_k_values
-        }
-        metric_at_k = model.generate_recommendations_and_calculate_metric(
-            X_train=data["X_train"],
-            X_val_warm_users=data["X_test_warm_users"],
-            X_val_cold_users=data["X_test_cold_users"],
+        # define metric calculator for test data metric
+        metric_calculator = SVDBiasMetricCalculator(
+            diner_ids=list(data["diner_mapping"].values()),
+            model=model,
             top_k_values=top_k_values,
-            metric_at_k=metric_at_k,
+            filter_already_liked=True,
+            recommend_batch_size=config.training.evaluation.recommend_batch_size,
+            logger=logger,
+        )
+
+        # calculate metric for test data with warm / cold / all users separately
+        metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
+            X_train=pd.DataFrame(data["X_train"], columns=["diner_idx", "reviewer_id"]),
+            X_val_warm_users=pd.DataFrame(
+                data["X_test_warm_users"], columns=["diner_idx", "reviewer_id"]
+            ),
+            X_val_cold_users=pd.DataFrame(
+                data["X_test_cold_users"], columns=["diner_idx", "reviewer_id"]
+            ),
             most_popular_diner_ids=data["most_popular_diner_ids"],
             filter_already_liked=True,
         )
-        maps_test = []
-        ndcgs_test = []
-        logger.info("[ Metric report calculated from test data ]")
-        for k in top_k_values:
-            map = safe_divide(
-                numerator=metric_at_k[k][Metric.MAP],
-                denominator=metric_at_k[k][Metric.COUNT],
-            )
-            ndcg = safe_divide(
-                numerator=metric_at_k[k][Metric.NDCG],
-                denominator=metric_at_k[k][Metric.COUNT],
-            )
-            maps_test.append(str(round(map, 5)))
-            ndcgs_test.append(str(round(ndcg, 5)))
-        logger.info(f"map result: {'|'.join(maps_test)}")
-        logger.info(f"ndcg result: {'|'.join(ndcgs_test)}")
+
+        # for each user type, the metric is not yet averaged but summed, so calculate mean
+        for user_type, metric in metric_dict.items():
+            metric_calculator.calculate_mean_metric(metric)
+
+        # for each user type, report map, ndcg, recall
+        metric_calculator.report_metric_with_warm_cold_all_users(
+            metric_dict=metric_dict, data_type="test"
+        )
 
         # plot metrics
         plot_metric_at_k(
