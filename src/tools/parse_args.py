@@ -88,6 +88,18 @@ def parse_args_eval():
     return parser.parse_args()
 
 
+def parse_args_als():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--alpha", type=float, default=1.0)
+    parser.add_argument("--factors", type=int, default=100)
+    parser.add_argument("--regularization", type=float, default=0.01)
+    parser.add_argument("--iterations", type=int, default=15)
+    parser.add_argument("--use_gpu", action="store_true")
+    parser.add_argument("--calculate_training_loss", action="store_true")
+    parser.add_argument("--test", action="store_true")
+    return parser.parse_args()
+
+
 def save_command_to_file(save_path):
     os.makedirs(save_path, exist_ok=True)
 
