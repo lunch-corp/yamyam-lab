@@ -44,7 +44,7 @@ def main(cfg: DictConfig):
         X_train["target"] = y_train
         train_liked_items = (
             X_train[X_train["target"] == 1]
-            .groupby("re viewer_id")["diner_idx"]
+            .groupby("reviewer_id")["diner_idx"]
             .apply(np.array)
         )
 
