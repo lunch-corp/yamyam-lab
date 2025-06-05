@@ -62,7 +62,7 @@ def setup_ranker_config(request):
         "data": {
             "test_size": 0.3,
             "min_reviews": 3,
-            "num_neg_samples": 0,
+            "num_neg_samples": 10,
             "category_column_for_meta": "diner_category_large",
             "user_engineered_feature_names": {
                 "categorical_feature_count": {
