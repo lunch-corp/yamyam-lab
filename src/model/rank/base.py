@@ -31,6 +31,8 @@ class BaseModel(ABC):
         num_boost_round: int,
         verbose_eval: int,
         seed: int,
+        recommend_batch_size: int,
+        features: list[str],
     ) -> None:
         self.model_path = model_path
         self.results = results
@@ -40,6 +42,8 @@ class BaseModel(ABC):
         self.verbose_eval = verbose_eval
         self.seed = seed
         self.model = None
+        self.recommend_batch_size = recommend_batch_size
+        self.features = features
 
     @abstractmethod
     def save_model(self: Self) -> None:
@@ -104,3 +108,31 @@ class BaseModel(ABC):
         self.result = ModelResult(oof_preds=oof_preds, models=models)
 
         return self
+
+    def calculate_rank(self: Self, candidates: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate rank for candidates.
+
+        Args:
+            candidates (pd.DataFrame): Candidates to calculate rank.
+
+        Returns:
+            pd.DataFrame: Candidates with rank.
+        """
+        predictions = np.zeros(len(candidates))
+
+        num_batches = (
+            len(candidates) + self.recommend_batch_size - 1
+        ) // self.recommend_batch_size
+        for i in tqdm(range(num_batches)):
+            start_idx = i * self.recommend_batch_size
+            end_idx = min((i + 1) * self.recommend_batch_size, len(candidates))
+            batch = candidates[self.features].iloc[start_idx:end_idx]
+            predictions[start_idx:end_idx] = self.predict(batch)
+
+        candidates["pred_score"] = predictions
+        candidates = candidates.sort_values(
+            by=["reviewer_id", "pred_score"], ascending=[True, False]
+        )
+
+        return candidates

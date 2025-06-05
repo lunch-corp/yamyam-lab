@@ -11,7 +11,7 @@ import pandas as pd
 import seaborn as sns
 import xgboost as xgb
 from catboost import CatBoostRanker, Pool
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from model.rank.base import BaseModel
 
@@ -26,6 +26,7 @@ class LightGBMTrainer(BaseModel):
         num_boost_round: int,
         verbose_eval: int,
         seed: int,
+        recommend_batch_size: int,
         features: list[str],
         cat_features: list[str],
     ) -> None:
@@ -37,8 +38,9 @@ class LightGBMTrainer(BaseModel):
             num_boost_round,
             verbose_eval,
             seed,
+            recommend_batch_size,
+            features,
         )
-        self.features = features
         self.cat_features = cat_features
 
     def _get_groups(self: Self, X_train: pd.DataFrame | np.ndarray) -> np.ndarray:
@@ -111,8 +113,31 @@ class LightGBMTrainer(BaseModel):
 
 
 class XGBoostTrainer(BaseModel):
-    def __init__(self, cfg: DictConfig) -> None:
-        super().__init__(cfg)
+    def __init__(
+        self,
+        model_path: str,
+        results: str,
+        params: dict[str, Any],
+        early_stopping_rounds: int,
+        num_boost_round: int,
+        verbose_eval: int,
+        seed: int,
+        recommend_batch_size: int,
+        features: list[str],
+        cat_features: list[str],
+    ) -> None:
+        super().__init__(
+            model_path,
+            results,
+            params,
+            early_stopping_rounds,
+            num_boost_round,
+            verbose_eval,
+            seed,
+            recommend_batch_size,
+            features,
+        )
+        self.cat_features = cat_features
 
     def _get_groups(self: Self, X_train: pd.DataFrame | np.ndarray) -> np.ndarray:
         return X_train.groupby("reviewer_id").size().to_numpy()
@@ -178,6 +203,8 @@ class CatBoostTrainer(BaseModel):
         num_boost_round: int,
         verbose_eval: int,
         seed: int,
+        recommend_batch_size: int,
+        features: list[str],
         cat_features: list[str],
     ) -> None:
         super().__init__(
@@ -188,6 +215,8 @@ class CatBoostTrainer(BaseModel):
             num_boost_round,
             verbose_eval,
             seed,
+            recommend_batch_size,
+            features,
         )
         self.cat_features = cat_features
 
