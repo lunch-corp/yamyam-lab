@@ -433,14 +433,6 @@ class DatasetLoader:
                 random_state=self.random_state,
             )
 
-            val_warm_start_user = self.create_target_column(val_warm_start_user)
-            val_warm_start_user = self._apply_negative_sampling_if_needed(
-                df=val_warm_start_user[val_warm_start_user["target"] == 1],
-                sampling_type=self.sampling_type,
-                num_neg_samples=self.num_neg_samples,
-                random_state=self.random_state,
-            )
-
             val = self.create_target_column(val)
             val = self._apply_negative_sampling_if_needed(
                 df=val[val["target"] == 1],
@@ -448,14 +440,8 @@ class DatasetLoader:
                 num_neg_samples=self.num_neg_samples,
                 random_state=self.random_state,
             )
-
+            val_warm_start_user = self.create_target_column(val_warm_start_user)
             val_cold_start_user = self.create_target_column(val_cold_start_user)
-            val_cold_start_user = self._apply_negative_sampling_if_needed(
-                df=val_cold_start_user[val_cold_start_user["target"] == 1],
-                sampling_type=self.sampling_type,
-                num_neg_samples=self.num_neg_samples,
-                random_state=self.random_state,
-            )
 
             test = self.create_target_column(test)
             test_cold_start_user = self.create_target_column(test_cold_start_user)
@@ -692,16 +678,24 @@ class DatasetLoader:
                 available_diners = list(set(candidate_pool) - user_diners)
 
                 if sampling_type == "popularity":
-                    # Calculate probabilities for available diners
+                    # Get popularity scores for available diners
                     available_probs = diner_popularity[available_diners]
-                    available_probs = available_probs / available_probs.sum()
 
-                    # Sample based on popularity
+                    # Sort diners by popularity and get top 20% most popular diners
+                    sorted_diners = sorted(
+                        zip(available_diners, available_probs),
+                        key=lambda x: x[1],
+                        reverse=True,
+                    )
+
+                    top_n = int(len(sorted_diners) * 0.5)
+                    popular_diners = [d[0] for d in sorted_diners[:top_n]]
+
+                    # Randomly sample from popular diners
                     sampled_diners = np.random.choice(
-                        available_diners,
+                        popular_diners,
                         size=num_neg_samples,
-                        p=available_probs,
-                        replace=len(available_diners) < num_neg_samples,
+                        replace=len(popular_diners) < num_neg_samples,
                     )
 
                 elif sampling_type == "random":
