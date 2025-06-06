@@ -4,7 +4,7 @@ from typing import Any, List
 import torch
 from numpy.typing import NDArray
 
-from evaluation.metric_calculator.base_metric_calculator import BaseMetricCalculator
+from evaluation.metric_calculator import BaseMetricCalculator
 from model.mf.svd_bias import Model
 
 

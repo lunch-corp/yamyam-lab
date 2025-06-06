@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from torch import Tensor
+from tqdm import tqdm
 
 from constant.metric.metric import Metric
 from evaluation.metric import fully_vectorized_ranking_metrics_at_k
@@ -169,8 +170,6 @@ class BaseMetricCalculator:
             for k in self.top_k_values
         }
 
-        start = 0
-
         self.train_liked_series = X_train.groupby("reviewer_id")["diner_idx"].apply(
             np.array
         )
@@ -195,7 +194,7 @@ class BaseMetricCalculator:
             .to_dict()
         )
 
-        for count, user_ids in liked_items_count2user_ids.items():
+        for _, user_ids in tqdm(liked_items_count2user_ids.items(), leave=False):
             for start in range(0, len(user_ids), self.recommend_batch_size):
                 batch_users = user_ids[start : start + self.recommend_batch_size]
 
@@ -203,7 +202,6 @@ class BaseMetricCalculator:
                     user_ids=batch_users,
                     **kwargs,
                 )
-
                 # batch_users_np = batch_users.detach().cpu().numpy()
                 liked_items_by_batch_users = np.vstack(
                     self.val_liked[lambda x: x["reviewer_id"].isin(batch_users)][
@@ -254,6 +252,7 @@ class BaseMetricCalculator:
 
         if X_val_cold_users.shape[0] == 0:
             return metric_at_k
+
         val_liked_cold_users = (
             X_val_cold_users.groupby("reviewer_id")["diner_idx"]
             .apply(np.array)
@@ -268,7 +267,7 @@ class BaseMetricCalculator:
             .to_dict()
         )
 
-        for count, user_ids in liked_items_count2user_ids.items():
+        for _, user_ids in tqdm(liked_items_count2user_ids.items(), leave=False):
             for start in range(0, len(user_ids), self.recommend_batch_size):
                 batch_users = user_ids[start : start + self.recommend_batch_size]
                 most_popular_reco_items = np.tile(

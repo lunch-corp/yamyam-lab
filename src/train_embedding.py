@@ -11,9 +11,7 @@ import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
 from data.dataset import DataConfig, DatasetLoader
-from evaluation.metric_calculator.embedding_metric_calculator import (
-    EmbeddingMetricCalculator,
-)
+from evaluation.metric_calculator import EmbeddingMetricCalculator
 from preprocess.preprocess import prepare_networkx_undirected_graph
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager

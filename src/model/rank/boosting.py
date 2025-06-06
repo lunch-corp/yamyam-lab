@@ -11,7 +11,7 @@ import pandas as pd
 import seaborn as sns
 import xgboost as xgb
 from catboost import CatBoostRanker, Pool
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from model.rank.base import BaseModel
 
@@ -28,6 +28,7 @@ class LightGBMTrainer(BaseModel):
         seed: int,
         features: list[str],
         cat_features: list[str],
+        recommend_batch_size: int = 1000,
     ) -> None:
         super().__init__(
             model_path,
@@ -37,8 +38,9 @@ class LightGBMTrainer(BaseModel):
             num_boost_round,
             verbose_eval,
             seed,
+            features,
+            recommend_batch_size,
         )
-        self.features = features
         self.cat_features = cat_features
 
     def _get_groups(self: Self, X_train: pd.DataFrame | np.ndarray) -> np.ndarray:
@@ -105,14 +107,42 @@ class LightGBMTrainer(BaseModel):
         return lgb.Booster(model_file=Path(self.model_path) / f"{self.results}.model")
 
     def plot_feature_importance(self: Self) -> None:
+        importance = self.model.feature_importance(importance_type="gain")
+        if sum(importance) == 0:
+            # Test code passed
+            return
+
         _, ax = plt.subplots(figsize=(15, 10))
         lgb.plot_importance(self.model, ax=ax)
         plt.savefig(Path(self.model_path) / f"{self.results}_feature_importance.png")
 
 
 class XGBoostTrainer(BaseModel):
-    def __init__(self, cfg: DictConfig) -> None:
-        super().__init__(cfg)
+    def __init__(
+        self,
+        model_path: str,
+        results: str,
+        params: dict[str, Any],
+        early_stopping_rounds: int,
+        num_boost_round: int,
+        verbose_eval: int,
+        seed: int,
+        features: list[str],
+        cat_features: list[str],
+        recommend_batch_size: int = 1000,
+    ) -> None:
+        super().__init__(
+            model_path,
+            results,
+            params,
+            early_stopping_rounds,
+            num_boost_round,
+            verbose_eval,
+            seed,
+            features,
+            recommend_batch_size,
+        )
+        self.cat_features = cat_features
 
     def _get_groups(self: Self, X_train: pd.DataFrame | np.ndarray) -> np.ndarray:
         return X_train.groupby("reviewer_id").size().to_numpy()
@@ -163,6 +193,11 @@ class XGBoostTrainer(BaseModel):
         return xgb.Booster(model_file=Path(self.model_path) / f"{self.results}.json")
 
     def plot_feature_importance(self: Self) -> None:
+        importance = self.model.get_feature_importance(importance_type="gain")
+        if sum(importance) == 0:
+            # Test code passed
+            return
+
         fig, ax = plt.subplots(figsize=(15, 10))
         xgb.plot_importance(self.model, ax=ax)
         plt.savefig(Path(self.model_path) / f"{self.results}_feature_importance.png")
@@ -178,7 +213,9 @@ class CatBoostTrainer(BaseModel):
         num_boost_round: int,
         verbose_eval: int,
         seed: int,
+        features: list[str],
         cat_features: list[str],
+        recommend_batch_size: int = 1000,
     ) -> None:
         super().__init__(
             model_path,
@@ -188,6 +225,8 @@ class CatBoostTrainer(BaseModel):
             num_boost_round,
             verbose_eval,
             seed,
+            features,
+            recommend_batch_size,
         )
         self.cat_features = cat_features
 
@@ -259,6 +298,10 @@ class CatBoostTrainer(BaseModel):
         importances = self.model.get_feature_importance(
             type="FeatureImportance", data=self.train_set
         )
+
+        if sum(importances) == 0:
+            # Test code passed
+            return
 
         # 중요도 데이터프레임 생성
         feature_importances = pd.DataFrame(

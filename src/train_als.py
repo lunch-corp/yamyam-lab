@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 
 from data.dataset import DataConfig, DatasetLoader
-from evaluation.metric_calculator.als_metric_calculator import ALSMetricCalculator
+from evaluation.metric_calculator import ALSMetricCalculator
 from model import ALS
 from tools.config import load_yaml
 from tools.logger import setup_logger

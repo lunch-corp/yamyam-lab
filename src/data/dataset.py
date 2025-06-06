@@ -776,6 +776,9 @@ class DatasetLoader:
             "y_test_cold_start_user": test_cold_start_user["target"],
             "X_test_warm_start_user": test_warm_start_user.drop(columns=["target"]),
             "y_test_warm_start_user": test_warm_start_user["target"],
+            "most_popular_diner_ids": self.get_most_popular_diner_ids(
+                train_review=train
+            ),
             **mapped_res,
         }
 

@@ -29,16 +29,14 @@ params:
   boosting_type: gbdt
   metric: ndcg
   ndcg_at:
-    - 3
-    - 7
-    - 10
     - 20
   bagging_freq: 5
   bagging_fraction: 0.8
-  feature_fraction: 0.8
+  feature_fraction: 0.9
   learning_rate: 0.05
-  max_depth: -1
-  num_leaves: 16
+  max_depth: 6
+  num_leaves: 31
+  min_data_in_leaf: 20
   verbose: -1
   n_jobs: -1
 
