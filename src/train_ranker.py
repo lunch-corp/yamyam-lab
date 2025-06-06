@@ -36,6 +36,7 @@ def main(cfg: DictConfig):
     # save model
     trainer.save_model()
 
+    # plot feature importance
     trainer.plot_feature_importance()
 
     # train liked items

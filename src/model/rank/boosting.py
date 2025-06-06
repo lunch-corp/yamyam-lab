@@ -107,6 +107,11 @@ class LightGBMTrainer(BaseModel):
         return lgb.Booster(model_file=Path(self.model_path) / f"{self.results}.model")
 
     def plot_feature_importance(self: Self) -> None:
+        importance = self.model.feature_importance(importance_type="gain")
+        if sum(importance) == 0:
+            # Test code passed
+            return
+
         _, ax = plt.subplots(figsize=(15, 10))
         lgb.plot_importance(self.model, ax=ax)
         plt.savefig(Path(self.model_path) / f"{self.results}_feature_importance.png")
@@ -188,6 +193,11 @@ class XGBoostTrainer(BaseModel):
         return xgb.Booster(model_file=Path(self.model_path) / f"{self.results}.json")
 
     def plot_feature_importance(self: Self) -> None:
+        importance = self.model.get_feature_importance(importance_type="gain")
+        if sum(importance) == 0:
+            # Test code passed
+            return
+
         fig, ax = plt.subplots(figsize=(15, 10))
         xgb.plot_importance(self.model, ax=ax)
         plt.savefig(Path(self.model_path) / f"{self.results}_feature_importance.png")
@@ -288,6 +298,10 @@ class CatBoostTrainer(BaseModel):
         importances = self.model.get_feature_importance(
             type="FeatureImportance", data=self.train_set
         )
+
+        if sum(importances) == 0:
+            # Test code passed
+            return
 
         # 중요도 데이터프레임 생성
         feature_importances = pd.DataFrame(
