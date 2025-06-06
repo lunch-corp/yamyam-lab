@@ -49,6 +49,10 @@ class RankerMetricCalculator(BaseMetricCalculator):
 
         reco_items = []
         for user_id in user_ids:
+            if user_id not in user_group.groups:
+                reco_items.append(np.array([]))
+                continue
+
             user_candidates = user_group.get_group(user_id)["diner_idx"].values
 
             # 이미 좋아한 아이템 필터링

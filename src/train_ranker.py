@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 import hydra
 import numpy as np
 from hydra.utils import instantiate
@@ -31,55 +29,52 @@ def main(cfg: DictConfig):
     trainer = instantiate(
         cfg.models, recommend_batch_size=cfg.training.evaluation.recommend_batch_size
     )
-    try:
-        # train model
-        trainer.fit(X_train, y_train, X_valid, y_valid)
 
-        # save model
-        trainer.save_model()
+    # train model
+    trainer.fit(X_train, y_train, X_valid, y_valid)
 
-        trainer.plot_feature_importance()
+    # save model
+    trainer.save_model()
 
-        # train liked items
-        X_train["target"] = y_train
-        train_liked_items = (
-            X_train[X_train["target"] == 1]
-            .groupby("reviewer_id")["diner_idx"]
-            .apply(np.array)
-        )
+    trainer.plot_feature_importance()
 
-        # candidate predictions
-        candidates = trainer.calculate_rank(data["candidates"])
+    # train liked items
+    X_train["target"] = y_train
+    train_liked_items = (
+        X_train[X_train["target"] == 1]
+        .groupby("reviewer_id")["diner_idx"]
+        .apply(np.array)
+    )
 
-        # metric calculator
-        metric_calculator = RankerMetricCalculator(
-            top_k_values=cfg.training.evaluation.top_k_values_for_pred,
-            model=trainer,
-            features=cfg.models.features,
-            recommend_batch_size=cfg.training.evaluation.recommend_batch_size,
-            filter_already_liked=True,
-        )
+    # candidate predictions
+    candidates = trainer.calculate_rank(data["candidates"])
 
-        metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
-            X_train=X_train,
-            X_val_warm_users=X_test_warm_users,
-            X_val_cold_users=X_test_cold_users,
-            most_popular_diner_ids=data["most_popular_diner_ids"],
-            candidates=candidates,
-            train_liked_series=train_liked_items,
-        )
+    # metric calculator
+    metric_calculator = RankerMetricCalculator(
+        top_k_values=cfg.training.evaluation.top_k_values_for_pred,
+        model=trainer,
+        features=cfg.models.features,
+        recommend_batch_size=cfg.training.evaluation.recommend_batch_size,
+        filter_already_liked=True,
+    )
 
-        # for each user type, the metric is not yet averaged but summed, so calculate mean
-        for user_type, metric in metric_dict.items():
-            metric_calculator.calculate_mean_metric(metric)
+    metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
+        X_train=X_train,
+        X_val_warm_users=X_test_warm_users,
+        X_val_cold_users=X_test_cold_users,
+        most_popular_diner_ids=data["most_popular_diner_ids"],
+        candidates=candidates,
+        train_liked_series=train_liked_items,
+    )
 
-        # for each user type, report map, ndcg, recall
-        metric_calculator.report_metric_with_warm_cold_all_users(
-            metric_dict=metric_dict, data_type="test"
-        )
+    # for each user type, the metric is not yet averaged but summed, so calculate mean
+    for user_type, metric in metric_dict.items():
+        metric_calculator.calculate_mean_metric(metric)
 
-    except KeyError as e:
-        logging.error(e)
+    # for each user type, report map, ndcg, recall
+    metric_calculator.report_metric_with_warm_cold_all_users(
+        metric_dict=metric_dict, data_type="test"
+    )
 
 
 if __name__ == "__main__":

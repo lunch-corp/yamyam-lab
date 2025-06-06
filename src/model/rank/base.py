@@ -31,8 +31,8 @@ class BaseModel(ABC):
         num_boost_round: int,
         verbose_eval: int,
         seed: int,
-        recommend_batch_size: int,
         features: list[str],
+        recommend_batch_size: int = 1000,
     ) -> None:
         self.model_path = model_path
         self.results = results
@@ -42,8 +42,8 @@ class BaseModel(ABC):
         self.verbose_eval = verbose_eval
         self.seed = seed
         self.model = None
-        self.recommend_batch_size = recommend_batch_size
         self.features = features
+        self.recommend_batch_size = recommend_batch_size
 
     @abstractmethod
     def save_model(self: Self) -> None:

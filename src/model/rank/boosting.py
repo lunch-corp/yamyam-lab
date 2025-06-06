@@ -26,9 +26,9 @@ class LightGBMTrainer(BaseModel):
         num_boost_round: int,
         verbose_eval: int,
         seed: int,
-        recommend_batch_size: int,
         features: list[str],
         cat_features: list[str],
+        recommend_batch_size: int = 1000,
     ) -> None:
         super().__init__(
             model_path,
@@ -38,8 +38,8 @@ class LightGBMTrainer(BaseModel):
             num_boost_round,
             verbose_eval,
             seed,
-            recommend_batch_size,
             features,
+            recommend_batch_size,
         )
         self.cat_features = cat_features
 
@@ -122,9 +122,9 @@ class XGBoostTrainer(BaseModel):
         num_boost_round: int,
         verbose_eval: int,
         seed: int,
-        recommend_batch_size: int,
         features: list[str],
         cat_features: list[str],
+        recommend_batch_size: int = 1000,
     ) -> None:
         super().__init__(
             model_path,
@@ -134,8 +134,8 @@ class XGBoostTrainer(BaseModel):
             num_boost_round,
             verbose_eval,
             seed,
-            recommend_batch_size,
             features,
+            recommend_batch_size,
         )
         self.cat_features = cat_features
 
@@ -203,9 +203,9 @@ class CatBoostTrainer(BaseModel):
         num_boost_round: int,
         verbose_eval: int,
         seed: int,
-        recommend_batch_size: int,
         features: list[str],
         cat_features: list[str],
+        recommend_batch_size: int = 1000,
     ) -> None:
         super().__init__(
             model_path,
@@ -215,8 +215,8 @@ class CatBoostTrainer(BaseModel):
             num_boost_round,
             verbose_eval,
             seed,
-            recommend_batch_size,
             features,
+            recommend_batch_size,
         )
         self.cat_features = cat_features
 
