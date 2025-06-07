@@ -19,6 +19,7 @@ from preprocess.preprocess import (
     preprocess_common,
     reviewer_diner_mapping,
 )
+from tools.config import load_yaml
 from tools.google_drive import ensure_data_files
 from tools.utils import reduce_mem_usage
 
@@ -44,6 +45,7 @@ class DataConfig:
     end_time_point: str = "2024-12-31"
     is_graph_model: bool = False
     test: bool = False
+    additional_reviews_path: str = "config/data/additional_reviews.yaml"
 
     def __post_init__(self: Self):
         self.user_engineered_feature_names = self.user_engineered_feature_names or {}
@@ -104,6 +106,7 @@ class DatasetLoader:
         self.is_graph_model = self.data_config.is_graph_model
         self.category_column_for_meta = self.data_config.category_column_for_meta
         self.test = self.data_config.test
+        self.additional_reviews = load_yaml(self.data_config.additional_reviews_path)
 
         self.data_paths = ensure_data_files()
         self.candidate_paths = Path("candidates/node2vec")
@@ -184,6 +187,26 @@ class DatasetLoader:
                         raise ValueError(
                             "time point for val data should not be greater or equal than time point for test data"
                         )
+
+    def _validate_additional_reviews(
+        self, reviewer_mapping: Dict, diner_mapping: Dict
+    ) -> None:
+        """
+        Validate additional_reviews.yaml
+        1. Validate whether reviewer_id from yaml file already exists in original review dataset or not.
+        2. Validate whether diner_ids from yaml file exist in original reviewe dataset or not.
+        """
+        for member_name, info in self.additional_reviews.items():
+            if info["reviewer_id"] in reviewer_mapping:
+                raise ValueError(
+                    f"There is already reviewer_id {info['reviewer_id']}, so please use another reviewer_id."
+                )
+            reviews = info["reviews"]["train"] + info["reviews"]["test"]
+            for review in reviews:
+                if review["diner_id"] not in diner_mapping:
+                    raise ValueError(
+                        f"diner_idx {review['diner_id']} does not exist in review data, please check if you write correct diner_idx."
+                    )
 
     def load_dataset(self: Self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -395,6 +418,21 @@ class DatasetLoader:
         else:
             train, test = self.train_test_split_stratify(review)
             train, val = self.train_test_split_stratify(train)
+
+        # integrate additional reviews
+        # first validate whether additional_reviews.yaml is incorrectly written or not
+        self._validate_additional_reviews(
+            reviewer_mapping=mapped_res["user_mapping"],
+            diner_mapping=mapped_res["diner_mapping"],
+        )
+        # then, merge additional reviews into train / test dataset
+        mapped_res, train, test = (
+            self.integrate_additional_reviews_to_train_test_dataset(
+                train=train,
+                test=test,
+                mapped_res=mapped_res,
+            )
+        )
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
@@ -1082,6 +1120,102 @@ class DatasetLoader:
             shape=(num_total_users, num_total_diners),
         )
         return Cui_csr
+
+    def get_diner_ids_from_additional_reviews(self: Self):
+        """
+        Get diner_ids from additional_reviews.yaml which will be used when test mode is set as true.
+        """
+        diner_ids = []
+        for member_name, info in self.additional_reviews.items():
+            reviews = info["reviews"]["train"] + info["reviews"]["test"]
+            for review in reviews:
+                diner_ids.append(review["diner_id"])
+        return diner_ids
+
+    def integrate_additional_reviews_to_train_test_dataset(
+        self: Self,
+        train: pd.DataFrame,
+        test: pd.DataFrame,
+        mapped_res: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], pd.DataFrame, pd.DataFrame]:
+        """
+        Integrate additional reviews into split train and test dataset.
+        This method does following steps.
+            1. Generate mapping id converting original reviewer_id from additional_reviews.yaml
+            2. Using mapped reviewer_id and mapped diner_id, generate pseudo review and integrate it to train and test dataset.
+        Args:
+            train (pd.DataFrame): Original train dataset.
+            test (pd.DataFrame): Original test dataset.
+            mapped_res (Dict[str, Any]): Original mapped_res.
+        Returns (Tuple[Dict[str, Any], pd.DataFrame, pd.DataFrame]):
+            Integrated dataset with user_mapping updated.
+        """
+        max_mapped_reviewer_id = max(mapped_res["user_mapping"].values())
+        for member_name, info in self.additional_reviews.items():
+            # newly define reviewer_id and map it to original reviewer_mapping
+            max_mapped_reviewer_id += 1
+            mapped_res["user_mapping"][info["reviewer_id"]] = max_mapped_reviewer_id
+
+            # train data concatenation
+            for review in info["reviews"]["train"]:
+                # map diner_id using diner_mapping dict
+                mapped_diner_id = mapped_res["diner_mapping"][review["diner_id"]]
+                pseudo_review = self._generate_pseudo_review(
+                    diner_idx=mapped_diner_id,
+                    reviewer_id=max_mapped_reviewer_id,
+                    score=review["score"],
+                    review_text=review["review_text"],
+                )
+                train = pd.concat(
+                    [train, pd.DataFrame([pseudo_review])], ignore_index=True
+                )
+
+            # test data concatenation
+            for review in info["reviews"]["test"]:
+                # map diner_id using diner_mapping dict
+                mapped_diner_id = mapped_res["diner_mapping"][review["diner_id"]]
+                pseudo_review = self._generate_pseudo_review(
+                    diner_idx=mapped_diner_id,
+                    reviewer_id=max_mapped_reviewer_id,
+                    score=review["score"],
+                    review_text=review["review_text"],
+                )
+                test = pd.concat(
+                    [test, pd.DataFrame([pseudo_review])], ignore_index=True
+                )
+        # overwrite some values because mapping dictionary is updated
+        mapped_res["num_users"] = len(mapped_res["user_mapping"])
+        mapped_res["num_diners"] = len(mapped_res["diner_mapping"])
+        return mapped_res, train, test
+
+    def _generate_pseudo_review(
+        self: Self,
+        diner_idx: int,
+        reviewer_id: int,
+        score: float,
+        review_text: str,
+    ) -> Dict[str, Any]:
+        """
+        Generate pseudo review to include train dataset or test dataset.
+        Currently, when training models, diner_idx, reviewer_id, reviewer_review, reviewer_review_score are used.
+        Therefore, we set those values from `additional_reviews.yaml`.
+        `reviewer_review_date` is set arbitrarily because pseudo review will be included train or test manually.
+        Args:
+            diner_idx (int): Mapped diner_idx.
+            reviewer_id (int): Mapped reviewer_id.
+            score (float): Review score.
+            review_text (str): Review text.
+        Returns (Dict[str, Any]):
+            Pseudo review with dictionary.
+        """
+        return {
+            "diner_idx": diner_idx,
+            "reviewer_id": reviewer_id,
+            "review_id": -1,  # pseudo review_id
+            "reviewer_review": review_text,
+            "reviewer_review_date": "2024-12-31",  # pseudo review_date
+            "reviewer_review_score": score,
+        }
 
     @staticmethod
     def is_valid_date_format(date_string: str) -> bool:
