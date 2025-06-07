@@ -681,7 +681,7 @@ class DatasetLoader:
                     # Get popularity scores for available diners
                     available_probs = diner_popularity[available_diners]
 
-                    # Sort diners by popularity and get top 20% most popular diners
+                    # Sort diners by popularity and get top 50% most popular diners
                     sorted_diners = sorted(
                         zip(available_diners, available_probs),
                         key=lambda x: x[1],
