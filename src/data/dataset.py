@@ -107,6 +107,9 @@ class DatasetLoader:
         self.category_column_for_meta = self.data_config.category_column_for_meta
         self.test = self.data_config.test
         self.additional_reviews = load_yaml(self.data_config.additional_reviews_path)
+        self.diner_ids_from_additional_reviews = (
+            self.get_diner_ids_from_additional_reviews()
+        )
 
         self.data_paths = ensure_data_files()
         self.candidate_paths = Path("candidates/node2vec")
@@ -226,7 +229,10 @@ class DatasetLoader:
             yongsan_diners = diner[
                 diner["diner_road_address"].str.startswith("서울 용산구", na=False)
             ]["diner_idx"].unique()[:100]
-            review = review[review["diner_idx"].isin(yongsan_diners)]
+            review = review[
+                review["diner_idx"].isin(yongsan_diners)
+                | review["diner_idx"].isin(self.diner_ids_from_additional_reviews)
+            ]
 
         return review, diner, diner_with_raw_category
 
