@@ -6,8 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from embedding.base_embedding import BaseEmbedding
 from loss.custom import basic_contrastive_loss
+from model.graph.base_embedding import BaseEmbedding
 from tools.generate_walks import precompute_probabilities
 from tools.sampling import uniform_sampling_without_replacement_from_small_size_pool
 

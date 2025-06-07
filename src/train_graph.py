@@ -189,7 +189,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         # import embedding module
-        model_path = f"embedding.{args.model}"
+        model_path = f"model.graph.{args.model}"
         model_module = importlib.import_module(model_path).Model
         model = model_module(
             user_ids=torch.tensor(list(data["user_mapping"].values())).to(args.device),

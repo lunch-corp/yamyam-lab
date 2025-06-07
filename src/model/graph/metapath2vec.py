@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from embedding.base_embedding import BaseEmbedding
 from loss.custom import basic_contrastive_loss
+from model.graph.base_embedding import BaseEmbedding
 from tools.generate_walks import (
     generate_walks_metapath,
     precompute_probabilities_metapath,

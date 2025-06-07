@@ -4,8 +4,8 @@ import networkx as nx
 import torch
 from torch import Tensor
 
-from embedding.base_embedding import BaseEmbedding
 from loss.custom import basic_contrastive_loss
+from model.graph.base_embedding import BaseEmbedding
 from tools.generate_walks import precompute_probabilities
 
 

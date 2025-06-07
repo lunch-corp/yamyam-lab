@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from constant.metric.metric import Metric
-from embedding.base_embedding import BaseEmbedding
+from model.graph.base_embedding import BaseEmbedding
 
 
 class Model(BaseEmbedding):
