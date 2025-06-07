@@ -22,7 +22,7 @@ from tools.logger import setup_logger
 from tools.plot import plot_metric_at_k
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
-CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/{model}.yaml")
+CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 

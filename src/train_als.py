@@ -11,7 +11,7 @@ from tools.logger import setup_logger
 from tools.parse_args import parse_args_als, save_command_to_file
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
-CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/{model}.yaml")
+CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 
