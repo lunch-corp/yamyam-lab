@@ -161,7 +161,32 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger=logger,
         )
 
-        # calculate metric for test data with warm / cold / all users separately
+        # calculate metric for **validation data** with warm / cold / all users separately
+        # Note that, we should calculate this metric for each iteration while training als,
+        # but we could not find any methods to integrate it into implicit library,
+        # so, we report validation metric after finishing training als.
+        metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
+            X_train=data["X_train_df"],
+            X_val_warm_users=data["X_val_warm_users"],
+            X_val_cold_users=data["X_val_cold_users"],
+            most_popular_diner_ids=data["most_popular_diner_ids"],
+            filter_already_liked=True,
+            train_csr=data["X_train"],
+        )
+
+        # for each user type, the metric is not yet averaged but summed, so calculate mean
+        for user_type, metric in metric_dict.items():
+            metric_calculator.calculate_mean_metric(metric)
+
+        # for each user type, report map, ndcg, recall
+        logger.info(
+            "################################ Validation data metric report ################################"
+        )
+        metric_calculator.report_metric_with_warm_cold_all_users(
+            metric_dict=metric_dict, data_type="val"
+        )
+
+        # calculate metric for **test data** with warm / cold / all users separately
         metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
             X_train=data["X_train_df"],
             X_val_warm_users=data["X_test_warm_users"],
@@ -172,6 +197,9 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         # for each user type, the metric is not yet averaged but summed, so calculate mean
+        logger.info(
+            "################################ Test data metric report ################################"
+        )
         for user_type, metric in metric_dict.items():
             metric_calculator.calculate_mean_metric(metric)
 
