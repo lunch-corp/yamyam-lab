@@ -70,10 +70,10 @@ def _main(cfg: DictConfig):
         user_lat, user_lon, test["diner_lat"], test["diner_lon"]
     )
     test = test.loc[test["distance"] <= cfg.distance_threshold]
-    X_test = test[cfg.models.features]
+    X_test = test[cfg.models.ranker.features]
 
     # load model
-    trainer = instantiate(cfg.models)
+    trainer = instantiate(cfg.models.ranker)
     predictions = trainer.predict(X_test)
 
     test["prediction"] = predictions
