@@ -18,7 +18,7 @@ hydra:
 defaults:
   - _self_
   - data: dataset
-  - models: lightgbm
+  - models/ranker: lightgbm
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 

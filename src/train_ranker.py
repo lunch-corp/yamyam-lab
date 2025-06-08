@@ -27,7 +27,8 @@ def main(cfg: DictConfig):
 
     # build model
     trainer = instantiate(
-        cfg.models, recommend_batch_size=cfg.training.evaluation.recommend_batch_size
+        cfg.models.ranker,
+        recommend_batch_size=cfg.training.evaluation.recommend_batch_size,
     )
 
     # train model
@@ -54,7 +55,7 @@ def main(cfg: DictConfig):
     metric_calculator = RankerMetricCalculator(
         top_k_values=cfg.training.evaluation.top_k_values_for_pred,
         model=trainer,
-        features=cfg.models.features,
+        features=cfg.models.ranker.features,
         recommend_batch_size=cfg.training.evaluation.recommend_batch_size,
         filter_already_liked=True,
     )
