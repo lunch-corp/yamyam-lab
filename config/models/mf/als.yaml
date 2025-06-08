@@ -31,3 +31,6 @@ post_training:
     data_object: data_object.pkl
     user_mapping: user_mapping.pkl
     diner_mapping: diner_mapping.pkl
+    candidate: candidate.parquet
+  candidate_generation:
+    top_k: 100

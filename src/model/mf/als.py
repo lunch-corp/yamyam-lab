@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import numpy as np
+import pandas as pd
 from implicit.als import AlternatingLeastSquares
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
@@ -15,9 +16,11 @@ class ALS:
         iterations: int = 15,
         use_gpu: bool = False,
         calculate_training_loss: bool = True,
+        recommend_batch_size: int = 2000,
     ) -> None:
         """
         Wrapper for the implicit ALS recommendation model using default parameter values from implicit library.
+
         Args:
             alpha (float): Confidence level when defining C_{ui} = 1 + alpha * r_{ui}
             factors (int): Dimension of user/item embedding vector.
@@ -36,6 +39,7 @@ class ALS:
             use_gpu=use_gpu,
             calculate_training_loss=calculate_training_loss,
         )
+        self.recommend_batch_size = recommend_batch_size
         # Attributes to be populated after fitting
         self.user_cat = None
         self.item_cat = None
@@ -46,6 +50,7 @@ class ALS:
     def fit(self, train_Cui_csr: csr_matrix) -> None:
         """
         Train the ALS model on csr converted review data.
+
         Args:
             train_Cui_csr (csr_matrix): Csr matrix using train dataset.
         """
@@ -69,10 +74,14 @@ class ALS:
     ) -> Tuple[NDArray, NDArray]:
         """
         Generate recommendation using method implemented in implicit library.
+
         Args:
             user_ids (NDArray): List of user_ids to generate recommendations.
             train_csr (csr_matrix): Training csr matrix to filter already liked items.
             filter_already_liked (bool): If set True, do not recommend items already liked in train dataset.
+
+        Returns (Tuple[NDArray, NDArray]):
+            Tuple of top_k_ids and top_k_values in numpy array.
         """
         return self.model.recommend(
             userid=user_ids,
@@ -81,11 +90,55 @@ class ALS:
             N=topk,
         )
 
+    def generate_candidates_for_each_user(
+        self, top_k_value: int, train_csr: csr_matrix, filter_already_liked: bool = True
+    ) -> pd.DataFrame:
+        """
+        Generate top_k candidates for all users.
+
+        Args:
+            top_k_value (int): Top k value which is number of candidates to be passed to ranker model.
+            train_csr (csr_matrix): Train csr_matrix which will be used when filtering already liked items.
+            filter_already_liked (bool): Whether filtering already liked item in train dataset or not.
+
+        Returns (pd.DataFrame):
+            Dataframe containing user_id, diner_id, associated score between user_id and diner_id.
+        """
+        num_users, D = self.model.user_factors.shape
+        all_user_ids = np.arange(num_users)
+        res = np.empty((0, 3))  # user_id, diner_id, score -> total 3 columns
+        for start in range(0, num_users, self.recommend_batch_size):
+            user_ids = all_user_ids[start : start + self.recommend_batch_size]
+
+            top_k_ids, top_k_values = self.recommend(
+                user_ids=user_ids,
+                train_csr=train_csr[user_ids],
+                filter_already_liked=filter_already_liked,
+                topk=top_k_value,
+            )
+
+            candi = np.concatenate(
+                (
+                    np.repeat(user_ids, top_k_value).reshape(-1, 1),
+                    top_k_ids.reshape(-1, 1),
+                    top_k_values.reshape(-1, 1),
+                ),
+                axis=1,
+            )
+
+            res = np.concatenate((res, candi), axis=0)
+
+        dtypes = {"user_id": np.int64, "diner_id": np.int64, "score": np.float64}
+        res = pd.DataFrame(res, columns=list(dtypes.keys())).astype(dtypes)
+        return res
+
     def predict_user_scores(self, user_index: int) -> NDArray:
         """
         Compute predicted scores for all items for a given user.
+
         Args:
             user_index (int): Internal user index (0-based).
+
         Returns (np.ndarray):
             Array of predicted scores with shape (num_items,).
         """
@@ -97,9 +150,11 @@ class ALS:
     def recommend_for_user(self, user_id, N: int = 10) -> List[int]:
         """
         Generate top-N item recommendations for a given raw user ID.
+
         Args:
             user_id (int): Raw user ID
             N (int): Number of items to recommend.
+
         Returns (List[int]):
             List of recommended raw item IDs.
         """

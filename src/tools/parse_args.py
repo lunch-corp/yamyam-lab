@@ -97,6 +97,10 @@ def parse_args_als():
     parser.add_argument("--use_gpu", action="store_true")
     parser.add_argument("--calculate_training_loss", action="store_true")
     parser.add_argument("--test", action="store_true")
+
+    # candidate generation parameter for two-stage reco
+    parser.add_argument("--save_candidate", action="store_true", required=False)
+    parser.add_argument("--reusable_token_path", type=str, required=False)
     return parser.parse_args()
 
 
