@@ -51,6 +51,7 @@ def setup_als_config():
     args.use_gpu = False
     args.calculate_training_loss = True
     args.test = True
+    args.save_candidate = False
     return args
 
 
