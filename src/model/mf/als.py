@@ -111,9 +111,6 @@ class ALS:
         res = np.empty((0, 3))  # user_id, diner_id, score -> total 3 columns
         num_diners = len(self.diner_mapping)
 
-        # Create reverse mapping
-        diner_mapping_reverse = {v: k for k, v in self.diner_mapping.items()}
-
         for start in range(0, num_users, self.recommend_batch_size):
             user_ids = all_user_ids[start : start + self.recommend_batch_size]
 
@@ -124,12 +121,10 @@ class ALS:
                 topk=top_k_value,
             )
 
-            # Map diner IDs back to original IDs using vectorized operation
-            top_k_ids_original = np.vectorize(diner_mapping_reverse.get)(top_k_ids)
             candi = np.concatenate(
                 (
                     np.repeat(user_ids + num_diners, top_k_value).reshape(-1, 1),
-                    top_k_ids_original.reshape(-1, 1),
+                    top_k_ids.reshape(-1, 1),
                     top_k_values.reshape(-1, 1),
                 ),
                 axis=1,
