@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -15,6 +15,7 @@ class ALS:
         regularization: float = 0.01,
         iterations: int = 15,
         use_gpu: bool = False,
+        diner_mapping: Dict[str, Any] = None,
         calculate_training_loss: bool = True,
         recommend_batch_size: int = 2000,
     ) -> None:
@@ -40,6 +41,7 @@ class ALS:
             calculate_training_loss=calculate_training_loss,
         )
         self.recommend_batch_size = recommend_batch_size
+        self.diner_mapping = diner_mapping
         # Attributes to be populated after fitting
         self.user_cat = None
         self.item_cat = None
@@ -107,6 +109,11 @@ class ALS:
         num_users, D = self.model.user_factors.shape
         all_user_ids = np.arange(num_users)
         res = np.empty((0, 3))  # user_id, diner_id, score -> total 3 columns
+        num_diners = len(self.diner_mapping)
+
+        # Create reverse mapping
+        diner_mapping_reverse = {v: k for k, v in self.diner_mapping.items()}
+
         for start in range(0, num_users, self.recommend_batch_size):
             user_ids = all_user_ids[start : start + self.recommend_batch_size]
 
@@ -117,10 +124,12 @@ class ALS:
                 topk=top_k_value,
             )
 
+            # Map diner IDs back to original IDs using vectorized operation
+            top_k_ids_original = np.vectorize(diner_mapping_reverse.get)(top_k_ids)
             candi = np.concatenate(
                 (
-                    np.repeat(user_ids, top_k_value).reshape(-1, 1),
-                    top_k_ids.reshape(-1, 1),
+                    np.repeat(user_ids + num_diners, top_k_value).reshape(-1, 1),
+                    top_k_ids_original.reshape(-1, 1),
                     top_k_values.reshape(-1, 1),
                 ),
                 axis=1,

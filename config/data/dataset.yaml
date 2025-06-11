@@ -24,3 +24,4 @@ train_time_point: "2024-09-01"
 val_time_point: "2024-12-01"
 test_time_point: "2025-01-01"
 end_time_point: "2025-02-01"
+candidate_type: als

@@ -44,6 +44,7 @@ class DataConfig:
     end_time_point: str = "2024-12-31"
     is_graph_model: bool = False
     test: bool = False
+    candidate_type: str = "node2vec"
 
     def __post_init__(self: Self):
         self.user_engineered_feature_names = self.user_engineered_feature_names or {}
@@ -106,7 +107,7 @@ class DatasetLoader:
         self.test = self.data_config.test
 
         self.data_paths = ensure_data_files()
-        self.candidate_paths = Path("candidates/node2vec")
+        self.candidate_paths = Path(f"candidates/{self.data_config.candidate_type}")
 
         self._validate_input_params()
 
@@ -904,6 +905,11 @@ class DatasetLoader:
         # 매핑 로드 및 검증
         user_mapping = pd.read_pickle(self.candidate_paths / "user_mapping.pkl")
         diner_mapping = pd.read_pickle(self.candidate_paths / "diner_mapping.pkl")
+        user_mapping = (
+            {k: v + len(diner_mapping) for k, v in user_mapping.items()}
+            if self.data_config.candidate_type == "als"
+            else user_mapping
+        )
 
         candidate_user_mapping = {
             k: v for k, v in user_mapping.items() if v in candidate["user_id"]

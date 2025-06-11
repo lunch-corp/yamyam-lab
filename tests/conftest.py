@@ -86,6 +86,7 @@ def setup_ranker_config(request):
             "val_time_point": "2024-12-01",
             "test_time_point": "2025-01-01",
             "end_time_point": "2025-02-01",
+            "candidate_type": "node2vec",
         },
         "models": {
             "ranker": {

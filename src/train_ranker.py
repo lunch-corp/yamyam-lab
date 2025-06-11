@@ -59,7 +59,6 @@ def main(cfg: DictConfig):
         recommend_batch_size=cfg.training.evaluation.recommend_batch_size,
         filter_already_liked=True,
     )
-
     metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
         X_train=X_train,
         X_val_warm_users=X_test_warm_users,
