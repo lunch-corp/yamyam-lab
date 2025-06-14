@@ -151,6 +151,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             regularization=args.regularization,
             iterations=args.iterations,
             use_gpu=args.use_gpu,
+            diner_mapping=data["diner_mapping"],
             calculate_training_loss=args.calculate_training_loss,
         )
         model.fit(data["X_train"])
