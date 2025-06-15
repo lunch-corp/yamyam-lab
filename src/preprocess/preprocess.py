@@ -354,12 +354,20 @@ def prepare_networkx_undirected_graph(
 
     # Add user-diner edges
     edges.extend(
-        (d.item(), r.item(), {"weight": w.item()} if weighted else {})
-        for (d, r), w in zip(X_train, y_train)
+        (
+            diner_id.item(),
+            reviewer_id.item(),
+            {"weight": rating.item()} if weighted else {},
+        )
+        for (diner_id, reviewer_id), rating in zip(X_train, y_train)
     )
     edges.extend(
-        (d.item(), r.item(), {"weight": w.item()} if weighted else {})
-        for (d, r), w in zip(X_val, y_val)
+        (
+            diner_id.item(),
+            reviewer_id.item(),
+            {"weight": rating.item()} if weighted else {},
+        )
+        for (diner_id, reviewer_id), rating in zip(X_val, y_val)
     )
 
     # Add metadata edges if needed
