@@ -195,7 +195,7 @@ def map_id_to_ascending_integer(
     id_column: str,
     data: pd.DataFrame,
     start_number: int = 0,
-    unique_ids: List[int] = None,
+    unique_ids: List[int] | None = None,
 ) -> Tuple[Dict[int, int], pd.DataFrame]:
     """
     Maps primary key into ascending integer.
@@ -220,9 +220,11 @@ def map_id_to_ascending_integer(
         Mapping dictionary and converted dataframe.
     """
     if unique_ids is None:
-        unique_ids = sorted(list(data[id_column].unique()))
+        unique_ids = sorted(data[id_column].dropna().unique().tolist())
+
     mapping_info = {id_: i + start_number for i, id_ in enumerate(unique_ids)}
     data[id_column] = data[id_column].map(mapping_info)
+
     return mapping_info, data
 
 
@@ -321,7 +323,6 @@ def prepare_networkx_undirected_graph(
     Metadata could be integrated into nx.Graph depending on the argument.
 
     There are two types of graphs when integrating metadata nodes to model.
-
         - Directed graph between user and diner.
             - When weighted equals true, rating that user gave to diner is set as weight.
         - Directed graph between diner and metadata.
@@ -348,42 +349,46 @@ def prepare_networkx_undirected_graph(
     train_graph = nx.Graph()
     val_graph = nx.Graph()
 
-    # add edge between user and diner
-    for (diner_id, reviewer_id), rating in zip(X_train, y_train):
-        if weighted is True:
-            train_graph.add_edge(
-                diner_id.item(), reviewer_id.item(), weight=rating.item()
-            )
-        else:
-            train_graph.add_edge(diner_id.item(), reviewer_id.item())
+    # Prepare all edges at once
+    edges = []
 
-    for (diner_id, reviewer_id), rating in zip(X_val, y_val):
-        if weighted is True:
-            val_graph.add_edge(
-                diner_id.item(), reviewer_id.item(), weight=rating.item()
-            )
-        else:
-            val_graph.add_edge(diner_id.item(), reviewer_id.item())
+    # Add user-diner edges
+    edges.extend(
+        (d.item(), r.item(), {"weight": w.item()} if weighted else {})
+        for (d, r), w in zip(X_train, y_train)
+    )
+    edges.extend(
+        (d.item(), r.item(), {"weight": w.item()} if weighted else {})
+        for (d, r), w in zip(X_val, y_val)
+    )
 
-    # add edge between diner and metadata
+    # Add metadata edges if needed
     if use_metadata:
-        for i, row in diner.iterrows():
-            diner_idx = row["diner_idx"]
-            metadata_id = row["metadata_id"]
-            train_graph.add_edge(diner_idx, metadata_id)
-            val_graph.add_edge(diner_idx, metadata_id)
-            for meta in row["metadata_id_neighbors"]:
-                train_graph.add_edge(diner_idx, meta)
-                val_graph.add_edge(diner_idx, meta)
+        edges.extend(
+            edge
+            for _, row in diner.iterrows()
+            for edge in [
+                (row["diner_idx"], row["metadata_id"], {}),
+                *(
+                    (row["diner_idx"], meta, {})
+                    for meta in row["metadata_id_neighbors"]
+                ),
+            ]
+        )
 
+    # Add all edges to both graphs at once
+    train_graph.add_edges_from(edges)
+    val_graph.add_edges_from(edges)
+
+    # Add node attributes if needed
     if use_metadata:
-        # add node and node attribute (user / diner / meta) to networkx graph
-        nodes_metadata = {
-            **{user_id: {"meta": "user"} for _, user_id in user_mapping.items()},
-            **{diner_id: {"meta": "diner"} for _, diner_id in diner_mapping.items()},
-            **{meta_id: {"meta": "category"} for _, meta_id in meta_mapping.items()},
+        node_metadata = {
+            **{uid: {"meta": "user"} for uid in user_mapping.values()},
+            **{did: {"meta": "diner"} for did in diner_mapping.values()},
+            **{mid: {"meta": "category"} for mid in meta_mapping.values()},
         }
-        nx.set_node_attributes(train_graph, nodes_metadata)
-        nx.set_node_attributes(val_graph, nodes_metadata)
+
+        nx.set_node_attributes(train_graph, node_metadata)
+        nx.set_node_attributes(val_graph, node_metadata)
 
     return train_graph, val_graph
