@@ -70,25 +70,14 @@ $ poetry lock
 
 ---
 
-## Load Data using `google_drive.py`
+## How to load review data using `google_drive.py`
 
 To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`, follow below guideline.
 
 1. File config:
-   - Environment Variables (.env File)
-      Create a .env file in the root directory of the project. This file stores Google Drive file IDs and their respective local file paths. Add the following content to the .env file:
+   - Ensure that `DATA_FOLDER_ID` is defined in `.env` file. Currently, `DATA_FOLDER_ID` indicates google drive folder id where above 4 csv dataset are stored.
       ```dotenv
       DATA_FOLDER_ID=${DATA_FOLDER_ID}
-      ```
-
-   - YAML Configuration File
-      Ensure the config/data/google_drive.yaml file is properly set up. Example content:
-      ```yaml
-      local_paths:
-         diner: "data/diner.csv"
-         review: "data/review.csv"
-         reviewer: "data/reviewer.csv"
-         category: "data/diner_raw_category.csv"
       ```
    - The key values in the ``.env`` file will be removed from the README when shared publicly.
 
@@ -96,6 +85,9 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
    Use the following Python code to ensure the data files are available and load them into Pandas DataFrames:
 
    ```python
+   import sys
+   sys.path.appehd("/PATH/TO/YAMYAM_ROOT/src") # you may add this line to add PYTHONPATH
+
    from tools.google_drive import ensure_data_files
    import pandas as pd
 
@@ -108,6 +100,9 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
 
    # Merge review and reviewer data
    review = pd.merge(review, pd.read_csv(data_paths["reviewer"]), on="reviewer_id", how="left")
+
+   # print loaded review data
+   print(review.shape) # (2287474, 12)
    ```
 
 3. Data Description:
