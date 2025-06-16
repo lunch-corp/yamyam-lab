@@ -112,15 +112,18 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
 
 ## Implemented models
 
-| Type                 | Algorithm       |
-|----------------------|-----------------|
-| Candidate generation | node2vec        |
-| Candidate generation | metapath2vec    |
-| Candidate generation | graphsage       |
-| Reranker             | lightgbm ranker |
-| Reranker             | xgboost ranker  |
+| Type                 | Algorithm       | Main script to run        |
+|----------------------|-----------------|---------------------------|
+| Baseline model       | Most Popular    | src/train_most_popular.py |
+| Baseline model       | ALS             | src/train_als.py          |
+| Baseline model       | SVD_Bias        | src/train_torch.py        |
+| Candidate generation | node2vec        | src/train_graph.py        |
+| Candidate generation | metapath2vec    | src/train_graph.py        |
+| Candidate generation | graphsage       | src/train_graph.py        |
+| Reranker             | lightgbm ranker | src/train_ranker.py       |
+| Reranker             | xgboost ranker  | src/train_ranker.py       |
 
-We are planning to generate candidate diners of each user using `candidate generation model` and rerank them using `reranker model`.
+We are planning to generate candidate diners of each user using `candidate generation model` and rerank them using `reranker model`. Also, we will compare two-stage model results with baseline models.
 
 
 ---
