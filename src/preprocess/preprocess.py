@@ -391,9 +391,9 @@ def prepare_networkx_undirected_graph(
     # Add node attributes if needed
     if use_metadata:
         nodes_metadata = {
-            **{uid: {"meta": "user"} for uid in user_mapping.values()},
-            **{did: {"meta": "diner"} for did in diner_mapping.values()},
-            **{mid: {"meta": "category"} for mid in meta_mapping.values()},
+            **{user_id: {"meta": "user"} for user_id in user_mapping.values()},
+            **{diner_id: {"meta": "diner"} for diner_id in diner_mapping.values()},
+            **{meta_id: {"meta": "category"} for meta_id in meta_mapping.values()},
         }
 
         nx.set_node_attributes(train_graph, nodes_metadata)
