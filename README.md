@@ -141,31 +141,7 @@ We evaluate model results in two aspects.
 
 For detail description of each metric, please refer to [discussion](https://github.com/LearningnRunning/yamyam-lab/discussions/74).
 
-### Candidate generation performance results
-
-| Algorithm    | Task                   | recall@100 | recall@300 | recall@500 | recall@1000 | recall@2000 |
-|--------------|------------------------|------------|------------|------------|-------------|-------------|
-| node2vec     | Unsupervised  learning | 0.04196    | 0.07299    | 0.09293    | 0.12739     | 0.17507     |
-| metapath2vec | Unsupervised  learning | 0.0022     | 0.00643    | 0.01028    | 0.02021     | 0.03936     |
-| graphsage    | Unsupervised  learning | 0.0013     | 0.00407    | 0.00679    | 0.01342     | 0.02551     |
-
-### Ranking performance results with single step
-
-| Algorithm       | Task                  | mAP@3     | mAP@7     | mAP@10    | mAP@20     | NDCG@3  | NDCG@7  | NDCG@10 | NDCG@20   |
-|-----------------|-----------------------|-----------|-----------|-----------|------------|---------|---------|---------|-----------|
-| SVD             | Regression            | 0.00001   | 0.00002   | 0.00002   | 0.00003    | 0.00002 | 0.00003 | 0.00004 | 0.00007   |
-| node2vec        | Unsupervised learning | 0.00361   | 0.00445   | 0.00475   | 0.00523    | 0.00619 | 0.00738 | 0.00814 | 0.00989   |
-| metapath2vec    | Unsupervised learning | 0.00004   | 0.00006   | 0.00007   | 0.00008    | 0.00008 | 0.00012 | 0.00015 | 0.00021   |
-| graphsage       | Unsupervised learning | 0.00002   | 0.00004   | 0.00004   | 0.00005    | 0.00009 | 0.00012 | 0.00014 | 0.00018   |
-
-
-### Ranking performance results with two step
-
-| Candidate model | number of candidates | Reranking model | Task | mAP@3        | mAP@7   | mAP@10     | mAP@20     | NDCG@3      | NDCG@7 | NDCG@10         | NDCG@20  |
-| --------------- | -------------------- | --------------- | ---- |--------------|---------|------------|------------|-------------|--------|-----------------|----------|
-| node2vec        | 100                | lightgbm ranker | Ranker  |  0.00083       | 0.0011       | 0.0011       | 0.0014       | 0.0031     | 0.0060     | 0.0077     | **0.0136**     |
-
----
+For detail experiment results, please refer to [discussion](https://github.com/lunch-corp/yamyam-lab/discussions/173).
 
 ## Commit Guide
 - feat: Add a new feature
