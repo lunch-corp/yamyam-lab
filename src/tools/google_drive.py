@@ -14,7 +14,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-from src.tools.zip import unzip_files_in_directory
+from tools.zip import unzip_files_in_directory
 
 try:
     from dotenv import load_dotenv
