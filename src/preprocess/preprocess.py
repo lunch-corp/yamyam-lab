@@ -350,29 +350,26 @@ def prepare_networkx_undirected_graph(
     val_graph = nx.Graph()
 
     # Prepare all edges at once
-    edges = []
-
-    # Add user-diner edges
-    edges.extend(
+    train_edges = [
         (
             diner_id.item(),
             reviewer_id.item(),
             {"weight": rating.item()} if weighted else {},
         )
         for (diner_id, reviewer_id), rating in zip(X_train, y_train)
-    )
-    edges.extend(
+    ]
+    val_edges = [
         (
             diner_id.item(),
             reviewer_id.item(),
             {"weight": rating.item()} if weighted else {},
         )
         for (diner_id, reviewer_id), rating in zip(X_val, y_val)
-    )
+    ]
 
     # Add metadata edges if needed
     if use_metadata:
-        edges.extend(
+        metadata_edges = [
             edge
             for _, row in diner.iterrows()
             for edge in [
@@ -382,11 +379,13 @@ def prepare_networkx_undirected_graph(
                     for meta in row["metadata_id_neighbors"]
                 ),
             ]
-        )
+        ]
+        train_graph.add_edges_from(train_edges + metadata_edges)
+        val_graph.add_edges_from(val_edges + metadata_edges)
 
-    # Add all edges to both graphs at once
-    train_graph.add_edges_from(edges)
-    val_graph.add_edges_from(edges)
+    else:
+        train_graph.add_edges_from(train_edges)
+        val_graph.add_edges_from(val_edges)
 
     # Add node attributes if needed
     if use_metadata:
