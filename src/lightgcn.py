@@ -80,7 +80,7 @@ class TrainData(Dataset):
 
         while True:
             i = np.random.randint(self.num_diner)
-            if self.graph[reviewer, i] == 0 and not i in all_diner:
+            if self.graph[reviewer, i] == 0 and i not in all_diner:
                 all_diner.append(i)
                 if len(all_diner) == self.neg_sample + 1:
                     break
