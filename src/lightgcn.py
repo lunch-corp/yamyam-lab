@@ -8,13 +8,14 @@ import random
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-from tqdm import tqdm
 
 # 🔥 PyTorch 관련
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+
 
 def add_arguments():
     parser_ = argparse.ArgumentParser()
