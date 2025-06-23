@@ -178,6 +178,21 @@ class Datasets():
             (pf_pairs[:, 2], (pf_pairs[:, 0], pf_pairs[:, 1])), shape=(self.num_reviewer, self.num_diner)).tocsr()
         return pf_pairs, pf_graph
 
+def to_csv(out_dict, path: str):
+    import csv
+    is_exists = True
+    header = list(out_dict.keys())
+    if not os.path.isfile(path):
+        with open(path, 'w') as f:
+            is_exists = False
+    with open(path, 'a') as f:
+        writer = csv.writer(f)
+
+        if not is_exists:
+            writer.writerow(header)
+
+        writer.writerow(list(out_dict.values()))
+
 # Models 관련 함수
 def cal_bpr_loss(pred, weight):
     # pred: [bs, 1+neg_num]
@@ -344,7 +359,7 @@ def main():
     print('============================ BEST ============================')
     print(best_content)
     result_dict = {**conf, 'best_loss': best_loss.item(), **best_content_dict}
-    #to_csv(out_dict=result_dict, path='../../out/log/result.csv')
+    to_csv(out_dict=result_dict, path='result/test/lightgcn/result.csv')
 
 def set_seed(seed):
     torch.manual_seed(seed)
