@@ -1,4 +1,5 @@
 # 🔧 표준 라이브러리
+import argparse
 import os
 import pprint
 import random
@@ -8,7 +9,6 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 from tqdm import tqdm
-import argparse
 
 # 🔥 PyTorch 관련
 import torch
