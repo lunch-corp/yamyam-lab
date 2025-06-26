@@ -103,7 +103,9 @@ class CategoryProcessor:
 
         # level별 설정값 정의
         mapping_key = (
-            "lowering_large_categories" if level == "large" else "lowering_middle_categories"
+            "lowering_large_categories"
+            if level == "large"
+            else "lowering_middle_categories"
         )
         column_name = f"diner_category_{level}"
 
