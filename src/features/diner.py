@@ -605,19 +605,19 @@ class DinerFeatureStore(BaseFeatureStore):
     @property
     def engineered_features(self: Self) -> pd.DataFrame:
         """
-        Get engineered features without original features.
+        Get engineered features only without original features with primary key.
 
-        Returns:
-            DataFrame containing only engineered features with primary key.
+        Returns (pd.DataFrame):
+            Engineered features dataframe.
         """
         return self.diner[self.engineered_feature_names]
 
     @property
-    def engineered_meta_features(self: Self) -> pd.DataFrame:
+    def engineered_meta_features(self) -> pd.DataFrame:
         """
-        Get engineered meta features without original features.
+        Get engineered `meta` features only without original features with primary key.
 
-        Returns:
-            DataFrame containing only engineered meta features with primary key.
+        Returns (pd.DataFrame):
+            Engineered features dataframe.
         """
         return self.diner[self.engineered_meta_feature_names]
