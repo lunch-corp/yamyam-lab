@@ -65,15 +65,15 @@ class DinerFeatureStore(BaseFeatureStore):
         self.engineered_meta_feature_names = ["diner_idx"]
 
     def make_features(self: Self) -> None:
-        """Execute feature engineering using configured features."""
+        """
+        Feature engineer using `self.features`.
+        """
         for feat, params in self.feature_param_pair.items():
             self.feature_methods[feat](**params)
 
     def calculate_all_review_cnt(self: Self, **kwargs) -> None:
         """
-        Calculate the total number of reviews for each diner.
-
-        Adds 'all_review_cnt' column to the diner DataFrame.
+        Calculate number of review counts for each diner.
         """
         diner_idx2review_cnt = self.review["diner_idx"].value_counts().to_dict()
         self.diner["all_review_cnt"] = (
@@ -83,11 +83,7 @@ class DinerFeatureStore(BaseFeatureStore):
 
     def calculate_diner_score(self: Self, **kwargs) -> None:
         """
-        Add categorical and statistical features based on diner review tags.
-
-        Creates:
-        - diner_review_cnt_category: Binned review count categories
-        - taste, kind, mood, chip, parking: Extracted tag scores
+        Add categorical and statistical features to the diner dataset.
         """
         bins = [-1, 0, 10, 50, 200, float("inf")]
         self.diner["diner_review_cnt_category"] = (
@@ -109,31 +105,21 @@ class DinerFeatureStore(BaseFeatureStore):
             self.diner["diner_review_tags"].to_list(), tag_categories
         )
 
-        # Add extracted scores to DataFrame
+        # 결과를 DataFrame으로 변환 및 병합
         self.diner[["taste", "kind", "mood", "chip", "parking"]] = scores
         self.engineered_feature_names.extend(
-            [
-                "diner_review_cnt_category",
-                "taste",
-                "kind",
-                "mood",
-                "chip",
-                "parking",
-            ]
+            ["diner_review_cnt_category", "taste", "kind", "mood", "chip", "parking"]
         )
 
     def calculate_diner_price(self: Self, **kwargs) -> None:
         """
-        Add statistical features based on diner menu prices.
-
-        Creates: min_price, max_price, mean_price, median_price, menu_count
+        Add statistical features to the diner dataset.
         """
-        # Extract price statistics
+        # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
         self.diner[
             ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
         ] = self.diner["diner_menu_price"].apply(lambda x: self._extract_statistics(x))
 
-        # Fill missing values with median
         for col in [
             "min_price",
             "max_price",
@@ -144,13 +130,7 @@ class DinerFeatureStore(BaseFeatureStore):
             self.diner[col] = self.diner[col].fillna(self.diner[col].median())
 
         self.engineered_feature_names.extend(
-            [
-                "min_price",
-                "max_price",
-                "mean_price",
-                "median_price",
-                "menu_count",
-            ]
+            ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
         )
 
     def calculate_diner_mean_review_score(self: Self, **kwargs) -> None:
@@ -162,13 +142,13 @@ class DinerFeatureStore(BaseFeatureStore):
         diner_id2score = (
             self.review.groupby("diner_idx")["reviewer_review_score"].mean().to_dict()
         )
-        # Handle diners without reviews
+        # diners that do not have any reviews
         diner_id_not_exists = set(self.diner["diner_idx"].unique()) - set(
             self.review["diner_idx"].unique()
         )
         for diner_id in diner_id_not_exists:
-            # Setting null values as zero could introduce bias
-            # as it treats diners as having lowest review scores
+            # processing null values as zero could trigger bias
+            # because it treats diners to have lowest review scores
             diner_id2score[diner_id] = 0
         self.diner["mean_review_score"] = self.diner["diner_idx"].map(diner_id2score)
 
@@ -181,11 +161,13 @@ class DinerFeatureStore(BaseFeatureStore):
         **kwargs,
     ) -> None:
         """
-        Apply one-hot encoding to categorical features.
+        One hot encoding categorical features.
+        This method converts a categorical feature with C categories into one-hot encoded C dimensional features.
+        Depending on the type of algorithm, C-1 dimensional features could be required.
 
         Args:
-            categorical_feature_name: List of categorical feature column names.
-            drop_first: Whether to drop the first category to avoid multicollinearity.
+            categorical_feature_name (List[str]): List of categorical feature names.
+            drop_first (bool): Whether using C-1 columns or not. When set as False, uses C columns.
             **kwargs: Additional keyword arguments.
 
         Raises:
@@ -210,27 +192,32 @@ class DinerFeatureStore(BaseFeatureStore):
         **kwargs,
     ) -> None:
         """
-        Generate node metadata combining category column and H3 spatial index.
+        Generates node meta combining category column and h3 index.
+        Here, h3 index indicates hexagon id where diner locates offered by uber.
 
-        Creates location-based metadata features using Uber's H3 hexagonal indexing.
+        Example of this fe
+        When set as
+        - category_column_for_meta: diner_category_middle
+        - h3_resolution: 9
+        two features are generated.
+        - metadata_id: `치킨_3ffafda3123`
+        - metadata_id_neighbors: [`치킨_3ffazxv78`, `치킨_3ffaqcz511`, `치킨_3ffavnzx321`]
+
+        For each diner, metas like `치킨_3ffafda3123` will be generated where `치킨` is diner_category_middle
+        and `3ffafda3123` is h3 index for that diner.
+        Also, this function generates metadata for neighboring hexagon.
 
         Args:
-            category_column_for_meta: Categorical column name to combine with H3 index.
-            h3_resolution: H3 resolution level (higher values create smaller hexagons).
+            category_column_for_meta (str): Categorical column name combined with h3 index.
+            h3_resolution (int): Resolution value for h3 index. Large values creates smaller hexagon.
             **kwargs: Additional keyword arguments.
-
-        Example:
-            For category_column_for_meta='diner_category_middle' and h3_resolution=9:
-            - metadata_id: '치킨_3ffafda3123'
-            - metadata_id_neighbors: ['치킨_3ffazxv78', '치킨_3ffaqcz511', ...]
         """
-        # Calculate H3 index for each diner
+        # get diner's h3_index
         self.diner["h3_index"] = self.diner.apply(
             lambda row: get_h3_index(row["diner_lat"], row["diner_lon"], h3_resolution),
             axis=1,
         )
-
-        # Generate metadata for neighboring hexagons
+        # get h3_index neighboring with diner's h3_index and concat with meta field
         self.diner["metadata_id_neighbors"] = self.diner.apply(
             lambda row: [
                 row[category_column_for_meta] + "_" + h3_index
@@ -238,18 +225,65 @@ class DinerFeatureStore(BaseFeatureStore):
             ],
             axis=1,
         )
-
-        # Generate metadata for current hexagon
+        # get current h3_index and concat with meta field
         self.diner["metadata_id"] = self.diner.apply(
             lambda row: row[category_column_for_meta] + "_" + row["h3_index"], axis=1
         )
-
         self.engineered_meta_feature_names.extend(
+            ["metadata_id", "metadata_id_neighbors"]
+        )
+
+    # NaN 또는 빈 리스트를 처리할 수 있도록 정의
+    def _extract_statistics(self: Self, prices: str) -> pd.Series:
+        if not prices or any(pd.isna(prices)):  # 빈 리스트라면 NaN 반환
+            return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
+
+        # 문자열을 리스트로 변환, 이 부분은 데이터 검증 과정에서 처리할 필요가 있어보입니다.
+        # 추후에 데이터 검증 코드 완성되면 이 부분은 수정이 필요할 것 같습니다.
+        # when prices do not include pure float, such as `변동가격`,
+        # float(price) raises error
+        # todo: preprocess null value
+
+        prices = [float(price) for price in prices if price not in ["변동가격"]]
+
+        if not prices:  # 변동가격만 존재하는 경우
+            return pd.Series([np.nan, np.nan, np.nan, np.nan, 0])
+
+        return pd.Series(
             [
-                "metadata_id",
-                "metadata_id_neighbors",
+                min(prices),
+                max(prices),
+                np.nanmean(prices),
+                np.median(prices),
+                len(prices),
             ]
         )
+
+    # numpy 기반으로 점수 추출 최적화
+    def _extract_scores_array(
+        self: Self, reviews: list[str], categories: list[tuple[str, str]]
+    ) -> np.ndarray:
+        # 카테고리 인덱스 매핑
+        category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
+
+        # 결과 배열 초기화
+        scores = np.zeros((len(reviews), len(categories)), dtype=int)
+
+        # 리뷰 파싱 후 벡터화
+        for i, review in enumerate(reviews):
+            if any(pd.isna(review)):  # 결측치 예외 처리
+                continue
+            try:
+                for info in review:
+                    cat, score = ast.literal_eval(info)
+
+                    if cat in category_map:
+                        scores[i, category_map[cat]] = score
+
+            except (SyntaxError, ValueError, TypeError):
+                continue  # 파싱 에러 방지
+
+        return scores
 
     def generate_valid_menus_by_freq(
         self: Self,
@@ -567,56 +601,6 @@ class DinerFeatureStore(BaseFeatureStore):
                 self.diner.loc[mask, col_name] = 1
 
         return menu_feature_columns
-
-    def _extract_statistics(self: Self, prices: str) -> pd.Series:
-        if not prices or any(pd.isna(prices)):  # 빈 리스트라면 NaN 반환
-            return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
-
-        # 문자열을 리스트로 변환, 이 부분은 데이터 검증 과정에서 처리할 필요가 있어보입니다.
-        # 추후에 데이터 검증 코드 완성되면 이 부분은 수정이 필요할 것 같습니다.
-        # when prices do not include pure float, such as `변동가격`,
-        # float(price) raises error
-        # todo: preprocess null value
-
-        prices = [float(price) for price in prices if price not in ["변동가격"]]
-
-        if not prices:  # 변동가격만 존재하는 경우
-            return pd.Series([np.nan, np.nan, np.nan, np.nan, 0])
-
-        return pd.Series(
-            [
-                min(prices),
-                max(prices),
-                np.nanmean(prices),
-                np.median(prices),
-                len(prices),
-            ]
-        )
-
-    def _extract_scores_array(
-        self: Self, reviews: list[str], categories: list[tuple[str, str]]
-    ) -> np.ndarray:
-        # 카테고리 인덱스 매핑
-        category_map = {cat: idx for idx, (cat, _) in enumerate(categories)}
-
-        # 결과 배열 초기화
-        scores = np.zeros((len(reviews), len(categories)), dtype=int)
-
-        # 리뷰 파싱 후 벡터화
-        for i, review in enumerate(reviews):
-            if any(pd.isna(review)):  # 결측치 예외 처리
-                continue
-            try:
-                for info in review:
-                    cat, score = ast.literal_eval(info)
-
-                    if cat in category_map:
-                        scores[i, category_map[cat]] = score
-
-            except (SyntaxError, ValueError, TypeError):
-                continue  # 파싱 에러 방지
-
-        return scores
 
     @property
     def engineered_features(self: Self) -> pd.DataFrame:
