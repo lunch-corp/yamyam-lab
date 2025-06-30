@@ -1,6 +1,7 @@
 import random
 from typing import List
 
+import numpy as np
 import torch
 from torch import Tensor
 
@@ -42,3 +43,20 @@ def uniform_sampling_without_replacement_from_small_size_pool(
         Sampling result without replacement.
     """
     return random.sample(pool, size)
+
+def np_edge_dropout(values: np.ndarray, dropout_ratio: float) -> np.ndarray:
+    """
+    Randomly drop edges from the graph.
+
+    Args:
+        values (np.ndarray): Edge weights.
+        dropout_ratio (float): Dropout rate (0~1).
+
+    Returns:
+        np.ndarray: Dropped edge weights.
+    """
+    mask = np.random.choice(
+        [0, 1], size=(len(values),), p=[dropout_ratio, 1 - dropout_ratio]
+    )
+    values = mask * values
+    return values

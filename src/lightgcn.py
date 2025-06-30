@@ -18,10 +18,18 @@ from tqdm import tqdm
 
 from loss.custom import cal_bpr_loss
 from tools.parse_args import parse_args_lightgcn
+from tools.sampling import np_edge_dropout
 
 
 # Utils 관련 함수
-def print_statistics(X, string):
+def print_statistics(X: sp.csr_matrix, string: str) -> None:
+    """
+    Print statistics of a sparse matrix.
+
+    Args:
+        X (sp.csr_matrix): Sparse matrix (e.g., interaction matrix).
+        string (str): Label to display with statistics.
+    """
     print("-" * 10 + string + "-" * 10)
     print(f"Avg non-zeros in row:    {X.sum(1).mean(0).item():8.4f}")
     nonzero_row_indice, nonzero_col_indice = X.nonzero()
@@ -187,32 +195,33 @@ class Datasets:
         return pf_pairs, pf_graph
 
 
-def to_csv(out_dict, path: str):
-    import csv
-
-    is_exists = True
-    header = list(out_dict.keys())
-    if not os.path.isfile(path):
-        with open(path, "w") as f:
-            is_exists = False
-    with open(path, "a") as f:
-        writer = csv.writer(f)
-
-        if not is_exists:
-            writer.writerow(header)
-
-        writer.writerow(list(out_dict.values()))
-
-
 # Models 관련 함수
-def laplace_transform(graph):
+def laplace_transform(graph: sp.csr_matrix) -> sp.csr_matrix:
+    """
+    Apply symmetric Laplacian normalization to a sparse matrix.
+
+    Args:
+        graph (sp.csr_matrix): Adjacency matrix.
+
+    Returns:
+        sp.csr_matrix: Normalized graph.
+    """
     rowsum_sqrt = sp.diags(1 / (np.sqrt(graph.sum(axis=1).A.ravel()) + 1e-8))
     colsum_sqrt = sp.diags(1 / (np.sqrt(graph.sum(axis=0).A.ravel()) + 1e-8))
     graph = rowsum_sqrt @ graph @ colsum_sqrt
     return graph
 
 
-def to_tensor(graph):
+def to_tensor(graph: sp.coo_matrix) -> torch.sparse.FloatTensor:
+    """
+    Convert scipy COO matrix to PyTorch sparse tensor.
+
+    Args:
+        graph (sp.coo_matrix): Input graph.
+
+    Returns:
+        torch.sparse.FloatTensor: PyTorch sparse tensor.
+    """
     graph = graph.tocoo()
     values = graph.data
     indices = np.vstack((graph.row, graph.col))
@@ -220,14 +229,6 @@ def to_tensor(graph):
         torch.LongTensor(indices), torch.FloatTensor(values), torch.Size(graph.shape)
     )
     return graph
-
-
-def np_edge_dropout(values, dropout_ratio):
-    mask = np.random.choice(
-        [0, 1], size=(len(values),), p=[dropout_ratio, 1 - dropout_ratio]
-    )
-    values = mask * values
-    return values
 
 
 class LightGCN(nn.Module):
@@ -405,10 +406,10 @@ def main(args: ArgumentParser.parse_args) -> None:
     print("============================ BEST ============================")
     print(best_content)
     result_dict = {**conf, "best_loss": best_loss.item(), **best_content_dict}
-    to_csv(out_dict=result_dict, path="result/test/lightgcn/result.csv")
+    print(result_dict)
 
 
-def set_seed(seed):
+def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -420,12 +421,36 @@ def set_seed(seed):
         torch.backends.cudnn.benchmark = False
 
 
-def moving_avg(avg, cur_num, add_value_avg, add_num):
+def moving_avg(avg: float, cur_num: float, add_value_avg: float, add_num: float) -> float:
+    """
+    Compute weighted moving average.
+
+    Args:
+        avg (float): Current average.
+        cur_num (float): Current count.
+        add_value_avg (float): New average to merge.
+        add_num (float): New count.
+
+    Returns:
+        float: Updated average.
+    """
     avg = (avg * cur_num + add_value_avg * add_num) / (cur_num + add_num)
     return avg
 
 
-def form_content(epoch, val_results, test_results, ks):
+def form_content(epoch: int, val_results: dict, test_results: dict, ks: list[int]) -> tuple[str, dict]:
+    """
+    Format results into printable and savable content.
+
+    Args:
+        epoch (int): Current epoch.
+        val_results (dict): Validation metrics.
+        test_results (dict): Test metrics.
+        ks (list[int]): Top-K values.
+
+    Returns:
+        tuple[str, dict]: (Printable string, Dictionary of results).
+    """
     content_dict = dict(
         **{
             k: v
@@ -476,7 +501,18 @@ def form_content(epoch, val_results, test_results, ks):
     return content, content_dict
 
 
-def test(model, dataloader, conf):
+def test(model: nn.Module, dataloader: DataLoader, conf: dict) -> dict:
+    """
+    Evaluate the model.
+
+    Args:
+        model (nn.Module): The recommendation model.
+        dataloader (DataLoader): DataLoader for evaluation.
+        conf (dict): Configuration dictionary.
+
+    Returns:
+        dict: Evaluation metrics.
+    """
     tmp_metrics = {}
     for m in ["recall", "ndcg"]:
         tmp_metrics[m] = {}
@@ -502,7 +538,19 @@ def test(model, dataloader, conf):
     return metrics
 
 
-def get_metrics(metrics, grd, pred, topks):
+def get_metrics(metrics: dict, grd: torch.Tensor, pred: torch.Tensor, topks: list[int]) -> dict:
+    """
+    Update metrics for recall and NDCG.
+
+    Args:
+        metrics (dict): Existing metrics.
+        grd (torch.Tensor): Ground truth [batch_size, num_items].
+        pred (torch.Tensor): Prediction scores [batch_size, num_items].
+        topks (list[int]): List of K values for evaluation.
+
+    Returns:
+        dict: Updated metrics.
+    """
     tmp = {"recall": {}, "ndcg": {}}
     for topk in topks:
         _, col_indice = torch.topk(pred, topk)
@@ -524,7 +572,13 @@ def get_metrics(metrics, grd, pred, topks):
     return metrics
 
 
-def get_recall(pred, grd, is_hit, topk):
+def get_recall(pred: torch.Tensor, grd: torch.Tensor, is_hit: torch.Tensor, topk: int) -> list[float]:
+    """
+    Compute recall@K.
+
+    Returns:
+        list[float]: [numerator sum, valid denominator count]
+    """
     epsilon = 1e-8
     hit_cnt = is_hit.sum(dim=1)
     num_pos = grd.sum(dim=1)
@@ -536,7 +590,13 @@ def get_recall(pred, grd, is_hit, topk):
     return [nomina, denorm]
 
 
-def get_ndcg(pred, grd, is_hit, topk):
+def get_ndcg(pred: torch.Tensor, grd: torch.Tensor, is_hit: torch.Tensor, topk: int) -> list[float]:
+    """
+    Compute nDCG@K.
+
+    Returns:
+        list[float]: [numerator sum, valid denominator count]
+    """
     def DCG(hit, topk, device):
         hit = hit / torch.log2(
             torch.arange(2, topk + 2, device=device, dtype=torch.float)
