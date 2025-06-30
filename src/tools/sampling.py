@@ -44,6 +44,7 @@ def uniform_sampling_without_replacement_from_small_size_pool(
     """
     return random.sample(pool, size)
 
+
 def np_edge_dropout(values: np.ndarray, dropout_ratio: float) -> np.ndarray:
     """
     Randomly drop edges from the graph.

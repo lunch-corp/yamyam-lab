@@ -421,7 +421,9 @@ def set_seed(seed: int) -> None:
         torch.backends.cudnn.benchmark = False
 
 
-def moving_avg(avg: float, cur_num: float, add_value_avg: float, add_num: float) -> float:
+def moving_avg(
+    avg: float, cur_num: float, add_value_avg: float, add_num: float
+) -> float:
     """
     Compute weighted moving average.
 
@@ -438,7 +440,9 @@ def moving_avg(avg: float, cur_num: float, add_value_avg: float, add_num: float)
     return avg
 
 
-def form_content(epoch: int, val_results: dict, test_results: dict, ks: list[int]) -> tuple[str, dict]:
+def form_content(
+    epoch: int, val_results: dict, test_results: dict, ks: list[int]
+) -> tuple[str, dict]:
     """
     Format results into printable and savable content.
 
@@ -538,7 +542,9 @@ def test(model: nn.Module, dataloader: DataLoader, conf: dict) -> dict:
     return metrics
 
 
-def get_metrics(metrics: dict, grd: torch.Tensor, pred: torch.Tensor, topks: list[int]) -> dict:
+def get_metrics(
+    metrics: dict, grd: torch.Tensor, pred: torch.Tensor, topks: list[int]
+) -> dict:
     """
     Update metrics for recall and NDCG.
 
@@ -572,7 +578,9 @@ def get_metrics(metrics: dict, grd: torch.Tensor, pred: torch.Tensor, topks: lis
     return metrics
 
 
-def get_recall(pred: torch.Tensor, grd: torch.Tensor, is_hit: torch.Tensor, topk: int) -> list[float]:
+def get_recall(
+    pred: torch.Tensor, grd: torch.Tensor, is_hit: torch.Tensor, topk: int
+) -> list[float]:
     """
     Compute recall@K.
 
@@ -590,13 +598,16 @@ def get_recall(pred: torch.Tensor, grd: torch.Tensor, is_hit: torch.Tensor, topk
     return [nomina, denorm]
 
 
-def get_ndcg(pred: torch.Tensor, grd: torch.Tensor, is_hit: torch.Tensor, topk: int) -> list[float]:
+def get_ndcg(
+    pred: torch.Tensor, grd: torch.Tensor, is_hit: torch.Tensor, topk: int
+) -> list[float]:
     """
     Compute nDCG@K.
 
     Returns:
         list[float]: [numerator sum, valid denominator count]
     """
+
     def DCG(hit, topk, device):
         hit = hit / torch.log2(
             torch.arange(2, topk + 2, device=device, dtype=torch.float)
