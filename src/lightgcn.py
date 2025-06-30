@@ -1,15 +1,13 @@
 # 🔧 표준 라이브러리
-from argparse import ArgumentParser
 import os
 import pprint
 import random
+from argparse import ArgumentParser
 
 # 📦 외부 라이브러리
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-
-from tools.parse_args import parse_args_lightgcn
 
 # 🔥 PyTorch 관련
 import torch
@@ -17,6 +15,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
+
+from tools.parse_args import parse_args_lightgcn
 
 
 # Utils 관련 함수
