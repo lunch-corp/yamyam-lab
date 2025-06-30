@@ -16,6 +16,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from loss.custom import cal_bpr_loss
 from tools.parse_args import parse_args_lightgcn
 
 
@@ -204,14 +205,6 @@ def to_csv(out_dict, path: str):
 
 
 # Models 관련 함수
-def cal_bpr_loss(pred, weight):
-    # pred: [bs, 1+neg_num]
-    negs = pred[:, 1].unsqueeze(1)
-    pos = pred[:, 0].unsqueeze(1)
-    loss = -torch.mean(weight * torch.log(torch.sigmoid(pos - negs)))  # [bs]
-    return loss
-
-
 def laplace_transform(graph):
     rowsum_sqrt = sp.diags(1 / (np.sqrt(graph.sum(axis=1).A.ravel()) + 1e-8))
     colsum_sqrt = sp.diags(1 / (np.sqrt(graph.sum(axis=0).A.ravel()) + 1e-8))

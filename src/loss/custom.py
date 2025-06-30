@@ -79,3 +79,21 @@ def basic_contrastive_loss(pos_rw_emb: Tensor, neg_rw_emb: Tensor) -> Tensor:
     neg_loss = -torch.log(1 - torch.sigmoid(out) + EPS).mean()
 
     return pos_loss + neg_loss
+
+
+def cal_bpr_loss(pred, weight):
+    """
+    Calculates the Bayesian Personalized Ranking (BPR) loss.
+
+    Args:
+        pred (torch.Tensor): Predicted scores with shape [batch_size, 1 + neg_num].
+                             The first column is the positive item, and the second is a negative item.
+        weight (torch.Tensor): Sample-wise weights with shape [batch_size] or [batch_size, 1].
+
+    Returns:
+        torch.Tensor: Scalar tensor representing the BPR loss over the batch.
+    """
+    negs = pred[:, 1].unsqueeze(1)
+    pos = pred[:, 0].unsqueeze(1)
+    loss = -torch.mean(weight * torch.log(torch.sigmoid(pos - negs)))  # [bs]
+    return loss
