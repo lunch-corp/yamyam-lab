@@ -1,5 +1,6 @@
 # 🔧 표준 라이브러리
 import argparse
+from argparse import ArgumentParser
 import os
 import pprint
 import random
@@ -9,50 +10,14 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
+from tools.parse_args import parse_args_lightgcn
+
 # 🔥 PyTorch 관련
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-
-
-def add_arguments():
-    parser_ = argparse.ArgumentParser()
-
-    parser_.add_argument("--seed", type=int, default=0)
-    parser_.add_argument("--model", type=str, default="lightgcn")
-
-    parser_.add_argument("--data_path", type=str, default="data")
-    parser_.add_argument("--edge", type=str, default="review.csv")
-    parser_.add_argument("--reviewer", type=str, default="reviewer.csv")
-    parser_.add_argument("--diner", type=str, default="diner.csv")
-
-    parser_.add_argument("--batch_size_train", type=int, default=2048)
-    parser_.add_argument("--batch_size_test", type=int, default=2048)
-    parser_.add_argument("--topk", type=str, default="10,20,40,80")
-
-    parser_.add_argument(
-        "--using_features", type=str, default="reviewer:@diner:", help="using features"
-    )
-    parser_.add_argument("--comment", type=str, default="None")
-
-    parser_.add_argument("--embedding_size", type=int, default=64)
-    parser_.add_argument("--num_layers", type=int, default=1)
-
-    parser_.add_argument("--drop_ratio", type=float, default=0.5)
-
-    parser_.add_argument("--lr", type=float, default=1e-04)
-    parser_.add_argument("--decay", type=float, default=1e-05)
-
-    parser_.add_argument("--alpha", type=float, default=1)
-    parser_.add_argument("--beta", type=float, default=1)
-
-    parser_.add_argument("--epochs", type=int, default=10)
-    parser_.add_argument("--test_interval", type=int, default=5)
-
-    parser_.add_argument("--gpu", type=int, default=0)
-    return parser_
 
 
 # Utils 관련 함수
@@ -362,9 +327,7 @@ class LightGCN(nn.Module):
         return scores
 
 
-def main():
-    parser = add_arguments()
-    args = parser.parse_args()
+def main(args: ArgumentParser.parse_args) -> None:
     conf = args.__dict__
     print(conf)
 
@@ -612,4 +575,5 @@ def get_ndcg(pred, grd, is_hit, topk):
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args_lightgcn()
+    main(args)

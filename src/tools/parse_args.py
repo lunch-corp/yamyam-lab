@@ -74,6 +74,45 @@ def parse_args_embedding():
     return parser.parse_args()
 
 
+def parse_args_lightgcn():
+    parser = argparse.ArgumentParser()
+    # common parameter
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--model", type=str, default="lightgcn")
+
+    parser.add_argument("--data_path", type=str, default="data")
+    parser.add_argument("--edge", type=str, default="review.csv")
+    parser.add_argument("--reviewer", type=str, default="reviewer.csv")
+    parser.add_argument("--diner", type=str, default="diner.csv")
+
+    parser.add_argument("--batch_size_train", type=int, default=2048)
+    parser.add_argument("--batch_size_test", type=int, default=2048)
+    parser.add_argument("--topk", type=str, default="10,20,40,80")
+
+    parser.add_argument(
+        "--using_features", type=str, default="reviewer:@diner:", help="using features"
+    )
+    parser.add_argument("--comment", type=str, default="None")
+
+    parser.add_argument("--embedding_size", type=int, default=64)
+    parser.add_argument("--num_layers", type=int, default=1)
+
+    parser.add_argument("--drop_ratio", type=float, default=0.5)
+
+    parser.add_argument("--lr", type=float, default=1e-04)
+    parser.add_argument("--decay", type=float, default=1e-05)
+
+    parser.add_argument("--alpha", type=float, default=1)
+    parser.add_argument("--beta", type=float, default=1)
+
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--test_interval", type=int, default=5)
+
+    parser.add_argument("--gpu", type=int, default=0)
+
+    return parser.parse_args()
+
+
 def parse_args_eval():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_obj_path", type=str, required=True)
