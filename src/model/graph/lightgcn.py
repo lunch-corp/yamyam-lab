@@ -94,7 +94,7 @@ class LightGCN(nn.Module):
         reviewer_feature, diner_feature = propagate_result
         scores = torch.mm(reviewer_feature[reviewers], diner_feature.t())
         return scores
-    
+
 
 def to_tensor(graph: sp.coo_matrix) -> torch.sparse.FloatTensor:
     """
