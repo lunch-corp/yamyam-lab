@@ -1,131 +1,142 @@
+from typing import Tuple
+
 import numpy as np
 import scipy.sparse as sp
 import torch
-import torch.nn as nn
+from torch import nn
 
 from loss.custom import cal_bpr_loss
 from tools.sampling import np_edge_dropout
 
 
+# --------------------------------------------------------------------------- #
+#                               Helper routines                               #
+# --------------------------------------------------------------------------- #
+def normalize_adj(adj: sp.spmatrix) -> sp.csr_matrix:
+    """
+    Symmetric Laplacian normalisation  D^{-1/2} A D^{-1/2}.
+    """
+    row_inv_sqrt = 1.0 / np.sqrt(adj.sum(axis=1).A.ravel() + 1e-8)
+    col_inv_sqrt = 1.0 / np.sqrt(adj.sum(axis=0).A.ravel() + 1e-8)
+    d_row = sp.diags(row_inv_sqrt)
+    d_col = sp.diags(col_inv_sqrt)
+    return d_row @ adj @ d_col
+
+
+def to_sparse_tensor(mat: sp.spmatrix) -> torch.sparse.FloatTensor:
+    """
+    Convert a SciPy sparse matrix to a PyTorch sparse tensor.
+    """
+    mat = mat.tocoo()
+    indices = torch.from_numpy(np.vstack((mat.row, mat.col)).astype(np.int64))
+    values = torch.from_numpy(mat.data.astype(np.float32))
+    return torch.sparse.FloatTensor(indices, values, torch.Size(mat.shape))
+
+
+# --------------------------------------------------------------------------- #
+#                                  Model                                      #
+# --------------------------------------------------------------------------- #
 class LightGCN(nn.Module):
-    def __init__(self, conf, trn_graph):
+    """
+    Minimal LightGCN implementation with optional edge dropout.
+    """
+
+    print("this is called")
+
+    def __init__(self, conf: dict, interaction: sp.csr_matrix) -> None:
         super().__init__()
         self.conf = conf
-        self.device = self.conf["device"]
-        self.embedding_size = conf["embedding_size"]
-        self.num_reviewer = conf["num_reviewer"]
-        self.num_diner = conf["num_diner"]
-        self.num_layers = self.conf["num_layers"]
-        self.trn_graph = trn_graph
+        self.device = torch.device(conf["device"])
 
-        self.init_emb()
-        self.get_graph_ori()
-        self.get_graph()
+        self.embedding_size: int = conf["embedding_size"]
+        self.num_reviewer: int = conf["num_reviewer"]
+        self.num_diner: int = conf["num_diner"]
+        self.num_layers: int = conf["num_layers"]
+        self.drop_ratio: float = conf.get("drop_ratio", 0.0)
 
-    def init_emb(self):
-        # no usage
+        # Interaction matrix (U × I)
+        self.interaction = interaction
+
+        self._init_embeddings()
+
+        # Pre-build graph without dropout for evaluation
+        self.graph_static = self._build_graph(drop_ratio=0.0).to(self.device)
+
+    # --------------------------------------------------------------------- #
+    #                               Forward                                 #
+    # --------------------------------------------------------------------- #
+    def forward(
+        self,
+        batch: Tuple[torch.LongTensor, torch.LongTensor, torch.Tensor],
+    ) -> torch.Tensor:
+        """
+        Compute BPR loss for one mini-batch.
+
+        Parameters
+        ----------
+        batch
+            reviewers: (bs,)               – user indices
+            diners:    (bs, 1 + neg_num)   – positive + negative item indices
+            weights:   (bs, 1)             – sample weights
+        """
+        reviewers, diners, weights = batch
+
+        if reviewers.dim() > 1:
+            reviewers = reviewers.squeeze(-1)
+
+        # Re-build graph with edge-dropout at every iteration (as in paper)
+        self.graph = self._build_graph(drop_ratio=self.drop_ratio).to(self.device)
+
+        reviewer_emb, diner_emb = self.reviewer_emb, self.diner_emb
+        # Shape alignment
+        rev_vec = reviewer_emb[reviewers].unsqueeze(1).expand(-1, diners.size(1), -1)
+        din_vec = diner_emb[diners]
+
+        preds = (rev_vec * din_vec).sum(dim=-1)
+        return cal_bpr_loss(preds, weights)
+
+    # --------------------------------------------------------------------- #
+    #                              Inference                                #
+    # --------------------------------------------------------------------- #
+    @torch.no_grad()
+    def evaluate(
+        self,
+        reviewers: torch.LongTensor,
+    ) -> torch.Tensor:
+        """
+        Return the full score matrix for reviewers × all diners.
+        """
+        reviewer_emb, diner_emb = self.reviewer_emb, self.diner_emb
+        return reviewer_emb[reviewers] @ diner_emb.t()
+
+    # --------------------------------------------------------------------- #
+    #                         Initialisation utils                          #
+    # --------------------------------------------------------------------- #
+    def _init_embeddings(self) -> None:
         self.reviewer_emb = nn.Parameter(
-            torch.FloatTensor(self.num_reviewer, self.embedding_size)
+            torch.empty(self.num_reviewer, self.embedding_size)
         )
-        nn.init.xavier_normal_(self.reviewer_emb)
-        self.diner_emb = nn.Parameter(
-            torch.FloatTensor(self.num_diner, self.embedding_size)
-        )
-        nn.init.xavier_normal_(self.diner_emb)
+        self.diner_emb = nn.Parameter(torch.empty(self.num_diner, self.embedding_size))
+        nn.init.xavier_uniform_(self.reviewer_emb)
+        nn.init.xavier_uniform_(self.diner_emb)
 
-    def get_graph(self):
-        graph = self.trn_graph
-        device = self.device
-        drop_ratio = self.conf["drop_ratio"]
-        total_graph = sp.bmat(
-            [
-                [sp.csr_matrix((graph.shape[0], graph.shape[0])), graph],
-                [graph.T, sp.csr_matrix((graph.shape[1], graph.shape[1]))],
-            ]
-        )
-        if drop_ratio != 0:
-            graph = total_graph.tocoo()
-            values = np_edge_dropout(graph.data, drop_ratio)
-            total_graph = sp.coo_matrix(
-                (values, (graph.row, graph.col)), shape=graph.shape
-            ).tocsr()
-        self.graph = to_tensor(laplace_transform(total_graph)).to(device)
+    # --------------------------------------------------------------------- #
+    #                            Graph builder                              #
+    # --------------------------------------------------------------------- #
+    def _build_graph(self, drop_ratio: float = 0.0) -> torch.sparse.FloatTensor:
+        """
+        Build Laplacian-normalised adjacency with optional edge dropout.
+        """
+        user_item = self.interaction  # (U × I)
 
-    def get_graph_ori(self):
-        graph = self.trn_graph
-        device = self.device
-        total_graph = sp.bmat(
-            [
-                [sp.csr_matrix((graph.shape[0], graph.shape[0])), graph],
-                [graph.T, sp.csr_matrix((graph.shape[1], graph.shape[1]))],
-            ]
-        )
-        self.graph_ori = to_tensor(laplace_transform(total_graph)).to(device)
+        # Bipartite adjacency
+        tl = sp.csr_matrix((user_item.shape[0], user_item.shape[0]))
+        br = sp.csr_matrix((user_item.shape[1], user_item.shape[1]))
+        adj = sp.bmat([[tl, user_item], [user_item.T, br]]).tocsr()
 
-    def propagate(self, test=False):
-        reviewer_vec = self.reviewer_emb
-        diner_vec = self.diner_emb
-        return reviewer_vec, diner_vec
+        if drop_ratio:
+            adj = adj.tocoo()
+            new_val = np_edge_dropout(adj.data, drop_ratio)
+            adj = sp.coo_matrix((new_val, (adj.row, adj.col)), shape=adj.shape).tocsr()
 
-    def cal_loss(self, reviewer_feature, diner_feature, weight):
-        pred = torch.sum(reviewer_feature * diner_feature, 2)
-        bpr_loss = cal_bpr_loss(pred, weight)
-        return bpr_loss
-
-    def forward(self, batch):
-        self.get_graph()
-
-        # users: [bs, 1]
-        # bundles: [bs, 1+neg_num]
-        # weights: [bs, 1]
-        users, bundles, weights = batch
-        # print(users.shape)
-        # print(bundles.shape)
-        # print(weights.shape)
-        reviewer_feature, diner_feature = self.propagate()
-
-        reviewer_embedding = reviewer_feature[users].expand(-1, bundles.shape[1], -1)
-        diner_embedding = diner_feature[bundles]
-        bpr_loss = self.cal_loss(reviewer_embedding, diner_embedding, weights)
-
-        return bpr_loss
-
-    def evaluate(self, propagate_result, reviewers):
-        reviewer_feature, diner_feature = propagate_result
-        scores = torch.mm(reviewer_feature[reviewers], diner_feature.t())
-        return scores
-
-
-def to_tensor(graph: sp.coo_matrix) -> torch.sparse.FloatTensor:
-    """
-    Convert scipy COO matrix to PyTorch sparse tensor.
-
-    Args:
-        graph (sp.coo_matrix): Input graph.
-
-    Returns:
-        torch.sparse.FloatTensor: PyTorch sparse tensor.
-    """
-    graph = graph.tocoo()
-    values = graph.data
-    indices = np.vstack((graph.row, graph.col))
-    graph = torch.sparse.FloatTensor(
-        torch.LongTensor(indices), torch.FloatTensor(values), torch.Size(graph.shape)
-    )
-    return graph
-
-
-def laplace_transform(graph: sp.csr_matrix) -> sp.csr_matrix:
-    """
-    Apply symmetric Laplacian normalization to a sparse matrix.
-
-    Args:
-        graph (sp.csr_matrix): Adjacency matrix.
-
-    Returns:
-        sp.csr_matrix: Normalized graph.
-    """
-    rowsum_sqrt = sp.diags(1 / (np.sqrt(graph.sum(axis=1).A.ravel()) + 1e-8))
-    colsum_sqrt = sp.diags(1 / (np.sqrt(graph.sum(axis=0).A.ravel()) + 1e-8))
-    graph = rowsum_sqrt @ graph @ colsum_sqrt
-    return graph
+        return to_sparse_tensor(normalize_adj(adj))
