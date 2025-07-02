@@ -241,9 +241,15 @@ class DatasetLoader:
         """
         Create the target column for classification.
         """
+        review = review.drop(columns=["reviewer_avg"])
+        review["reviewer_avg"] = review.groupby("diner_idx")[
+            "reviewer_review_score"
+        ].transform("mean")
+
         review["target"] = (
             review["reviewer_review_score"] >= review["reviewer_avg"]
         ).astype(np.int8)
+
         return review
 
     def train_test_split_stratify(
