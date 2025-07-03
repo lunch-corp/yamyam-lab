@@ -1,0 +1,32 @@
+preprocess:
+  data:
+    train_time_point: "2024-01-01"
+    val_time_point: "2024-03-01"
+    test_time_point: "2024-06-01"
+    end_time_point: "2024-12-31"
+    is_timeseries_by_time_point: true
+  feature_engineering:
+    user_engineered_feature_names: []
+    diner_engineered_feature_names: []
+
+training:
+  evaluation:
+    top_k_values_for_pred: [5, 10, 20, 50]
+    top_k_values_for_candidate: [100]
+    recommend_batch_size: 2000
+  model:
+    num_layers: 3
+    drop_ratio: 0.1
+
+post_training:
+  candidate_generation:
+    top_k: 100
+  file_name:
+    log: "lightgcn_training.log"
+    weight: "lightgcn_model.pth"
+    training_loss: "lightgcn_training_loss.pkl"
+    metric: "lightgcn_metric.pkl"
+    data_object: "lightgcn_data.pkl"
+    user_mapping: "user_mapping.pkl"
+    diner_mapping: "diner_mapping.pkl"
+    candidate: "lightgcn_candidates.parquet"

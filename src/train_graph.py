@@ -70,6 +70,11 @@ def main(args: ArgumentParser.parse_args) -> None:
         elif args.model == "graphsage":
             logger.info(f"number of sage layers: {args.num_sage_layers}")
             logger.info(f"aggregator functions: {args.aggregator_funcs}")
+
+        elif args.model == "lightgcn":
+            logger.info(f"number of layers: {args.num_layers}")
+            logger.info(f"drop ratio: {args.drop_ratio}")
+
         logger.info(f"result path: {result_path}")
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
@@ -210,7 +215,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
             num_workers=4,  # can be tuned based on server spec
             meta_path=args.meta_path,  # metapath2vec parameter
-            num_layers=args.num_sage_layers,  # graphsage parameter
+            num_sage_layers=args.num_sage_layers,  # graphsage parameter
             aggregator_funcs=args.aggregator_funcs,  # graphsage parameter
             num_neighbor_samples=args.num_neighbor_samples,  # graphsage parameter
             user_raw_features=data["user_feature"].to(
@@ -219,6 +224,8 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner_raw_features=data["diner_feature"].to(
                 args.device
             ),  # graphsage parameter
+            num_layers=args.num_layers,  # lightgcn parameter
+            drop_ratio=args.drop_ratio,  # lightgcn parameter
         ).to(args.device)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
@@ -227,7 +234,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner_ids=list(data["diner_mapping"].values()),
             top_k_values=top_k_values,
             all_embeds=model._embedding
-            if args.model == "graphsage"
+            if args.model in ["graphsage", "lightgcn"]
             else model._embedding.weight,
             filter_already_liked=True,
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
@@ -253,9 +260,9 @@ def main(args: ArgumentParser.parse_args) -> None:
                 if batch_idx % 500 == 0:
                     logger.info(f"current batch index: {batch_idx} out of {batch_len}")
 
-            # when training graphsage for every epoch,
+            # when training graphsage or lightgcn for every epoch,
             # propagation should be run to store embeddings for each node
-            if args.model == "graphsage":
+            if args.model in ["graphsage", "lightgcn"]:
                 for batch_nodes in DataLoader(
                     torch.tensor([node for node in train_graph.nodes()]),
                     batch_size=args.batch_size,

@@ -36,6 +36,8 @@ def setup_config(request):
     args.num_sage_layers = 2
     args.aggregator_funcs = ["mean", "mean"]
     args.num_neighbor_samples = 3
+    args.num_layers = 3
+    args.drop_ratio = 0.1
     args.test = True
     args.save_candidate = False
     return args
