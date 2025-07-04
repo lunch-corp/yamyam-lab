@@ -11,35 +11,6 @@ from model.graph.base_embedding import BaseEmbedding
 from tools.sampling import np_edge_dropout
 
 
-# --------------------------------------------------------------------------- #
-#                               Helper routines                               #
-# --------------------------------------------------------------------------- #
-def normalize_adj(adj: sp.spmatrix) -> sp.csr_matrix:
-    """
-    Symmetric Laplacian normalisation  D^{-1/2} A D^{-1/2}.
-    """
-    row_inv_sqrt = 1.0 / np.sqrt(adj.sum(axis=1).A.ravel() + 1e-8)
-    col_inv_sqrt = 1.0 / np.sqrt(adj.sum(axis=0).A.ravel() + 1e-8)
-    d_row = sp.diags(row_inv_sqrt)
-    d_col = sp.diags(col_inv_sqrt)
-    return d_row @ adj @ d_col
-
-
-def to_sparse_tensor(mat: sp.spmatrix) -> torch.sparse_coo_tensor:
-    """
-    Convert a SciPy sparse matrix to a PyTorch sparse tensor.
-    """
-    mat = mat.tocoo()
-    indices = torch.from_numpy(np.vstack((mat.row, mat.col)).astype(np.int64))
-    values = torch.from_numpy(mat.data.astype(np.float32))
-    return torch.sparse_coo_tensor(
-        indices, values, torch.Size(mat.shape), dtype=torch.float32
-    )
-
-
-# --------------------------------------------------------------------------- #
-#                                  Model                                      #
-# --------------------------------------------------------------------------- #
 class Model(BaseEmbedding):
     """
     LightGCN implementation compatible with train_graph.py format.
@@ -196,7 +167,7 @@ class Model(BaseEmbedding):
             new_val = np_edge_dropout(adj.data, drop_ratio)
             adj = sp.coo_matrix((new_val, (adj.row, adj.col)), shape=adj.shape).tocsr()
 
-        return to_sparse_tensor(normalize_adj(adj))
+        return self._to_sparse_tensor(self._normalize_adj(adj))
 
     def forward(self, batch: Tensor) -> Tensor:
         """
@@ -312,6 +283,35 @@ class Model(BaseEmbedding):
 
         neg_items = torch.tensor(neg_items, dtype=batch.dtype, device=batch.device)
         return torch.cat([batch.unsqueeze(1), neg_items], dim=1)
+
+    def _normalize_adj(self, adj: sp.spmatrix) -> sp.csr_matrix:
+        """
+        Symmetric Laplacian normalisation  D^{-1/2} A D^{-1/2}.
+        Args:
+            adj (sp.spmatrix): Adjacency matrix.
+        Returns:
+            sp.csr_matrix: Normalised adjacency matrix.
+        """
+        row_inv_sqrt = 1.0 / np.sqrt(adj.sum(axis=1).A.ravel() + 1e-8)
+        col_inv_sqrt = 1.0 / np.sqrt(adj.sum(axis=0).A.ravel() + 1e-8)
+        d_row = sp.diags(row_inv_sqrt)
+        d_col = sp.diags(col_inv_sqrt)
+        return d_row @ adj @ d_col
+
+    def _to_sparse_tensor(self, mat: sp.spmatrix) -> torch.sparse_coo_tensor:
+        """
+        Convert a SciPy sparse matrix to a PyTorch sparse tensor.
+        Args:
+            mat (sp.spmatrix): Sparse matrix.
+        Returns:
+            torch.sparse_coo_tensor: Sparse tensor.
+        """
+        mat = mat.tocoo()
+        indices = torch.from_numpy(np.vstack((mat.row, mat.col)).astype(np.int64))
+        values = torch.from_numpy(mat.data.astype(np.float32))
+        return torch.sparse_coo_tensor(
+            indices, values, torch.Size(mat.shape), dtype=torch.float32
+        )
 
     def sample(self, batch: Union[List[int], Tensor]) -> Tuple[Tensor, Tensor]:
         """
