@@ -5,7 +5,7 @@ from datetime import datetime
 from data.dataset import DataConfig, DatasetLoader
 from evaluation.metric_calculator import MostPopularMetricCalculator
 from tools.config import load_yaml
-from tools.logger import setup_logger
+from tools.logger import common_logging, setup_logger
 from tools.parse_args import save_command_to_file
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
@@ -38,15 +38,6 @@ def main() -> None:
     try:
         logger.info("model: most_popular")
         logger.info(f"training results will be saved in {result_path}")
-        logger.info(
-            f"train dataset period: {config.preprocess.data.train_time_point} <= dt < {config.preprocess.data.val_time_point}"
-        )
-        logger.info(
-            f"val dataset period: {config.preprocess.data.val_time_point} <= dt < {config.preprocess.data.test_time_point}"
-        )
-        logger.info(
-            f"test dataset period: {config.preprocess.data.test_time_point} <= dt < {config.preprocess.data.end_time_point}"
-        )
 
         data_loader = DatasetLoader(
             data_config=DataConfig(
@@ -65,73 +56,10 @@ def main() -> None:
         # Note: although is_csr is set True, we do not use train_csr dataset, but use val / test data in pandas dataframe.
         data = data_loader.prepare_train_val_dataset(is_csr=True)
 
-        logger.info("######## Number of reviews statistics ########")
-        logger.info(f"Number of reviews in train: {data['X_train'].data.shape[0]}")
-        logger.info(f"Number of reviews in val: {data['X_val'].data.shape[0]}")
-        logger.info(f"Number of reviews in test: {data['X_test'].data.shape[0]}")
-
-        logger.info("######## Train data statistics ########")
-        logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
-        logger.info(f"Number of diners in train: {len(data['train_diner_ids'])}")
-        logger.info(f"Number of feedbacks in train: {data['X_train'].data.shape[0]}")
-        train_density = round(
-            100
-            * data["X_train"].data.shape[0]
-            / (len(data["train_user_ids"]) * len(data["train_diner_ids"])),
-            4,
-        )
-        logger.info(f"Train data density: {train_density}%")
-
-        logger.info("######## Validation data statistics ########")
-        logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
-        logger.info(f"Number of diners in val: {len(data['val_diner_ids'])}")
-        logger.info(f"Number of feedbacks in val: {data['X_val'].data.shape[0]}")
-        val_density = round(
-            100
-            * data["X_val"].data.shape[0]
-            / (len(data["val_user_ids"]) * len(data["val_diner_ids"])),
-            4,
-        )
-        logger.info(f"Validation data density: {val_density}%")
-
-        logger.info("######## Test data statistics ########")
-        logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
-        logger.info(f"Number of diners in test: {len(data['test_diner_ids'])}")
-        logger.info(f"Number of feedbacks in test: {data['X_test'].data.shape[0]}")
-        test_density = round(
-            100
-            * data["X_test"].data.shape[0]
-            / (len(data["test_user_ids"]) * len(data["test_diner_ids"])),
-            4,
-        )
-        logger.info(f"Test data density: {test_density}%")
-
-        logger.info(
-            "######## Warm / Cold users analysis in validation and test dataset ########"
-        )
-        logger.info(
-            f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
-        )
-        logger.info(
-            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
-        )
-        logger.info(
-            f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
-        )
-        logger.info(
-            f"Ratio of cold start users in val: {100 * round(len(data['val_cold_start_user_ids']) / (len(data['val_warm_start_user_ids']) + len(data['val_cold_start_user_ids'])), 4)}%"
-        )
-        logger.info(
-            f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
-        )
-        logger.info(
-            f"Ratio of cold start users in test: {100 * round(len(data['test_cold_start_user_ids']) / (len(data['test_warm_start_user_ids']) + len(data['test_cold_start_user_ids'])), 4)}%"
+        common_logging(
+            config=config,
+            data=data,
+            logger=logger,
         )
 
         # Note: In most popular model, we do not actually have any machine learning models.

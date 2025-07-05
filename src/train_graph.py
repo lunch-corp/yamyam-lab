@@ -15,7 +15,7 @@ from evaluation.metric_calculator import EmbeddingMetricCalculator
 from preprocess.preprocess import prepare_networkx_undirected_graph
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
-from tools.logger import setup_logger
+from tools.logger import common_logging, setup_logger
 from tools.parse_args import parse_args_embedding, save_command_to_file
 from tools.plot import plot_metric_at_k
 from tools.zip import zip_files_in_directory
@@ -74,16 +74,6 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
 
-        logger.info(
-            f"train dataset period: {config.preprocess.data.train_time_point} <= dt < {config.preprocess.data.val_time_point}"
-        )
-        logger.info(
-            f"val dataset period: {config.preprocess.data.val_time_point} <= dt < {config.preprocess.data.test_time_point}"
-        )
-        logger.info(
-            f"test dataset period: {config.preprocess.data.test_time_point} <= dt < {config.preprocess.data.end_time_point}"
-        )
-
         data_loader = DatasetLoader(
             data_config=DataConfig(
                 X_columns=["diner_idx", "reviewer_id"],
@@ -114,67 +104,10 @@ def main(args: ArgumentParser.parse_args) -> None:
             use_metadata=args.use_metadata,
         )
 
-        logger.info("######## Number of reviews statistics ########")
-        logger.info(f"Number of reviews in train: {data['X_train'].size(0)}")
-        logger.info(f"Number of reviews in val: {data['X_val'].size(0)}")
-        logger.info(f"Number of reviews in test: {data['X_test'].size(0)}")
-
-        logger.info("######## Train data statistics ########")
-        logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
-        logger.info(f"Number of diners in train: {len(data['train_diner_ids'])}")
-        logger.info(f"Number of feedbacks in train: {data['X_train'].size(0)}")
-        train_density = round(
-            100
-            * data["X_train"].size(0)
-            / (len(data["train_user_ids"]) * len(data["train_diner_ids"])),
-            4,
-        )
-        logger.info(f"Train data density: {train_density}%")
-
-        logger.info("######## Validation data statistics ########")
-        logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
-        logger.info(f"Number of diners in val: {len(data['val_diner_ids'])}")
-        logger.info(f"Number of feedbacks in val: {data['X_val'].size(0)}")
-        val_density = round(
-            100
-            * data["X_val"].size(0)
-            / (len(data["val_user_ids"]) * len(data["val_diner_ids"])),
-            4,
-        )
-        logger.info(f"Validation data density: {val_density}%")
-
-        logger.info("######## Test data statistics ########")
-        logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
-        logger.info(f"Number of diners in test: {len(data['test_diner_ids'])}")
-        logger.info(f"Number of feedbacks in test: {data['X_test'].size(0)}")
-        test_density = round(
-            100
-            * data["X_test"].size(0)
-            / (len(data["test_user_ids"]) * len(data["test_diner_ids"])),
-            4,
-        )
-        logger.info(f"Test data density: {test_density}%")
-
-        logger.info(
-            "######## Warm / Cold users analysis in validation and test dataset ########"
-        )
-        logger.info(
-            f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
-        )
-        logger.info(
-            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
-        )
-        logger.info(
-            f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
+        common_logging(
+            config=config,
+            data=data,
+            logger=logger,
         )
 
         # for qualitative eval
