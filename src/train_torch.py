@@ -6,7 +6,6 @@ import traceback
 from argparse import ArgumentParser
 from datetime import datetime
 
-import pandas as pd
 import torch
 from torch import optim
 
@@ -16,7 +15,6 @@ from data.dataset import (
 )
 from evaluation.metric_calculator import SVDBiasMetricCalculator
 from loss.custom import svd_loss
-from preprocess.preprocess import prepare_torch_dataloader
 from tools.config import load_yaml
 from tools.logger import common_logging, setup_logger
 from tools.plot import plot_metric_at_k
@@ -68,7 +66,7 @@ def main(args: ArgumentParser.parse_args):
                 test=args.test,
             ),
         )
-        data = data_loader.prepare_train_val_dataset()
+        data = data_loader.prepare_train_val_dataset(is_tensor=True)
 
         common_logging(
             config=config,
@@ -76,8 +74,9 @@ def main(args: ArgumentParser.parse_args):
             logger=logger,
         )
 
-        train_dataloader, val_dataloader = prepare_torch_dataloader(
-            data["X_train"], data["y_train"], data["X_val"], data["y_val"]
+        train_dataloader, val_dataloader = (
+            data["train_dataloader"],
+            data["val_dataloader"],
         )
 
         # for qualitative eval
@@ -94,7 +93,7 @@ def main(args: ArgumentParser.parse_args):
             embedding_dim=args.embedding_dim,
             top_k_values=top_k_values,
             model_name=args.model,
-            mu=data["y_train"].mean(),
+            mu=torch.tensor(data["y_train"].mean(), dtype=torch.float32),
         ).to(args.device)
 
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
@@ -165,15 +164,9 @@ def main(args: ArgumentParser.parse_args):
             # calculate metric for test data with warm / cold / all users separately
             metric_dict = (
                 metric_calculator.generate_recommendations_and_calculate_metric(
-                    X_train=pd.DataFrame(
-                        data["X_train"], columns=["diner_idx", "reviewer_id"]
-                    ),
-                    X_val_warm_users=pd.DataFrame(
-                        data["X_val_warm_users"], columns=["diner_idx", "reviewer_id"]
-                    ),
-                    X_val_cold_users=pd.DataFrame(
-                        data["X_val_cold_users"], columns=["diner_idx", "reviewer_id"]
-                    ),
+                    X_train=data["X_train"],
+                    X_val_warm_users=data["X_val_warm_users"],
+                    X_val_cold_users=data["X_val_cold_users"],
                     most_popular_diner_ids=data["most_popular_diner_ids"],
                     filter_already_liked=True,
                 )
@@ -265,13 +258,9 @@ def main(args: ArgumentParser.parse_args):
 
         # calculate metric for test data with warm / cold / all users separately
         metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
-            X_train=pd.DataFrame(data["X_train"], columns=["diner_idx", "reviewer_id"]),
-            X_val_warm_users=pd.DataFrame(
-                data["X_test_warm_users"], columns=["diner_idx", "reviewer_id"]
-            ),
-            X_val_cold_users=pd.DataFrame(
-                data["X_test_cold_users"], columns=["diner_idx", "reviewer_id"]
-            ),
+            X_train=data["X_train"],
+            X_val_warm_users=data["X_test_warm_users"],
+            X_val_cold_users=data["X_test_cold_users"],
             most_popular_diner_ids=data["most_popular_diner_ids"],
             filter_already_liked=True,
         )

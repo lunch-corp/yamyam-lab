@@ -17,6 +17,7 @@ from features import build_feature
 from preprocess.preprocess import (
     meta_mapping,
     prepare_networkx_undirected_graph,
+    prepare_torch_dataloader,
     preprocess_common,
     reviewer_diner_mapping,
 )
@@ -373,6 +374,7 @@ class DatasetLoader:
         is_rank: bool = False,
         is_csr: bool = False,
         is_networkx_graph: bool = False,
+        is_tensor: bool = False,
         use_metadata: bool = False,
         weighted_edge: bool = False,
     ) -> Dict[str, Any]:
@@ -383,6 +385,7 @@ class DatasetLoader:
             is_rank (bool): Indicator if it is ranking model or not.
             is_csr (bool): Indicator if csr format or not for als model.
             is_networkx_graph (bool): Indicator if using metworkx graph object or not.
+            is_tensor (bool): Indicator if using tensor or not.
             use_metadata (bool): Indicator if using metadata or not in graph model, especially for metapath2vec
             weighted_edge (bool): Indicator if using weighted edge or not.
 
@@ -638,6 +641,29 @@ class DatasetLoader:
                 weighted_edge=weighted_edge,
             )
 
+        if is_tensor:
+            return self.create_torch_dataset(
+                train=train,
+                val=val,
+                test=test,
+                train_user_ids=train_user_ids,
+                val_user_ids=val_user_ids,
+                test_user_ids=test_user_ids,
+                train_diner_ids=train_diner_ids,
+                val_diner_ids=val_diner_ids,
+                test_diner_ids=test_diner_ids,
+                val_warm_start_user_ids=val_warm_start_user_ids,
+                val_cold_start_user_ids=val_cold_start_user_ids,
+                test_warm_start_user_ids=test_warm_start_user_ids,
+                test_cold_start_user_ids=test_cold_start_user_ids,
+                val_warm_users=val_warm_users,
+                val_cold_users=val_cold_users,
+                test_warm_users=test_warm_users,
+                test_cold_users=test_cold_users,
+                diner_meta_feature=diner_meta_feature,
+                mapped_res=mapped_res,
+            )
+
     def _validate_user_mappings(
         self: Self,
         candidate_user_mapping: Dict[str, Any],
@@ -855,6 +881,9 @@ class DatasetLoader:
         test_cold_users: pd.DataFrame,
         mapped_res: Dict[str, Any],
     ) -> Dict[str, Any]:
+        """
+        Create train / val csr matrix and return other data used in evaluation.
+        """
         num_total_users = len(mapped_res.get("user_mapping"))
         num_total_diners = len(mapped_res.get("diner_mapping"))
         train_Cui_csr = self.create_csr_matrix_from_review_data(
@@ -1028,18 +1057,7 @@ class DatasetLoader:
         weighted_edge: bool,
     ) -> Dict[str, Any]:
         """
-        Prepare the standard output for graph embedding.
-
-        Args:
-            train: pd.DataFrame
-            val: pd.DataFrame
-            user_feature: pd.DataFrame
-            diner_feature: pd.DataFrame
-            diner_meta_feature: pd.DataFrame
-            mapped_res: Dict[str, Any]
-
-        Returns (Dict[str, Any]):
-            A dictionary containing the training and validation
+        Create train / val networkx graph object and return other data used in evaluation.
         """
         train_graph, val_graph = prepare_networkx_undirected_graph(
             X_train=train[self.X_columns],
@@ -1097,6 +1115,74 @@ class DatasetLoader:
             "test_diner_ids": test_diner_ids,
             "train_graph": train_graph,
             "val_graph": val_graph,
+            **mapped_res,
+        }
+
+    def create_torch_dataset(
+        self: Self,
+        train: pd.DataFrame,
+        val: pd.DataFrame,
+        test: pd.DataFrame,
+        train_user_ids: NDArray,
+        val_user_ids: NDArray,
+        test_user_ids: NDArray,
+        train_diner_ids: NDArray,
+        val_diner_ids: NDArray,
+        test_diner_ids: NDArray,
+        val_warm_start_user_ids: NDArray,
+        val_cold_start_user_ids: NDArray,
+        test_warm_start_user_ids: NDArray,
+        test_cold_start_user_ids: NDArray,
+        val_warm_users: pd.DataFrame,
+        val_cold_users: pd.DataFrame,
+        test_warm_users: pd.DataFrame,
+        test_cold_users: pd.DataFrame,
+        diner_meta_feature: pd.DataFrame,
+        mapped_res: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Create torch dataloader and return other data used in evaluation.
+        """
+        X_train = torch.tensor(train[self.X_columns].values)
+        y_train = torch.tensor(train[self.y_columns].values, dtype=torch.float32)
+        X_val = torch.tensor(val[self.X_columns].values)
+        y_val = torch.tensor(val[self.y_columns].values, dtype=torch.float32)
+
+        train_dataloader, val_dataloader = prepare_torch_dataloader(
+            X_train, y_train, X_val, y_val
+        )
+
+        return {
+            "X_train": train[self.X_columns],
+            "y_train": train[self.y_columns],
+            "X_val": val[self.X_columns],
+            "y_val": val[self.y_columns],
+            "X_test": test[self.X_columns],
+            "y_test": test[self.y_columns],
+            "X_val_warm_users": val_warm_users[self.X_columns],
+            "y_val_warm_users": val_warm_users[self.y_columns],
+            "X_val_cold_users": val_cold_users[self.X_columns],
+            "y_val_cold_users": val_cold_users[self.y_columns],
+            "X_test_warm_users": test_warm_users[self.X_columns],
+            "y_test_warm_users": test_warm_users[self.y_columns],
+            "X_test_cold_users": test_cold_users[self.X_columns],
+            "y_test_cold_users": test_cold_users[self.y_columns],
+            "diner": diner_meta_feature,
+            "most_popular_diner_ids": self.get_most_popular_diner_ids(
+                train_review=train
+            ),
+            "val_warm_start_user_ids": val_warm_start_user_ids,
+            "val_cold_start_user_ids": val_cold_start_user_ids,
+            "test_warm_start_user_ids": test_warm_start_user_ids,
+            "test_cold_start_user_ids": test_cold_start_user_ids,
+            "train_user_ids": train_user_ids,
+            "val_user_ids": val_user_ids,
+            "test_user_ids": test_user_ids,
+            "train_diner_ids": train_diner_ids,
+            "val_diner_ids": val_diner_ids,
+            "test_diner_ids": test_diner_ids,
+            "train_dataloader": train_dataloader,
+            "val_dataloader": val_dataloader,
             **mapped_res,
         }
 
