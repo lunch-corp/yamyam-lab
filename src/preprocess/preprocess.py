@@ -115,7 +115,7 @@ def preprocess_common(
 def reviewer_diner_mapping(
     review: pd.DataFrame,
     diner: pd.DataFrame,
-    is_graph_model: bool = False,
+    use_unique_mapping_id: bool = False,
 ) -> Dict[str, Any]:
     """
     Map reviewer_id, diner_idx to integer in ascending order.
@@ -125,8 +125,8 @@ def reviewer_diner_mapping(
     Args:
         review (pd.DataFrame): Review dataset.
         diner (pd.DataFrame): Diner dataset.
-        is_graph_model (bool): Indicator whether target model is graph based model or not.
-            When set true, all the mapped id should be unique.
+        use_unique_mapping_id (bool): Indicator whether mapping id should be unique or not.
+            This parameter is set as True when using networkx.Graph object, which requires to use unique node_id
 
     Returns (Dict[str, Any]):
         Mapped result.
@@ -137,7 +137,7 @@ def reviewer_diner_mapping(
         start_number=0,
     )
     num_diners = len(diner_mapping)
-    start_number = num_diners if is_graph_model else 0
+    start_number = num_diners if use_unique_mapping_id else 0
     reviewer_mapping, review = map_id_to_ascending_integer(
         id_column="reviewer_id",
         data=review,
@@ -307,10 +307,10 @@ def prepare_torch_geometric_data(
 
 
 def prepare_networkx_undirected_graph(
-    X_train: Tensor,
-    y_train: Tensor,
-    X_val: Tensor,
-    y_val: Tensor,
+    X_train: pd.DataFrame,
+    y_train: pd.DataFrame,
+    X_val: pd.DataFrame,
+    y_val: pd.DataFrame,
     diner: pd.DataFrame,
     user_mapping: Dict[int, int],
     diner_mapping: Dict[int, int],
@@ -332,10 +332,10 @@ def prepare_networkx_undirected_graph(
             However, when traversing reversely, there are lots of paths because multiple diners belong to one metadata.
 
     Args:
-        X_train (Tensor): input features used when training model.
-        y_train (Tensor): target features, which is usually used for edged weight in training data.
-        X_val (Tensor): input features used when validating model.
-        y_val (Tensor): target features, which is usually used for edged weight in validation data.
+        X_train (pd.DataFrame): input features used when training model.
+        y_train (pd.DataFrame): target features, which is usually used for edged weight in training data.
+        X_val (pd.DataFrame): input features used when validating model.
+        y_val (pd.DataFrame): target features, which is usually used for edged weight in validation data.
         diner (pd.DataFrame): diner dataset consisting of diner_id and metadata_id.
         user_mapping (Dict[int, int]): dictionary mapping original user_id to descending integer.
         diner_mapping (Dict[int, int]): dictionary mapping original diner_id to descending integer.
@@ -352,19 +352,19 @@ def prepare_networkx_undirected_graph(
     # Prepare all edges at once
     train_edges = [
         (
-            diner_id.item(),
-            reviewer_id.item(),
-            {"weight": rating.item()} if weighted else {},
+            x_row["diner_idx"],
+            x_row["reviewer_id"],
+            {"weight": y_row["reviewer_review_score"]} if weighted else {},
         )
-        for (diner_id, reviewer_id), rating in zip(X_train, y_train)
+        for (_, x_row), (_, y_row) in zip(X_train.iterrows(), y_train.iterrows())
     ]
     val_edges = [
         (
-            diner_id.item(),
-            reviewer_id.item(),
-            {"weight": rating.item()} if weighted else {},
+            x_row["diner_idx"],
+            x_row["reviewer_id"],
+            {"weight": y_row["reviewer_review_score"]} if weighted else {},
         )
-        for (diner_id, reviewer_id), rating in zip(X_val, y_val)
+        for (_, x_row), (_, y_row) in zip(X_val.iterrows(), y_val.iterrows())
     ]
 
     # Add metadata edges if needed

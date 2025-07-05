@@ -5,14 +5,12 @@ import traceback
 from argparse import ArgumentParser
 from datetime import datetime
 
-import pandas as pd
 import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
 from data.dataset import DataConfig, DatasetLoader
 from evaluation.metric_calculator import EmbeddingMetricCalculator
-from preprocess.preprocess import prepare_networkx_undirected_graph
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
 from tools.logger import common_logging, setup_logger
@@ -86,23 +84,16 @@ def main(args: ArgumentParser.parse_args) -> None:
                 val_time_point=config.preprocess.data.val_time_point,
                 test_time_point=config.preprocess.data.test_time_point,
                 end_time_point=config.preprocess.data.end_time_point,
-                is_graph_model=True,
+                use_unique_mapping_id=True,
                 test=args.test,
             ),
         )
-        data = data_loader.prepare_train_val_dataset(use_metadata=args.use_metadata)
-        train_graph, val_graph = prepare_networkx_undirected_graph(
-            X_train=data["X_train"],
-            y_train=data["y_train"],
-            X_val=data["X_val"],
-            y_val=data["y_val"],
-            diner=data["diner"],
-            user_mapping=data["user_mapping"],
-            diner_mapping=data["diner_mapping"],
-            meta_mapping=data["meta_mapping"] if args.use_metadata else None,
-            weighted=args.weighted_edge,
+        data = data_loader.prepare_train_val_dataset(
+            is_networkx_graph=True,
             use_metadata=args.use_metadata,
+            weighted_edge=args.weighted_edge,
         )
+        train_graph, val_graph = data["train_graph"], data["val_graph"]  # noqa
 
         common_logging(
             config=config,
@@ -204,15 +195,9 @@ def main(args: ArgumentParser.parse_args) -> None:
             # calculate metric for test data with warm / cold / all users separately
             metric_dict = (
                 metric_calculator.generate_recommendations_and_calculate_metric(
-                    X_train=pd.DataFrame(
-                        data["X_train"], columns=["diner_idx", "reviewer_id"]
-                    ),
-                    X_val_warm_users=pd.DataFrame(
-                        data["X_val_warm_users"], columns=["diner_idx", "reviewer_id"]
-                    ),
-                    X_val_cold_users=pd.DataFrame(
-                        data["X_val_cold_users"], columns=["diner_idx", "reviewer_id"]
-                    ),
+                    X_train=data["X_train"],
+                    X_val_warm_users=data["X_val_warm_users"],
+                    X_val_cold_users=data["X_val_cold_users"],
                     most_popular_diner_ids=data["most_popular_diner_ids"],
                     filter_already_liked=True,
                 )
@@ -253,15 +238,9 @@ def main(args: ArgumentParser.parse_args) -> None:
         # calculate metric for test data with warm / cold / all users separately
         metric_dict_test = (
             metric_calculator.generate_recommendations_and_calculate_metric(
-                X_train=pd.DataFrame(
-                    data["X_train"], columns=["diner_idx", "reviewer_id"]
-                ),
-                X_val_warm_users=pd.DataFrame(
-                    data["X_test_warm_users"], columns=["diner_idx", "reviewer_id"]
-                ),
-                X_val_cold_users=pd.DataFrame(
-                    data["X_test_cold_users"], columns=["diner_idx", "reviewer_id"]
-                ),
+                X_train=data["X_train"],
+                X_val_warm_users=data["X_test_warm_users"],
+                X_val_cold_users=data["X_test_cold_users"],
                 most_popular_diner_ids=data["most_popular_diner_ids"],
                 filter_already_liked=True,
             )

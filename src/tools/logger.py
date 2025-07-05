@@ -43,17 +43,17 @@ def common_logging(
     )
 
     logger.info("######## Number of reviews statistics ########")
-    logger.info(f"Number of reviews in train: {data['X_train'].size(0)}")
-    logger.info(f"Number of reviews in val: {data['X_val'].size(0)}")
-    logger.info(f"Number of reviews in test: {data['X_test'].size(0)}")
+    logger.info(f"Number of reviews in train: {data['X_train'].shape[0]}")
+    logger.info(f"Number of reviews in val: {data['X_val'].shape[0]}")
+    logger.info(f"Number of reviews in test: {data['X_test'].shape[0]}")
 
     logger.info("######## Train data statistics ########")
     logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
     logger.info(f"Number of diners in train: {len(data['train_diner_ids'])}")
-    logger.info(f"Number of feedbacks in train: {data['X_train'].size(0)}")
+    logger.info(f"Number of feedbacks in train: {data['X_train'].shape[0]}")
     train_density = round(
         100
-        * data["X_train"].size(0)
+        * data["X_train"].shape[0]
         / (len(data["train_user_ids"]) * len(data["train_diner_ids"])),
         4,
     )
@@ -62,10 +62,10 @@ def common_logging(
     logger.info("######## Validation data statistics ########")
     logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
     logger.info(f"Number of diners in val: {len(data['val_diner_ids'])}")
-    logger.info(f"Number of feedbacks in val: {data['X_val'].size(0)}")
+    logger.info(f"Number of feedbacks in val: {data['X_val'].shape[0]}")
     val_density = round(
         100
-        * data["X_val"].size(0)
+        * data["X_val"].shape[0]
         / (len(data["val_user_ids"]) * len(data["val_diner_ids"])),
         4,
     )
@@ -74,10 +74,10 @@ def common_logging(
     logger.info("######## Test data statistics ########")
     logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
     logger.info(f"Number of diners in test: {len(data['test_diner_ids'])}")
-    logger.info(f"Number of feedbacks in test: {data['X_test'].size(0)}")
+    logger.info(f"Number of feedbacks in test: {data['X_test'].shape[0]}")
     test_density = round(
         100
-        * data["X_test"].size(0)
+        * data["X_test"].shape[0]
         / (len(data["test_user_ids"]) * len(data["test_diner_ids"])),
         4,
     )
