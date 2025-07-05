@@ -41,7 +41,7 @@ def test_loader_dataset():
             candidate_type="node2vec",
         ),
     )
-    data = data_loader.prepare_train_val_dataset()
+    data = data_loader.prepare_train_val_dataset(is_tensor=True)
 
     assert data["X_train"].shape[0] > 0
     assert data["X_val"].shape[0] > 0
