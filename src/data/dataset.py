@@ -371,7 +371,7 @@ class DatasetLoader:
 
     def prepare_train_val_dataset(
         self: Self,
-        filter_config: Dict[str, Any],
+        filter_config: Dict[str, Any] = None,
         is_rank: bool = False,
         is_csr: bool = False,
         is_networkx_graph: bool = False,

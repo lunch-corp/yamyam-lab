@@ -41,7 +41,7 @@ def preprocess_common(
     diner: pd.DataFrame,
     diner_with_raw_category: pd.DataFrame,
     min_reviews: int,
-    filter_config: Dict[str, Any],
+    filter_config: Dict[str, Any] = None,
     is_timeseries_by_time_point: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -109,10 +109,11 @@ def preprocess_common(
     diner["diner_category_middle"] = diner["diner_category_middle"].fillna("NA")
 
     # step 5: filter abusive reviews due to martial laws
-    review = Filter().filter_martial_law_reviews(
-        review=review,
-        **filter_config.martial_law_reviews,
-    )
+    if filter_config is not None:
+        review = Filter().filter_martial_law_reviews(
+            review=review,
+            **filter_config.martial_law_reviews,
+        )
 
     # step 6: convert reviewer_review_date into datetime object
     review["reviewer_review_date"] = pd.to_datetime(
