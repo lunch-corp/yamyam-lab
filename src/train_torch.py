@@ -35,7 +35,8 @@ def main(args: ArgumentParser.parse_args):
     config = load_yaml(CONFIG_PATH.format(model=args.model))
 
     # predefine config
-    top_k_values = config.training.evaluation.top_k_values_for_pred
+    top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
+    top_k_values_for_candidate = config.training.evaluation.top_k_values_for_candidate
     file_name = config.post_training.file_name
 
     logger = setup_logger(os.path.join(result_path, file_name.log))
@@ -150,6 +151,11 @@ def main(args: ArgumentParser.parse_args):
         # for qualitative eval
         pickle.dump(data, open(os.path.join(result_path, file_name.data_object), "wb"))
 
+        top_k_values = (
+            config.training.evaluation.top_k_values_for_pred
+            + config.training.evaluation.top_k_values_for_candidate
+        )
+
         # import model module
         model_path = f"model.mf.{args.model}"
         model_module = importlib.import_module(model_path).Model
@@ -174,6 +180,10 @@ def main(args: ArgumentParser.parse_args):
             filter_already_liked=True,
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
             logger=logger,
+            embed_user=model.embed_user,
+            embed_item=model.embed_item,
+            user_bias=model.user_bias,
+            item_bias=model.item_bias,
         )
 
         # train model
@@ -328,6 +338,10 @@ def main(args: ArgumentParser.parse_args):
             filter_already_liked=True,
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
             logger=logger,
+            embed_user=model.embed_user,
+            embed_item=model.embed_item,
+            user_bias=model.user_bias,
+            item_bias=model.item_bias,
         )
 
         # calculate metric for test data with warm / cold / all users separately
@@ -357,8 +371,8 @@ def main(args: ArgumentParser.parse_args):
             metric=model.metric_at_k_total_epochs,
             tr_loss=model.tr_loss,
             parent_save_path=result_path,
-            top_k_values_for_pred=top_k_values,
-            top_k_values_for_candidate=[],
+            top_k_values_for_pred=top_k_values_for_pred,
+            top_k_values_for_candidate=top_k_values_for_candidate,
         )
     except:
         logger.error(traceback.format_exc())
