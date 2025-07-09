@@ -20,6 +20,8 @@ from tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/graph/{model}.yaml")
+PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
+
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
@@ -32,6 +34,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     os.makedirs(result_path, exist_ok=True)
     # load config
     config = load_yaml(CONFIG_PATH.format(model=args.model))
+    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
     # save command used in argparse
     save_command_to_file(result_path)
 
@@ -92,6 +95,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             is_networkx_graph=True,
             use_metadata=args.use_metadata,
             weighted_edge=args.weighted_edge,
+            filter_config=preprocess_config.filter,
         )
         train_graph, val_graph = data["train_graph"], data["val_graph"]  # noqa
 

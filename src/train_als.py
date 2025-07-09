@@ -15,6 +15,7 @@ from tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
+PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
@@ -27,6 +28,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     os.makedirs(result_path, exist_ok=True)
     # load config
     config = load_yaml(CONFIG_PATH.format(model="als"))
+    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
     # save command used in argparse
     save_command_to_file(result_path)
 
@@ -63,7 +65,10 @@ def main(args: ArgumentParser.parse_args) -> None:
                 test=args.test,
             ),
         )
-        data = data_loader.prepare_train_val_dataset(is_csr=True)
+        data = data_loader.prepare_train_val_dataset(
+            is_csr=True,
+            filter_config=preprocess_config.filter,
+        )
 
         common_logging(
             config=config,

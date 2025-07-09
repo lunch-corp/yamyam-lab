@@ -10,6 +10,7 @@ from tools.parse_args import save_command_to_file
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
+PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 
@@ -23,6 +24,7 @@ def main() -> None:
     config = load_yaml(
         CONFIG_PATH.format(model="als")
     )  # Note: use als config, because all configs are overlapped.
+    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
     # save command used in argparse
     save_command_to_file(result_path)
 
@@ -54,7 +56,10 @@ def main() -> None:
             ),
         )
         # Note: although is_csr is set True, we do not use train_csr dataset, but use val / test data in pandas dataframe.
-        data = data_loader.prepare_train_val_dataset(is_csr=True)
+        data = data_loader.prepare_train_val_dataset(
+            is_csr=True,
+            filter_config=preprocess_config.filter,
+        )
 
         common_logging(
             config=config,

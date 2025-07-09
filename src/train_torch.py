@@ -21,6 +21,7 @@ from tools.plot import plot_metric_at_k
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
+PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 
@@ -31,6 +32,7 @@ def main(args: ArgumentParser.parse_args):
     result_path = RESULT_PATH.format(test=test_flag, model=args.model, dt=dt)
     os.makedirs(result_path, exist_ok=True)
     config = load_yaml(CONFIG_PATH.format(model=args.model))
+    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
 
     # predefine config
     top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
@@ -67,7 +69,10 @@ def main(args: ArgumentParser.parse_args):
                 test=args.test,
             ),
         )
-        data = data_loader.prepare_train_val_dataset(is_tensor=True)
+        data = data_loader.prepare_train_val_dataset(
+            is_tensor=True,
+            filter_config=preprocess_config.filter,
+        )
 
         common_logging(
             config=config,
