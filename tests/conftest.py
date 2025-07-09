@@ -125,5 +125,34 @@ def setup_ranker_config(request):
                 "top_k_values_for_pred": [3, 7, 10, 20],
             },
         },
+        "preprocess": {
+            "filter": {
+                "martial_law_reviews": {
+                    "target_months": ["2025-01", "2024-12"],
+                    "min_common_word_count_with_abusive_words": 3,
+                    "min_review_count_by_diner_id": 3,
+                    "included_tags": ["NNG", "NNP"],
+                    "abusive_words": [
+                        "총",
+                        "내란",
+                        "공수처",
+                        "시위",
+                        "좌우",
+                        "애국",
+                        "정치",
+                        "총살",
+                        "테러",
+                        "민주주의",
+                        "윤석열",
+                        "총기",
+                        "좌파",
+                        "우파",
+                        "극우",
+                        "집회",
+                        "계엄",
+                    ],
+                }
+            }
+        },
     }
     return OmegaConf.create(config)
