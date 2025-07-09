@@ -2338,6 +2338,63 @@ files = [
 ]
 
 [[package]]
+name = "kiwipiepy"
+version = "0.21.0"
+description = "Kiwi, the Korean Tokenizer for Python"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "kiwipiepy-0.21.0-cp310-cp310-macosx_13_0_arm64.whl", hash = "sha256:655589a3fc20f2e902e9d4f62e5918d8ac02748f8e1f877d416c7b570edb4ead"},
+    {file = "kiwipiepy-0.21.0-cp310-cp310-macosx_13_0_x86_64.whl", hash = "sha256:34cb9d079eb2ec28626ebac28e3d2132028cd6b6b792d1e24b05c52bce91ee99"},
+    {file = "kiwipiepy-0.21.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d334f953c37ec1d5d335ae76ab2463459d25c385b559c90f8a48354bce61ed7e"},
+    {file = "kiwipiepy-0.21.0-cp310-cp310-win32.whl", hash = "sha256:3c6aaec33720d3681a907ebb9534fa2e5be0bcc9d610e1e0204375d427ac58f7"},
+    {file = "kiwipiepy-0.21.0-cp310-cp310-win_amd64.whl", hash = "sha256:369813833aadfc73de7c9d8ae992e2a590d0cfa546bf6827bcdf4e98a81df812"},
+    {file = "kiwipiepy-0.21.0-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:70ae9842fc9882a84b0ba3b8a39f64bba9d52f57d04c9a574fbfc4f04e77dd34"},
+    {file = "kiwipiepy-0.21.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:ee09a0c8f7e054b2350d8009837ad042dbfe925ce38912574aeb1399a959b468"},
+    {file = "kiwipiepy-0.21.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5fcc057b24210f9ce26834c61ff6bba461bdffcb433acba40dc0e338319f947e"},
+    {file = "kiwipiepy-0.21.0-cp311-cp311-win32.whl", hash = "sha256:52ce5392c4e79bdad8bfc6d1288570cf6c9759b81de2a9c04f82b685707d658f"},
+    {file = "kiwipiepy-0.21.0-cp311-cp311-win_amd64.whl", hash = "sha256:474f39db53fa1af9aac175c782ffdf864460c01354c85527b3b60a7372c5e203"},
+    {file = "kiwipiepy-0.21.0-cp312-cp312-macosx_10_14_x86_64.whl", hash = "sha256:3c095c2e425c843d1deec9a18a2834ce91edf6be19d9da94467e8005b9ead2a6"},
+    {file = "kiwipiepy-0.21.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:78f11c14bb33ee21e011b7cef76d1f56e2416d734fd9efee80acf1a4c599cdcc"},
+    {file = "kiwipiepy-0.21.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1b41ff34b43ccd9c79867b77689b1b882ffc5e7f9bb0e2f1e1139bf56254ea07"},
+    {file = "kiwipiepy-0.21.0-cp312-cp312-win32.whl", hash = "sha256:bf3832cb0ca6524a49b127340779c3792ab8c42d0890033be2f407abe1e1d04f"},
+    {file = "kiwipiepy-0.21.0-cp312-cp312-win_amd64.whl", hash = "sha256:7c2c1b29642b84ee48b729c841dcfcfcfe55b28b5e32b7497f303c710ed8750c"},
+    {file = "kiwipiepy-0.21.0-cp313-cp313-macosx_10_14_x86_64.whl", hash = "sha256:f6ae4e7bb3eef52cc1d692e4ea8880c2b8ff65129ae860ccbb5371d0464b7140"},
+    {file = "kiwipiepy-0.21.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:43fc3e750f8dfe999d2d2c9dfce1a4a19a893d4849397c1c95412f7ee4adf25b"},
+    {file = "kiwipiepy-0.21.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ea85c395589be5916e679db2288e551b796af9f13460510d5d9b15e60ef6e30f"},
+    {file = "kiwipiepy-0.21.0-cp313-cp313-win32.whl", hash = "sha256:6b2203d25d139cf363963bd4aaefd6612bb285b3019a0273c11dd6cecd2eba35"},
+    {file = "kiwipiepy-0.21.0-cp313-cp313-win_amd64.whl", hash = "sha256:d6b72b1874a5adbbcf826054a6f638d671c71fd3be00fe7942332790e3da9e01"},
+    {file = "kiwipiepy-0.21.0-cp38-cp38-macosx_13_0_arm64.whl", hash = "sha256:453f5d909c30e789c31321e78bf604d8f8074359d9829e8c13638a703d857a6c"},
+    {file = "kiwipiepy-0.21.0-cp38-cp38-macosx_13_0_x86_64.whl", hash = "sha256:5798a4bf2a1189cdd11ff2a68f87995f7c1e57ab286fe12d2bcced5a4d57ec38"},
+    {file = "kiwipiepy-0.21.0-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:5e8944c5283ccd90c5419c39fa0e4de0dd3db7c70c36483d6dde0ef9620ede0c"},
+    {file = "kiwipiepy-0.21.0-cp38-cp38-win32.whl", hash = "sha256:5bc3973bc0c98a027a0ecf69192d1ec04372e507b4542364ff8053373ad43ad6"},
+    {file = "kiwipiepy-0.21.0-cp38-cp38-win_amd64.whl", hash = "sha256:60c0ddd2378cc79ba4a8ff583f25d1e946f4a06b01569dacb4ce43f7fc8bf97f"},
+    {file = "kiwipiepy-0.21.0-cp39-cp39-macosx_13_0_arm64.whl", hash = "sha256:7e2c8c29d4d943a9dd257e6c1a2fa02c8df0d8fa57aaeb2803f5fbf37cf8e80f"},
+    {file = "kiwipiepy-0.21.0-cp39-cp39-macosx_13_0_x86_64.whl", hash = "sha256:084fe732cec0926eca95209ded2ae7c7ababcafb04114cc4c4c472b98935cd28"},
+    {file = "kiwipiepy-0.21.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9c62ce1dfa82e7985d8ce3a8ca7882c6e050045f7a9eb70afd9f86c4d7e49b22"},
+    {file = "kiwipiepy-0.21.0-cp39-cp39-win32.whl", hash = "sha256:6b05294071dcf47d2c884a762bc33644805d438b40244ef835e02e59c79b149b"},
+    {file = "kiwipiepy-0.21.0-cp39-cp39-win_amd64.whl", hash = "sha256:1c51e0ccf6a92882d80fa204bb66bd785053184d607a88b65bb1a4f15cf5ee5e"},
+    {file = "kiwipiepy-0.21.0.tar.gz", hash = "sha256:f94b774987fb789ffaa157d49d1710cde2f1330882e8da4b1518a6929ef91089"},
+]
+
+[package.dependencies]
+kiwipiepy_model = ">=0.21,<0.22"
+numpy = {version = "*", markers = "python_version >= \"3.9\""}
+tqdm = "*"
+
+[[package]]
+name = "kiwipiepy-model"
+version = "0.21.0"
+description = "Model for kiwipiepy"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "kiwipiepy_model-0.21.0.tar.gz", hash = "sha256:046fd96bfc1d7487fc8f0eebf0b8e7f24c5c41e1ff2fb4a72ae77e9f9ca2d459"},
+]
+
+[[package]]
 name = "kiwisolver"
 version = "1.4.8"
 description = "A fast implementation of the Cassowary constraint solver"
@@ -6190,4 +6247,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "60eb4b4a4feee56b15217f1787b56e87a4ea3e06315f9628f461ac1fefc6f3c3"
+content-hash = "01bf40ab523b2e90f70af0e8ea7e2ea85d52312a5008788dc8a5bbc29e953475"

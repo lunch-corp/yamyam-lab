@@ -10,6 +10,7 @@ from torch_geometric.data import Data
 
 from data.validator import DataValidator
 from preprocess.diner_transform import CategoryProcessor
+from preprocess.filter import Filter
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
@@ -40,6 +41,7 @@ def preprocess_common(
     diner: pd.DataFrame,
     diner_with_raw_category: pd.DataFrame,
     min_reviews: int,
+    filter_config: Dict[str, Any],
     is_timeseries_by_time_point: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -50,6 +52,8 @@ def preprocess_common(
         diner (pd.DataFrame): Diner dataset.
         diner_with_raw_category (pd.DataFrame): Diner dataset with raw category not preprocessed before.
         min_reviews (int): Minimum number of reviews for each reviewers.
+        filter_config (Dict[str. Any]): Filter config used when filtering reviews.
+        is_timeseries_by_time_point (bool): Flag if split dataset to train / val / test using datetime.
 
     Returns (Tuple[pd.DataFrame, pd.DataFrame]):
         Preprocessed review dataset and diner dataset.
@@ -104,7 +108,13 @@ def preprocess_common(
     diner["diner_category_large"] = diner["diner_category_large"].fillna("NA")
     diner["diner_category_middle"] = diner["diner_category_middle"].fillna("NA")
 
-    # step 5: convert reviewer_review_date into datetime object
+    # step 5: filter abusive reviews due to martial laws
+    review = Filter().filter_martial_law_reviews(
+        review=review,
+        **filter_config.martial_law_reviews,
+    )
+
+    # step 6: convert reviewer_review_date into datetime object
     review["reviewer_review_date"] = pd.to_datetime(
         review["reviewer_review_date"].fillna("2015-01-01")
     )

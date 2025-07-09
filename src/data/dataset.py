@@ -371,6 +371,7 @@ class DatasetLoader:
 
     def prepare_train_val_dataset(
         self: Self,
+        filter_config: Dict[str, Any],
         is_rank: bool = False,
         is_csr: bool = False,
         is_networkx_graph: bool = False,
@@ -382,6 +383,7 @@ class DatasetLoader:
         Load and process training data.
 
         Args:
+            filter_config (Dict[str, Any]): Filter config used when filtering reviews.
             is_rank (bool): Indicator if it is ranking model or not.
             is_csr (bool): Indicator if csr format or not for als model.
             is_networkx_graph (bool): Indicator if using metworkx graph object or not.
@@ -403,6 +405,7 @@ class DatasetLoader:
             diner_with_raw_category=diner_with_raw_category,
             min_reviews=self.min_reviews,
             is_timeseries_by_time_point=self.is_timeseries_by_time_point,
+            filter_config=filter_config,
         )
 
         # Map reviewer and diner data
