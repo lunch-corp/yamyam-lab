@@ -1,10 +1,12 @@
 import ast
+import os
 import re
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Optional, Self, Union
+from typing import Any, Dict, List, Self
 
 import numpy as np
 import pandas as pd
+import yaml
 
 from tools.h3 import get_h3_index, get_hexagon_neighbors
 
@@ -27,7 +29,9 @@ class DinerFeatureStore(BaseFeatureStore):
         feature_param_pair: Dict[str, Dict[str, Any]],
     ) -> None:
         """
-        Initialize DinerFeatureStore with data and feature configurations.
+        Feature engineering on diner data.
+        This class gets `feature_param_pair` indicating which features to make with corresponding parameters.
+        Unimplemented feature name will raise error with `self.feature_methods`.
 
         Args:
             review: Review data which will be used as train dataset.
@@ -63,6 +67,30 @@ class DinerFeatureStore(BaseFeatureStore):
 
         self.engineered_feature_names = ["diner_idx"]
         self.engineered_meta_feature_names = ["diner_idx"]
+
+        # Load menu cleaning configuration
+        self.menu_config = self._load_menu_config()
+
+    def _load_menu_config(self: Self) -> Dict[str, Any]:
+        """
+        Load menu cleaning configuration from YAML file.
+
+        Returns:
+            Dictionary containing menu cleaning configuration.
+        """
+        config_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "config", "data", "menu_name.yaml"
+        )
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as file:
+                config = yaml.safe_load(file)
+                return config
+        except FileNotFoundError:
+            # 기본값으로 fallback
+            raise FileNotFoundError(
+                f"Menu cleaning configuration file not found at {config_path}"
+            )
 
     def make_features(self: Self) -> None:
         """
@@ -304,6 +332,49 @@ class DinerFeatureStore(BaseFeatureStore):
             min_menu_freq: Minimum frequency for multi-hot features (only used if create_multi_hot=True).
             max_features_per_category: Maximum number of menu features per category (only used if create_multi_hot=True).
             **kwargs: Additional keyword arguments.
+
+        Examples:
+            전체 과정 예시:
+
+            1. 원본 데이터:
+            | diner_category_large | diner_menu_name                           |
+            |---------------------|-------------------------------------------|
+            | 한식                | ["김치찌개(1인분)", "불고기 세트", "가격표"] |
+            | 한식                | ["김치찌개(1인분)", "된장찌개"]            |
+            | 중식                | ["짜장면123", "짬뽕"]                     |
+
+            2. 메뉴 정리 후 (cleaned_menu_list):
+            | diner_category_large | cleaned_menu_list      |
+            |---------------------|------------------------|
+            | 한식                | ["김치찌개", "불고기"]  |
+            | 한식                | ["김치찌개", "된장찌개"] |
+            | 중식                | ["짜장면", "짬뽕"]      |
+
+            3. 카테고리별 메뉴 빈도 계산:
+            {
+                "한식": Counter({"김치찌개": 201, "불고기": 101, "된장찌개": 51}),
+                "중식": Counter({"짜장면": 331, "짬뽕": 50})
+            }
+
+            4. menu_count_threshold=2 적용 후:
+            {
+                "한식": {"김치찌개", "불고기"},  # 빈도 100 이상만
+                "중식": {"짜장면"}          # 빈도 100 이상인 메뉴 없음
+            }
+
+            5. 최종 결과 (valid_menu_names):
+            | diner_category_large | valid_menu_names |
+            |---------------------|------------------|
+            | 한식                | ["김치찌개", "불고기"]      |
+            | 한식                | ["김치찌개"]      |
+            | 중식                | ["짜장면"]               |
+
+            6. create_multi_hot=True일 때 추가 컬럼들:
+            | menu_한식_김치찌개 | menu_한식_불고기 | menu_중식_짜장면 |
+            |------------------|----------------|----------------|
+            | 1                | 1              | 0              |
+            | 1                | 0              | 0              |
+            | 0                | 0              | 1              |
         """
         # Clean menu lists
         self.diner["cleaned_menu_list"] = self.diner["diner_menu_name"].apply(
@@ -316,13 +387,13 @@ class DinerFeatureStore(BaseFeatureStore):
         )
 
         # Create category-specific valid menu sets
-        category_valid_menus = self._filter_menus_by_frequency(
+        category_valid_menus = self._select_frequent_menus_per_category(
             category_menu_counts, menu_count_threshold, return_as_set=True
         )
 
         # Filter menu lists based on category-specific thresholds
         self.diner["valid_menu_names"] = self.diner.apply(
-            lambda row: self._filter_menus_by_category_threshold(
+            lambda row: self._apply_valid_menu_filter(
                 row, category_column, category_valid_menus
             ),
             axis=1,
@@ -340,7 +411,7 @@ class DinerFeatureStore(BaseFeatureStore):
             )
 
             # Select top menus for multi-hot encoding
-            category_top_menus = self._filter_menus_by_frequency(
+            category_top_menus = self._select_frequent_menus_per_category(
                 valid_menu_counts, min_menu_freq, max_features_per_category
             )
 
@@ -399,7 +470,7 @@ class DinerFeatureStore(BaseFeatureStore):
         self.engineered_feature_names.append("bayesian_score")
 
     # Private helper methods
-    def _clean_single_menu_name(self: Self, menu: str) -> Optional[str]:
+    def _clean_single_menu_name(self: Self, menu: str) -> str | None:
         """
         Clean a single menu name by removing stopwords and formatting.
 
@@ -408,41 +479,67 @@ class DinerFeatureStore(BaseFeatureStore):
 
         Returns:
             Cleaned menu name or None if invalid.
+
+        Examples:
+            >>> _clean_single_menu_name("돼지갈비(1인분)")
+            "돼지갈비"
+
+            >>> _clean_single_menu_name("김치찌개 세트(300g)")
+            "김치찌개"
+
+            >>> _clean_single_menu_name("가격표")
+            None
+
+            >>> _clean_single_menu_name("불고기123")
+            "불고기"
         """
-        stopwords = [
-            "1인분",
-            "1인세트",
-            "세트",
-            "추가",
-            "가격표",
-            "가격",
-            "참고",
-            "오시는 길",
-            "내부에 추천메뉴",
-        ]
-        units = ["g", "kg", "개", "mm"]
+        # Load configuration
+        menu_cleaning_config = self.menu_config["menu_cleaning"]
+        stopwords = menu_cleaning_config["stopwords"]
+        patterns = menu_cleaning_config["patterns"]
+        min_length = self.menu_config["menu_filtering"]["min_menu_length"]
 
         if pd.isna(menu) or not isinstance(menu, str):
             return None
 
-        # Remove parentheses
-        menu = re.sub(r"\([^)]*\)", "", menu)
+        # Remove parentheses using config pattern
+        menu = re.sub(patterns["remove_parentheses"], "", menu)
 
-        # Remove stopwords and units
-        for word in stopwords + units:
-            menu = menu.replace(word, "")
+        # Remove units with numbers at the end (e.g., "300g", "2개") but not standalone units
+        if "remove_units_at_end" in patterns:
+            menu = re.sub(patterns["remove_units_at_end"], "", menu)
 
-        # Keep only Korean characters and spaces
-        menu = re.sub(r"[^\uAC00-\uD7A3\s]", "", menu)
-        menu = re.sub(r"\s+", " ", menu).strip()
+        # Remove stopwords - for Korean text, use simple replacement but be more careful
+        for word in stopwords:
+            # For Korean text, check if the word appears as a complete component
+            if word in menu:
+                # Only remove if it's a complete word or at word boundaries
+                if menu == word:  # Exact match
+                    return None
+                elif menu.startswith(word + " ") or menu.endswith(" " + word):
+                    # Word at start or end with space
+                    menu = menu.replace(word, "").strip()
+                elif " " + word + " " in menu:
+                    # Word in middle with spaces
+                    menu = menu.replace(" " + word + " ", " ").strip()
+                elif menu.startswith(word) and len(menu) > len(word):
+                    # Word at start of compound word (Korean style)
+                    menu = menu[len(word) :].strip()
+                elif menu.endswith(word) and len(menu) > len(word):
+                    # Word at end of compound word
+                    menu = menu[: -len(word)].strip()
 
-        # Filter out single characters
-        if len(menu) <= 1:
+        # Keep only Korean characters and spaces using config pattern
+        menu = re.sub(patterns["keep_korean_and_space"], "", menu)
+        menu = re.sub(patterns["remove_multiple_spaces"], " ", menu).strip()
+
+        # Filter out short strings using config value (should be < min_length, not <=)
+        if len(menu) < min_length:
             return None
 
         return menu
 
-    def _clean_menu_list(self: Self, menu_list: Union[str, List[str]]) -> List[str]:
+    def _clean_menu_list(self: Self, menu_list: str | List[str]) -> List[str]:
         """
         Clean a list of menu names.
 
@@ -451,6 +548,19 @@ class DinerFeatureStore(BaseFeatureStore):
 
         Returns:
             List of cleaned menu names.
+
+        Examples:
+            >>> _clean_menu_list(["돼지갈비(1인분)", "김치찌개 세트", "가격표"])
+            ["돼지갈비", "김치찌개"]
+
+            >>> _clean_menu_list("['불고기123', '된장찌개', '추가메뉴']")
+            ["불고기", "된장찌개"]
+
+            >>> _clean_menu_list([])
+            []
+
+            >>> _clean_menu_list("invalid_string")
+            []
         """
         if isinstance(menu_list, str):
             try:
@@ -481,6 +591,20 @@ class DinerFeatureStore(BaseFeatureStore):
 
         Returns:
             Dictionary mapping categories to menu frequency counters.
+
+        Examples:
+            Input DataFrame:
+            | diner_category_large | cleaned_menu_list        |
+            |---------------------|--------------------------|
+            | 한식                | ["김치찌개", "불고기"]    |
+            | 한식                | ["김치찌개", "된장찌개"]  |
+            | 중식                | ["짜장면", "짬뽕"]       |
+
+            Output:
+            {
+                "한식": Counter({"김치찌개": 201, "불고기": 101, "된장찌개": 51}),
+                "중식": Counter({"짜장면": 331, "짬뽕": 50})
+            }
         """
         category_menu_counts = defaultdict(Counter)
 
@@ -495,15 +619,16 @@ class DinerFeatureStore(BaseFeatureStore):
 
         return dict(category_menu_counts)
 
-    def _filter_menus_by_frequency(
+    # 첫 번째 함수: 카테고리별 빈도 통계에서 유효한 메뉴들을 선택
+    def _select_frequent_menus_per_category(
         self: Self,
         category_menu_counts: Dict[str, Counter],
         min_frequency: int,
-        max_count: Optional[int] = None,
+        max_count: int | None = None,
         return_as_set: bool = False,
-    ) -> Union[Dict[str, set], Dict[str, List[str]]]:
+    ) -> Dict[str, set] | Dict[str, List[str]]:
         """
-        Filter menus by frequency and optionally limit count per category.
+        Select frequent menus per category based on frequency threshold and count limit.
 
         Args:
             category_menu_counts: Menu frequency counters per category.
@@ -513,6 +638,25 @@ class DinerFeatureStore(BaseFeatureStore):
 
         Returns:
             Dictionary mapping categories to filtered menus (sets or lists).
+
+        Examples:
+            Input:
+            {
+                "한식": Counter({"김치찌개": 201, "불고기": 101, "된장찌개": 51}),
+                "중식": Counter({"짜장면": 331, "짬뽕": 50})
+            }
+
+            With min_frequency=100, max_count=None:
+            {
+                "한식": ["김치찌개", "불고기"],
+                "중식": ["짜장면"]
+            }
+
+            With min_frequency=1, max_count=1:
+            {
+                "한식": ["김치찌개"],  # 가장 빈도 높은 것만
+                "중식": ["짜장면"]     # 가장 빈도 높은 것만
+            }
         """
         result = {}
 
@@ -541,14 +685,15 @@ class DinerFeatureStore(BaseFeatureStore):
 
         return result
 
-    def _filter_menus_by_category_threshold(
+    # 두 번째 함수: 개별 행의 메뉴 리스트에 유효 메뉴 필터를 적용
+    def _apply_valid_menu_filter(
         self: Self,
         row: pd.Series,
         category_column: str,
         category_valid_menus: Dict[str, set],
     ) -> List[str]:
         """
-        Filter menus for a single row based on category-specific valid menu sets.
+        Apply valid menu filter to a single diner row based on its category.
 
         Args:
             row: DataFrame row.
@@ -557,9 +702,27 @@ class DinerFeatureStore(BaseFeatureStore):
 
         Returns:
             List of filtered menu names.
+
+        Examples:
+            Input row:
+            {
+                "diner_category_large": "한식",
+                "cleaned_menu_list": ["김치찌개", "불고기", "불맛나는불고기", "고기듬뿍김치찌개"]
+            }
+
+            category_valid_menus:
+            {
+                "한식": {"김치찌개", "불고기"},
+                "중식": {"짜장면", "짬뽕"}
+            }
+
+            Output: ["김치찌개", "불고기"]
+            # "피자"와 "된장찌개"는 한식 카테고리의 valid_menus에 없으므로 제외됨
         """
         category = row.get(category_column)
-        menus = row.get("cleaned_menu_list", [])
+        menus = row.get(
+            "valid_menu_names", []
+        )  # Use "valid_menu_names" from the main method
 
         if pd.isna(category) or category not in category_valid_menus:
             return []
@@ -579,6 +742,24 @@ class DinerFeatureStore(BaseFeatureStore):
 
         Returns:
             List of created feature column names.
+
+        Examples:
+            Input:
+            category_top_menus = {
+                "한식": ["김치찌개", "불고기"],
+                "중식": ["짜장면"]
+            }
+            category_column = "diner_category_large"
+
+            Created columns:
+            ["menu_한식_김치찌개", "menu_한식_불고기", "menu_중식_짜장면"]
+
+            DataFrame changes:
+            | diner_category_large | valid_menu_names      | menu_한식_김치찌개 | menu_한식_불고기 | menu_중식_짜장면 |
+            |---------------------|----------------------|------------------|----------------|----------------|
+            | 한식                | ["김치찌개", "불고기"] | 1                | 1              | 0              |
+            | 한식                | ["김치찌개"]          | 1                | 0              | 0              |
+            | 중식                | ["짜장면"]            | 0                | 0              | 1              |
         """
         menu_feature_columns = []
 
