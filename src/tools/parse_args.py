@@ -68,7 +68,7 @@ def parse_args_embedding():
     parser.add_argument("--num_neighbor_samples", type=int, default=3)
 
     # lightgcn parameter
-    parser.add_argument("--num_layers", type=int, default=3)
+    parser.add_argument("--num_lightgcn_layers", type=int, default=3)
     parser.add_argument("--drop_ratio", type=float, default=0.1)
 
     # candidate generation parameter for two-stage reco

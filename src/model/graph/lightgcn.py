@@ -185,6 +185,10 @@ class Model(BaseEmbedding):
     def propagate(self, test: bool = False) -> Tuple[Tensor, Tensor]:
         """
         Propagate embeddings through LightGCN layers.
+        Args:
+            test (bool): Indicator whether test mode or not.
+        Returns:
+            Tuple[Tensor, Tensor]: User and diner embeddings.
         """
         if test:
             graph = self.graph_static
@@ -243,6 +247,10 @@ class Model(BaseEmbedding):
     def neg_sample(self, batch: Tensor) -> Tensor:
         """
         Generate negative samples for training.
+        Args:
+            batch (Tensor): Batch of user ids.
+        Returns:
+            Tensor: Negative samples.
         """
         neg_items = []
 
@@ -316,6 +324,11 @@ class Model(BaseEmbedding):
     def loss(self, pos_rw: Tensor, neg_rw: Tensor) -> Tensor:
         """
         Compute BPR loss for LightGCN.
+        Args:
+            pos_rw (Tensor): Positive samples.
+            neg_rw (Tensor): Negative samples.
+        Returns:
+            Tensor: BPR loss.
         """
         # pos_rw: (batch_size, 2) - [user_id, pos_item_id]
         # neg_rw: (batch_size, 1 + num_negative_samples) - [user_id, neg_item_ids...]

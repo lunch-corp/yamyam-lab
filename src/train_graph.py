@@ -72,7 +72,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger.info(f"aggregator functions: {args.aggregator_funcs}")
 
         elif args.model == "lightgcn":
-            logger.info(f"number of layers: {args.num_layers}")
+            logger.info(f"number of layers: {args.num_lightgcn_layers}")
             logger.info(f"drop ratio: {args.drop_ratio}")
 
         logger.info(f"result path: {result_path}")
@@ -224,7 +224,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner_raw_features=data["diner_feature"].to(
                 args.device
             ),  # graphsage parameter
-            num_layers=args.num_layers,  # lightgcn parameter
+            num_layers=args.num_lightgcn_layers,  # lightgcn parameter
             drop_ratio=args.drop_ratio,  # lightgcn parameter
         ).to(args.device)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
