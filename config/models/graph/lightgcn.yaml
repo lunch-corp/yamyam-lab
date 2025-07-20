@@ -15,7 +15,7 @@ training:
     top_k_values_for_candidate: [100]
     recommend_batch_size: 2000
   model:
-    num_layers: 3
+    num_lightgcn_layers: 3
     drop_ratio: 0.1
 
 post_training:
