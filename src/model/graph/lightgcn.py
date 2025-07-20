@@ -85,12 +85,6 @@ class Model(BaseEmbedding):
         # Initialize embeddings
         self._init_embeddings()
 
-        # For compatibility with BaseEmbedding
-        # Initialize with zeros, will be updated during propagation
-        self._embedding = torch.zeros((self.num_nodes, self.embedding_dim)).to(
-            self.device
-        )
-
         # Pre-build graph without dropout for evaluation
         self.graph_static = self._build_graph(drop_ratio=0.0).to(self.device)
 
