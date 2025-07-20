@@ -218,32 +218,24 @@ class Model(BaseEmbedding):
         Generate positive samples for training.
         For LightGCN, we use BPR loss, so this returns user-item pairs.
         """
-        # Convert batch to user-item pairs
         pos_items = []
 
-        for user_id in batch:
-            # Ensure user_id is within bounds
-            user_id = min(user_id.item(), self.num_users - 1)
+        for user in batch:
+            user_id = min(int(user), self.num_users - 1)
 
-            # Check if user_id exists in the graph
+            # Default: random item
+            pos_item = np.random.randint(self.num_diners)
+
             if self.graph.has_node(user_id):
-                # Find positive items for this user from the graph
-                user_neighbors = list(self.graph.neighbors(user_id))
-                # Filter to only diner nodes
-                diner_neighbors = [n for n in user_neighbors if n >= self.num_users]
+                neighbors = list(self.graph.neighbors(user_id))
+                diner_neighbors = [n for n in neighbors if n >= self.num_users]
+
                 if diner_neighbors:
-                    # Convert diner node id to diner index
-                    diner_idx = np.random.choice(diner_neighbors) - self.num_users
-                    diner_idx = min(
-                        diner_idx, self.num_diners - 1
-                    )  # Ensure within bounds
-                    pos_items.append(diner_idx)
-                else:
-                    # If no positive items, sample randomly
-                    pos_items.append(np.random.randint(self.num_diners))
-            else:
-                # If user_id doesn't exist in graph, sample randomly
-                pos_items.append(np.random.randint(self.num_diners))
+                    # Pick a real positive
+                    pos_item = np.random.choice(diner_neighbors) - self.num_users
+                    pos_item = min(pos_item, self.num_diners - 1)  # ensure valid index
+
+            pos_items.append(pos_item)
 
         pos_items = torch.tensor(pos_items, dtype=batch.dtype, device=batch.device)
         return torch.stack([batch, pos_items], dim=1)
