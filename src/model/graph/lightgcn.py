@@ -5,6 +5,7 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 from model.graph.base_embedding import BaseEmbedding
@@ -357,9 +358,7 @@ class Model(BaseEmbedding):
         )  # (batch_size, num_neg)
 
         # BPR loss: -log(sigmoid(pos_score - neg_score))
-        loss = -torch.log(
-            torch.sigmoid(pos_scores.unsqueeze(1) - neg_scores) + 1e-8
-        ).mean()
+        loss = F.softplus(neg_scores - pos_scores.unsqueeze(1)).mean()
 
         return loss
 
