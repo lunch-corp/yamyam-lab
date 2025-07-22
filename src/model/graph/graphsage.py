@@ -45,7 +45,7 @@ class Model(BaseEmbedding):
         recommend_batch_size: int,
         num_workers: int,
         # parameters for graphsage
-        num_layers: int,
+        num_sage_layers: int,
         user_raw_features: torch.Tensor,
         diner_raw_features: torch.Tensor,
         aggregator_funcs: List[str],
@@ -69,7 +69,7 @@ class Model(BaseEmbedding):
             model_name (str): Model name.
             device (str): Device on which train is run. (cpu or cuda)
             recommend_batch_size (int): Batch size when calculating validation metric.
-            num_layers (int): Number of sage layers.
+            num_sage_layers (int): Number of sage layers.
             user_raw_features (torch.Tensor): User raw features whose dimension should be matched with user_ids.
             diner_raw_features (torch.Tensor): Diner raw features whose dimension should be matched with diner_ids.
             agg_func (str): Aggregation function when combining neighbor embeddings from previous step.
@@ -91,7 +91,7 @@ class Model(BaseEmbedding):
             recommend_batch_size=recommend_batch_size,
             num_workers=num_workers,
         )
-        self.num_layers = num_layers
+        self.num_layers = num_sage_layers
         self.user_raw_features = user_raw_features
         self.diner_raw_features = diner_raw_features
         self.walk_length = walk_length
