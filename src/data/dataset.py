@@ -202,12 +202,133 @@ class DatasetLoader:
 
     def create_target_column(self: Self, review: pd.DataFrame) -> pd.DataFrame:
         """
-        Create the target column for classification.
+        Create the target column for classification using temporal reviewer_avg.
+
+        이 메서드는 데이터 리키지(Data Leakage)를 방지하기 위해 시점별 조정된
+        reviewer_avg를 사용합니다.
+
+        기존 방식의 문제점:
+        - 전체 기간의 reviewer_avg 사용 → 미래 정보 포함
+        - 실제 서비스 환경과 불일치
+
+        개선된 방식:
+        - 각 리뷰 작성 시점까지의 정보만 사용
+        - temporal_reviewer_avg 기반 타겟 생성
+        - 실제 추천 시스템 환경과 일치
+
+        Returns:
+            pd.DataFrame: temporal 기반 target 컬럼이 포함된 리뷰 데이터
         """
-        review["target"] = (
-            review["reviewer_review_score"] >= review["reviewer_avg"]
+
+        # 시점별 reviewer_avg 계산
+        avg_adjusted_review = self._calculate_temporal_reviewer_avg(review)
+
+        # 시점별 target 계산
+        avg_adjusted_review["target"] = (
+            avg_adjusted_review["reviewer_review_score"]
+            >= avg_adjusted_review["temporal_reviewer_avg"]
         ).astype(np.int8)
-        return review
+
+        # review_avg 컬럼 생성 (temporal_reviewer_avg를 복사)
+        if "review_avg" in avg_adjusted_review.columns:
+            avg_adjusted_review.drop(columns=["review_avg"], inplace=True)
+        avg_adjusted_review["review_avg"] = avg_adjusted_review["temporal_reviewer_avg"]
+
+        # temporal_reviewer_avg 컬럼 제거
+        avg_adjusted_review = avg_adjusted_review.drop(
+            columns=["temporal_reviewer_avg"]
+        )
+
+        return avg_adjusted_review
+
+    def _calculate_temporal_reviewer_avg(
+        self: Self, review: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        각 리뷰 작성 시점에서의 reviewer_avg를 계산합니다.
+
+        Args:
+            review (pd.DataFrame): 리뷰 데이터프레임
+
+        Returns:
+            pd.DataFrame: temporal_reviewer_avg 컬럼이 추가된 데이터프레임
+        """
+        # 리뷰 데이터를 복사하여 작업
+        df = review.copy()
+
+        # 날짜 컬럼을 datetime으로 변환
+        df["reviewer_review_date"] = pd.to_datetime(df["reviewer_review_date"])
+
+        # 각 리뷰어별로 날짜순으로 정렬
+        df = df.sort_values(["reviewer_id", "reviewer_review_date"])
+
+        # 각 리뷰 시점에서의 평균 계산
+        df["temporal_reviewer_avg"] = df.groupby("reviewer_id")[
+            "reviewer_review_score"
+        ].transform(lambda x: x.expanding().mean())
+
+        # shift를 사용하되, 첫 번째 리뷰는 자기 자신의 점수를 사용
+        df["temporal_reviewer_avg_shifted"] = df.groupby("reviewer_id")[
+            "reviewer_review_score"
+        ].transform(lambda x: x.expanding().mean().shift(1))
+
+        # 첫 번째 리뷰 마스크 생성
+        first_review_mask = df.groupby("reviewer_id").cumcount() == 0
+
+        # 첫 번째 리뷰는 자기 자신의 점수, 나머지는 이전까지의 평균
+        df["temporal_reviewer_avg"] = df["temporal_reviewer_avg_shifted"]
+        df.loc[first_review_mask, "temporal_reviewer_avg"] = df.loc[
+            first_review_mask, "reviewer_review_score"
+        ]
+
+        # 임시 컬럼 제거
+        df = df.drop("temporal_reviewer_avg_shifted", axis=1)
+
+        return df
+
+    # TODO: badge_level를 이용할 경우
+    # def _estimate_temporal_badge_level(
+    #     self: Self, review: pd.DataFrame
+    # ) -> pd.DataFrame:
+    #     """
+    #     시점별 badge_level을 추정합니다.
+    #     리뷰 수 진행률에 비례하여 최종 badge_level을 추정합니다.
+
+    #     Args:
+    #         review (pd.DataFrame): 리뷰 데이터프레임
+
+    #     Returns:
+    #         pd.DataFrame: temporal_badge_level 컬럼이 추가된 데이터프레임
+    #     """
+    #     # 리뷰 데이터를 복사하여 작업
+    #     df = review.copy()
+
+    #     # 날짜 컬럼을 datetime으로 변환
+    #     df["reviewer_review_date"] = pd.to_datetime(df["reviewer_review_date"])
+
+    #     # 각 리뷰어별로 날짜순으로 정렬
+    #     df = df.sort_values(["reviewer_id", "reviewer_review_date"])
+
+    #     # 각 리뷰어별 총 리뷰 수 계산
+    #     total_reviews = df.groupby("reviewer_id").size().to_dict()
+
+    #     # 각 리뷰 시점까지의 누적 리뷰 수 계산
+    #     df["cumulative_review_count"] = df.groupby("reviewer_id").cumcount() + 1
+
+    #     # 진행률 계산 (현재 리뷰 수 / 총 리뷰 수)
+    #     df["review_progress_ratio"] = df.apply(
+    #         lambda row: row["cumulative_review_count"]
+    #         / total_reviews[row["reviewer_id"]],
+    #         axis=1,
+    #     )
+
+    #     # 시점별 badge_level 추정 (진행률 × 최종 badge_level)
+    #     df["temporal_badge_level"] = df["review_progress_ratio"] * df["badge_level"]
+
+    #     # badge_level은 최소 1 이상이어야 한다고 가정
+    #     df["temporal_badge_level"] = df["temporal_badge_level"].clip(lower=1.0)
+
+    #     return df
 
     def train_test_split_stratify(
         self: Self, review: pd.DataFrame
