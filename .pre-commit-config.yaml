@@ -36,4 +36,4 @@ repos:
       language: python
       types: [text]
       exclude: "poetry.lock"
-      args: ['--ignore-words-list=nin']
+      args: ['--ignore-words-list=nin,als']

@@ -70,25 +70,14 @@ $ poetry lock
 
 ---
 
-## Load Data using `google_drive.py`
+## How to load review data using `google_drive.py`
 
 To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`, follow below guideline.
 
 1. File config:
-   - Environment Variables (.env File)
-      Create a .env file in the root directory of the project. This file stores Google Drive file IDs and their respective local file paths. Add the following content to the .env file:
+   - Ensure that `DATA_FOLDER_ID` is defined in `.env` file. Currently, `DATA_FOLDER_ID` indicates google drive folder id where above 4 csv dataset are stored.
       ```dotenv
       DATA_FOLDER_ID=${DATA_FOLDER_ID}
-      ```
-
-   - YAML Configuration File
-      Ensure the config/data/google_drive.yaml file is properly set up. Example content:
-      ```yaml
-      local_paths:
-         diner: "data/diner.csv"
-         review: "data/review.csv"
-         reviewer: "data/reviewer.csv"
-         category: "data/diner_raw_category.csv"
       ```
    - The key values in the ``.env`` file will be removed from the README when shared publicly.
 
@@ -96,6 +85,9 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
    Use the following Python code to ensure the data files are available and load them into Pandas DataFrames:
 
    ```python
+   import sys
+   sys.path.appehd("/PATH/TO/YAMYAM_ROOT/src") # you may add this line to add PYTHONPATH
+
    from tools.google_drive import ensure_data_files
    import pandas as pd
 
@@ -108,6 +100,9 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
 
    # Merge review and reviewer data
    review = pd.merge(review, pd.read_csv(data_paths["reviewer"]), on="reviewer_id", how="left")
+
+   # print loaded review data
+   print(review.shape) # (2287474, 12)
    ```
 
 3. Data Description:
@@ -117,15 +112,18 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
 
 ## Implemented models
 
-| Type                 | Algorithm       |
-|----------------------|-----------------|
-| Candidate generation | node2vec        |
-| Candidate generation | metapath2vec    |
-| Candidate generation | graphsage       |
-| Reranker             | lightgbm ranker |
-| Reranker             | xgboost ranker  |
+| Type                 | Algorithm       | Main script to run        |
+|----------------------|-----------------|---------------------------|
+| Baseline model       | Most Popular    | src/train_most_popular.py |
+| Baseline model       | ALS             | src/train_als.py          |
+| Baseline model       | SVD_Bias        | src/train_torch.py        |
+| Candidate generation | node2vec        | src/train_graph.py        |
+| Candidate generation | metapath2vec    | src/train_graph.py        |
+| Candidate generation | graphsage       | src/train_graph.py        |
+| Reranker             | lightgbm ranker | src/train_ranker.py       |
+| Reranker             | xgboost ranker  | src/train_ranker.py       |
 
-We are planning to generate candidate diners of each user using `candidate generation model` and rerank them using `reranker model`.
+We are planning to generate candidate diners of each user using `candidate generation model` and rerank them using `reranker model`. Also, we will compare two-stage model results with baseline models.
 
 
 ---
@@ -143,31 +141,7 @@ We evaluate model results in two aspects.
 
 For detail description of each metric, please refer to [discussion](https://github.com/LearningnRunning/yamyam-lab/discussions/74).
 
-### Candidate generation performance results
-
-| Algorithm    | Task                   | recall@100 | recall@300 | recall@500 | recall@1000 | recall@2000 |
-|--------------|------------------------|------------|------------|------------|-------------|-------------|
-| node2vec     | Unsupervised  learning | 0.04196    | 0.07299    | 0.09293    | 0.12739     | 0.17507     |
-| metapath2vec | Unsupervised  learning | 0.0022     | 0.00643    | 0.01028    | 0.02021     | 0.03936     |
-| graphsage    | Unsupervised  learning | 0.0013     | 0.00407    | 0.00679    | 0.01342     | 0.02551     |
-
-### Ranking performance results with single step
-
-| Algorithm       | Task                  | mAP@3     | mAP@7     | mAP@10    | mAP@20     | NDCG@3  | NDCG@7  | NDCG@10 | NDCG@20   |
-|-----------------|-----------------------|-----------|-----------|-----------|------------|---------|---------|---------|-----------|
-| SVD             | Regression            | 0.00001   | 0.00002   | 0.00002   | 0.00003    | 0.00002 | 0.00003 | 0.00004 | 0.00007   |
-| node2vec        | Unsupervised learning | 0.00361   | 0.00445   | 0.00475   | 0.00523    | 0.00619 | 0.00738 | 0.00814 | 0.00989   |
-| metapath2vec    | Unsupervised learning | 0.00004   | 0.00006   | 0.00007   | 0.00008    | 0.00008 | 0.00012 | 0.00015 | 0.00021   |
-| graphsage       | Unsupervised learning | 0.00002   | 0.00004   | 0.00004   | 0.00005    | 0.00009 | 0.00012 | 0.00014 | 0.00018   |
-
-
-### Ranking performance results with two step
-
-| Candidate model | number of candidates | Reranking model | Task | mAP@3        | mAP@7   | mAP@10     | mAP@20     | NDCG@3      | NDCG@7 | NDCG@10         | NDCG@20  |
-| --------------- | -------------------- | --------------- | ---- |--------------|---------|------------|------------|-------------|--------|-----------------|----------|
-| node2vec        | 100                | lightgbm ranker | Ranker  |  0.00083       | 0.0011       | 0.0011       | 0.0014       | 0.0031     | 0.0060     | 0.0077     | **0.0136**     |
-
----
+For detail experiment results, please refer to [discussion](https://github.com/lunch-corp/yamyam-lab/discussions/173).
 
 ## Commit Guide
 - feat: Add a new feature

@@ -9,19 +9,19 @@ import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
-from constant.metric.metric import Metric
-from data.dataset import DatasetLoader
-from preprocess.preprocess import prepare_networkx_undirected_graph
+from data.dataset import DataConfig, DatasetLoader
+from evaluation.metric_calculator import EmbeddingMetricCalculator
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
-from tools.logger import setup_logger
+from tools.logger import common_logging, setup_logger
 from tools.parse_args import parse_args_embedding, save_command_to_file
 from tools.plot import plot_metric_at_k
-from tools.utils import safe_divide
 from tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
-CONFIG_PATH = os.path.join(ROOT_PATH, "./config/embedding/{model}.yaml")
+CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/graph/{model}.yaml")
+PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
+
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
@@ -34,6 +34,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     os.makedirs(result_path, exist_ok=True)
     # load config
     config = load_yaml(CONFIG_PATH.format(model=args.model))
+    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
     # save command used in argparse
     save_command_to_file(result_path)
 
@@ -70,71 +71,43 @@ def main(args: ArgumentParser.parse_args) -> None:
         elif args.model == "graphsage":
             logger.info(f"number of sage layers: {args.num_sage_layers}")
             logger.info(f"aggregator functions: {args.aggregator_funcs}")
+
+        elif args.model == "lightgcn":
+            logger.info(f"number of layers: {args.num_lightgcn_layers}")
+            logger.info(f"drop ratio: {args.drop_ratio}")
+
         logger.info(f"result path: {result_path}")
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
 
-        logger.info(
-            f"train dataset period: {config.preprocess.data.train_time_point} <= dt < {config.preprocess.data.val_time_point}"
-        )
-        logger.info(
-            f"val dataset period: {config.preprocess.data.val_time_point} <= dt < {config.preprocess.data.test_time_point}"
-        )
-        logger.info(
-            f"test dataset period: {config.preprocess.data.test_time_point} <= dt < {config.preprocess.data.end_time_point}"
-        )
-
         data_loader = DatasetLoader(
-            is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
-            train_time_point=config.preprocess.data.train_time_point,
-            val_time_point=config.preprocess.data.val_time_point,
-            test_time_point=config.preprocess.data.test_time_point,
-            end_time_point=config.preprocess.data.end_time_point,
-            X_columns=["diner_idx", "reviewer_id"],
-            y_columns=["reviewer_review_score"],
-            is_graph_model=True,
-            category_column_for_meta=args.category_column_for_meta,
-            user_engineered_feature_names=fe.user_engineered_feature_names,
-            diner_engineered_feature_names=fe.diner_engineered_feature_names,
-            test=args.test,
+            data_config=DataConfig(
+                X_columns=["diner_idx", "reviewer_id"],
+                y_columns=["reviewer_review_score"],
+                category_column_for_meta=args.category_column_for_meta,
+                user_engineered_feature_names=fe.user_engineered_feature_names,
+                diner_engineered_feature_names=fe.diner_engineered_feature_names,
+                is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
+                train_time_point=config.preprocess.data.train_time_point,
+                val_time_point=config.preprocess.data.val_time_point,
+                test_time_point=config.preprocess.data.test_time_point,
+                end_time_point=config.preprocess.data.end_time_point,
+                use_unique_mapping_id=True,
+                test=args.test,
+            ),
         )
-        data = data_loader.prepare_train_val_dataset(use_metadata=args.use_metadata)
-        train_graph, val_graph = prepare_networkx_undirected_graph(
-            X_train=data["X_train"],
-            y_train=data["y_train"],
-            X_val=data["X_val"],
-            y_val=data["y_val"],
-            diner=data["diner"],
-            user_mapping=data["user_mapping"],
-            diner_mapping=data["diner_mapping"],
-            meta_mapping=data["meta_mapping"] if args.use_metadata else None,
-            weighted=args.weighted_edge,
+        data = data_loader.prepare_train_val_dataset(
+            is_networkx_graph=True,
             use_metadata=args.use_metadata,
+            weighted_edge=args.weighted_edge,
+            filter_config=preprocess_config.filter,
         )
+        train_graph, val_graph = data["train_graph"], data["val_graph"]  # noqa
 
-        logger.info(f"Number of reviews in train: {data['X_train'].size(0)}")
-        logger.info(f"Number of reviews in val: {data['X_val'].size(0)}")
-        logger.info(f"Number of reviews in test: {data['X_test'].size(0)}")
-        logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
-        logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
-        logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
-        logger.info(
-            f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
-        )
-        logger.info(
-            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
-        )
-        logger.info(
-            f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
+        common_logging(
+            config=config,
+            data=data,
+            logger=logger,
         )
 
         # for qualitative eval
@@ -149,7 +122,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         # import embedding module
-        model_path = f"embedding.{args.model}"
+        model_path = f"model.graph.{args.model}"
         model_module = importlib.import_module(model_path).Model
         model = model_module(
             user_ids=torch.tensor(list(data["user_mapping"].values())).to(args.device),
@@ -170,7 +143,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
             num_workers=4,  # can be tuned based on server spec
             meta_path=args.meta_path,  # metapath2vec parameter
-            num_layers=args.num_sage_layers,  # graphsage parameter
+            num_sage_layers=args.num_sage_layers,  # graphsage parameter
             aggregator_funcs=args.aggregator_funcs,  # graphsage parameter
             num_neighbor_samples=args.num_neighbor_samples,  # graphsage parameter
             user_raw_features=data["user_feature"].to(
@@ -179,8 +152,23 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner_raw_features=data["diner_feature"].to(
                 args.device
             ),  # graphsage parameter
+            num_layers=args.num_lightgcn_layers,  # lightgcn parameter
+            drop_ratio=args.drop_ratio,  # lightgcn parameter
         ).to(args.device)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
+
+        # metric calculator for validation data
+        metric_calculator = EmbeddingMetricCalculator(
+            diner_ids=list(data["diner_mapping"].values()),
+            top_k_values=top_k_values,
+            all_embeds=model._embedding
+            if args.model in ["graphsage", "lightgcn"]
+            else model._embedding.weight,
+            filter_already_liked=True,
+            recommend_batch_size=config.training.evaluation.recommend_batch_size,
+            device=args.device,
+            logger=logger,
+        )
 
         loader = model.loader(
             batch_size=args.batch_size,
@@ -200,9 +188,9 @@ def main(args: ArgumentParser.parse_args) -> None:
                 if batch_idx % 500 == 0:
                     logger.info(f"current batch index: {batch_idx} out of {batch_len}")
 
-            # when training graphsage for every epoch,
+            # when training graphsage or lightgcn for every epoch,
             # propagation should be run to store embeddings for each node
-            if args.model == "graphsage":
+            if args.model in ["graphsage", "lightgcn"]:
                 for batch_nodes in DataLoader(
                     torch.tensor([node for node in train_graph.nodes()]),
                     batch_size=args.batch_size,
@@ -215,68 +203,34 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             logger.info(f"epoch {epoch}: train loss {total_loss:.4f}")
 
-            # calculate metric for current epoch
-            metric_at_k = {
-                k: {
-                    Metric.MAP: 0,
-                    Metric.NDCG: 0,
-                    Metric.RECALL: 0,
-                    Metric.COUNT: 0,
-                }
-                for k in top_k_values
-            }
-            metric_at_k = model.generate_recommendations_and_calculate_metric(
-                X_train=data["X_train"],
-                X_val_warm_users=data["X_val_warm_users"],
-                X_val_cold_users=data["X_val_cold_users"],
-                top_k_values=top_k_values,
-                metric_at_k=metric_at_k,
-                most_popular_diner_ids=data["most_popular_diner_ids"],
-                filter_already_liked=True,
-            )
-            model.calculate_metric_at_current_epoch(
-                metric_at_k=metric_at_k,
-                top_k_values=top_k_values,
+            # calculate metric for test data with warm / cold / all users separately
+            metric_dict = (
+                metric_calculator.generate_recommendations_and_calculate_metric(
+                    X_train=data["X_train"],
+                    X_val_warm_users=data["X_val_warm_users"],
+                    X_val_cold_users=data["X_val_cold_users"],
+                    most_popular_diner_ids=data["most_popular_diner_ids"],
+                    filter_already_liked=True,
+                )
             )
 
-            maps = []
-            ndcgs = []
-            recalls = []
+            # for each user type, the metric is not yet averaged but summed, so calculate mean
+            for user_type, metric in metric_dict.items():
+                metric_calculator.calculate_mean_metric(metric)
 
-            logger.info("[ Metric report calculated from val data ]")
-            for k in top_k_values_for_pred:
-                # no candidate metric
-                map = round(model.metric_at_k_total_epochs[k][Metric.MAP][-1], 5)
-                ndcg = round(model.metric_at_k_total_epochs[k][Metric.NDCG][-1], 5)
-
-                count = model.metric_at_k_total_epochs[k][Metric.COUNT]
-
-                logger.info(
-                    f"maP@{k}: {map} with {count} users out of all {len(data['val_user_ids'])} users"
-                )
-                logger.info(
-                    f"ndcg@{k}: {ndcg} with {count} users out of all {len(data['val_user_ids'])} users"
-                )
-
-                maps.append(str(map))
-                ndcgs.append(str(ndcg))
-
-            logger.info("top k results for direct prediction @3, @7, @10, @20 in order")
-            logger.info(f"map result: {'|'.join(maps)}")
-            logger.info(f"ndcg result: {'|'.join(ndcgs)}")
-
-            for k in top_k_values_for_candidate:
-                recall = round(model.metric_at_k_total_epochs[k][Metric.RECALL][-1], 5)
-                count = model.metric_at_k_total_epochs[k][Metric.COUNT]
-                logger.info(
-                    f"recall@{k}: {recall} with {count} users out of all {len(data['val_user_ids'])} users"
-                )
-                recalls.append(str(recall))
-
+            # for each user type, report map, ndcg, recall
             logger.info(
-                "top k results for candidate generation @100, @300, @500, @1000, @2000"
+                f"################## Validation data metric report for {epoch} epoch ##################"
             )
-            logger.info(f"recall: {'|'.join(recalls)}")
+            metric_calculator.report_metric_with_warm_cold_all_users(
+                metric_dict=metric_dict, data_type="val"
+            )
+
+            # save metric at current epoch for later metric plotting
+            metric_calculator.save_metric_at_current_epoch(
+                metric_at_k=metric_dict["all"],
+                metric_at_k_total_epochs=model.metric_at_k_total_epochs,
+            )
 
             torch.save(
                 model.state_dict(),
@@ -292,49 +246,28 @@ def main(args: ArgumentParser.parse_args) -> None:
             )
             logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
 
-        # calculate metric for test data
-        metric_at_k = {
-            k: {
-                Metric.MAP: 0,
-                Metric.NDCG: 0,
-                Metric.RECALL: 0,
-                Metric.COUNT: 0,
-            }
-            for k in top_k_values
-        }
-        metric_at_k = model.generate_recommendations_and_calculate_metric(
-            X_train=data["X_train"],
-            X_val_warm_users=data["X_test_warm_users"],
-            X_val_cold_users=data["X_test_cold_users"],
-            top_k_values=top_k_values,
-            metric_at_k=metric_at_k,
-            most_popular_diner_ids=data["most_popular_diner_ids"],
-            filter_already_liked=True,
+        # calculate metric for test data with warm / cold / all users separately
+        metric_dict_test = (
+            metric_calculator.generate_recommendations_and_calculate_metric(
+                X_train=data["X_train"],
+                X_val_warm_users=data["X_test_warm_users"],
+                X_val_cold_users=data["X_test_cold_users"],
+                most_popular_diner_ids=data["most_popular_diner_ids"],
+                filter_already_liked=True,
+            )
         )
-        maps_test = []
-        ndcgs_test = []
-        recalls_test = []
-        logger.info("[ Metric report calculated from test data ]")
-        for k in top_k_values_for_pred:
-            map = safe_divide(
-                numerator=metric_at_k[k][Metric.MAP],
-                denominator=metric_at_k[k][Metric.COUNT],
-            )
-            ndcg = safe_divide(
-                numerator=metric_at_k[k][Metric.NDCG],
-                denominator=metric_at_k[k][Metric.COUNT],
-            )
-            maps_test.append(str(round(map, 5)))
-            ndcgs_test.append(str(round(ndcg, 5)))
-        logger.info(f"map result: {'|'.join(maps_test)}")
-        logger.info(f"ndcg result: {'|'.join(ndcgs_test)}")
-        for k in top_k_values_for_candidate:
-            recall = safe_divide(
-                numerator=metric_at_k[k][Metric.RECALL],
-                denominator=metric_at_k[k][Metric.COUNT],
-            )
-            recalls_test.append(str(round(recall, 5)))
-        logger.info(f"recall result: {'|'.join(recalls_test)}")
+
+        # for each user type, the metric is not yet averaged but summed, so calculate mean
+        for user_type, metric in metric_dict_test.items():
+            metric_calculator.calculate_mean_metric(metric)
+
+        # for each user type, report map, ndcg, recall
+        logger.info(
+            "################################ Test data metric report ################################"
+        )
+        metric_calculator.report_metric_with_warm_cold_all_users(
+            metric_dict=metric_dict_test, data_type="test"
+        )
 
         # plot metrics
         plot_metric_at_k(

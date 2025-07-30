@@ -155,3 +155,59 @@ def create_time_series_chart(
     )
 
     return fig
+
+
+def create_keyword_sentiment_chart(keyword_df, title, color_scale="Viridis"):
+    """키워드 감성 분석 차트를 생성합니다."""
+    fig = px.bar(
+        keyword_df.head(10),
+        x="keyword",
+        y="count",
+        title=title,
+        color="count",
+        color_continuous_scale=color_scale,
+    )
+
+    fig.update_layout(
+        xaxis_title="키워드",
+        yaxis_title="출현 빈도",
+        showlegend=False,
+    )
+
+    return fig
+
+
+def create_sentiment_timeline(sentiment_df):
+    """시간에 따른 감성 변화 차트를 생성합니다."""
+    fig = px.line(
+        sentiment_df,
+        x="reviewer_review_date",
+        y="review_sentiment",
+        title="시간에 따른 리뷰 감성 변화",
+        labels={"review_sentiment": "평균 감성 점수", "reviewer_review_date": "날짜"},
+    )
+
+    # 중립선 추가 (0.5)
+    fig.add_hline(
+        y=0.5,
+        line_dash="dash",
+        line_color="gray",
+        annotation_text="중립",
+        annotation_position="bottom right",
+    )
+
+    return fig
+
+
+def create_keyword_category_distribution(keyword_df):
+    """키워드 카테고리 분포 차트를 생성합니다."""
+    category_counts = keyword_df["category"].value_counts()
+
+    fig = px.pie(
+        values=category_counts.values,
+        names=category_counts.index,
+        title="키워드 카테고리 분포",
+        hole=0.4,
+    )
+
+    return fig

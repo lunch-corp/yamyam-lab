@@ -1,46 +1,22 @@
-test_size: 0.3
+test_size: 0.4
 min_reviews: 3
 random_state: 42
 test: false
-path: data/
-features:
-  - diner_review_cnt_category
-  - min_price
-  - max_price
-  - mean_price
-  - median_price
-  - menu_count
-  - taste
-  - kind
-  - mood
-  - chip
-  - parking
-  - asian
-  - japanese
-  - chinese
-  - korean
-  - western
+
 category_column_for_meta: diner_category_large
 
 user_engineered_feature_names:
-  - categorical_feature_count:
-      categorical_feature_names:
-       - diner_category_large
-    user_activity_patterns: {}
+  categorical_feature_count:
+    categorical_feature_names:
+      - diner_category_large
+  user_activity_patterns: {}
 
 diner_engineered_feature_names:
-  - all_review_cnt: {}
-    diner_review_tags: {}
-    diner_menu_price: {}
+  all_review_cnt: {}
+  diner_review_tags: {}
+  diner_menu_price: {}
 
-cat_features:
-  - diner_review_cnt_category
-
-target: target
-size: 30
-is_candidate_dataset: true
-batch_size: 1000000
-num_neg_samples: 100
+num_neg_samples: 200
 sampling_type: popularity
 is_timeseries_by_users: false
 is_timeseries_by_time_point: true
@@ -48,3 +24,4 @@ train_time_point: "2024-09-01"
 val_time_point: "2024-12-01"
 test_time_point: "2025-01-01"
 end_time_point: "2025-02-01"
+candidate_type: node2vec

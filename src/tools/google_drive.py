@@ -14,7 +14,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-from src.tools.zip import unzip_files_in_directory
+from tools.zip import unzip_files_in_directory
 
 try:
     from dotenv import load_dotenv
@@ -217,6 +217,7 @@ class GoogleDriveManager:
     SCOPES = ["https://www.googleapis.com/auth/drive"]
     CANDIDATES_FOLDER_ID = "1_-NOoTC-K6aZMJLM4DgNitCGXX0QkbSA"
     EMBEDDING_MODEL = ["node2vec", "metapath2vec", "graphsage"]
+    MF_MODEL = ["als"]
     DOWNLOAD_FILE_TYPE = ["candidates", "models"]
     MAPPING = {AllowedFileType.ZIP: MimeType.ZIP}
     DOWNLOAD_PATH = {
@@ -523,7 +524,7 @@ class GoogleDriveManager:
         Returns (str):
             Id of folder matched with model_name.
         """
-        if model_name not in self.EMBEDDING_MODEL:
+        if model_name not in self.EMBEDDING_MODEL + self.MF_MODEL:
             raise ValueError(
                 f"Unsupported model: {model_name}."
                 f"Should be one of {self.EMBEDDING_MODEL}"

@@ -16,6 +16,12 @@ training:
       - 7
       - 10
       - 20
+    top_k_values_for_candidate:
+      - 100
+      - 300
+      - 500
+      - 1000
+      - 2000
 post_training:
   file_name:
     log: log.log

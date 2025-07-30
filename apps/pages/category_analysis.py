@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from apps.components.utils import load_data
+from apps.components.utils import load_diner_data, load_review_data
 
 
 def create_category_treemap(diner_df):
@@ -106,7 +106,8 @@ def create_missing_values_chart(diner_df):
 
 
 def category_analysis_page():
-    review_df, diner_df = load_data()
+    # 주로 diner 데이터만 사용
+    diner_df = load_diner_data()
 
     st.title("카테고리 분석")
 
@@ -227,8 +228,10 @@ def category_analysis_page():
         ]
         st.dataframe(top_restaurants)
 
-        # 리뷰 점수 분포
+        # 리뷰 점수 분포 - 여기서만 review 데이터 필요
         st.subheader("⭐ 리뷰 점수 분포")
+        # 필요할 때만 review 데이터 로드
+        review_df = load_review_data()
         category_reviews = review_df[
             review_df["diner_idx"].isin(filtered_df["diner_idx"])
         ]

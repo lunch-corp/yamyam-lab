@@ -11,13 +11,18 @@ except ModuleNotFoundError:
 
 import pytest
 
-from train_embedding import main
+from train_graph import main
 
 
 @pytest.mark.parametrize(
     "setup_config",
-    [("node2vec", False), ("metapath2vec", True), ("graphsage", False)],
+    [
+        ("node2vec", False),
+        ("metapath2vec", True),
+        ("graphsage", False),
+        ("lightgcn", False),
+    ],
     indirect=["setup_config"],
 )
-def test_run_embedding(setup_config):
+def test_run_graph(setup_config):
     main(setup_config)

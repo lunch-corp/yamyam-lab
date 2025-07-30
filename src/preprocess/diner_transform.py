@@ -77,32 +77,71 @@ class CategoryProcessor:
         return (
             self.process_chicken_categories()
             .process_lowering_categories()
+            .process_lowering_middle_categories()
             .process_partly_lowering_categories()
         )
 
-    def process_lowering_categories(self) -> Self:
+    def process_lowering_categories(self, level: str = "large") -> Self:
         """
-        대분류 카테고리 조정을 처리합니다.
-        mappings의 lowering_large_categories 설정에 따라, 해당 before 카테고리를 after 카테고리로 변경하고,
-        기존의 중분류와 소분류는 한 단계 아래로 이동시킵니다.
+        대/중분류 카테고리 조정을 처리합니다.
+
+        level 매개변수에 따라 다음과 같이 동작합니다.
+        - "large": YAML의 ``lowering_large_categories`` 매핑을 사용하여 대분류를 하향 조정
+        - "middle": YAML의 ``lowering_middle_categories`` 매핑을 사용하여 중분류를 하향 조정
+
+        after 카테고리로 변경한 뒤, 기존 하위 카테고리는 한 단계씩 아래로 이동합니다.
+
+        Args:
+            level (str, optional): 처리할 카테고리 깊이 ("large" 또는 "middle"). 기본값 "large".
 
         Returns:
             CategoryProcessor: 연쇄 호출이 가능한 self.
         """
-        mappings: Dict[str, List[str]] = self.mappings["lowering_large_categories"]
+
+        if level not in {"large", "middle"}:
+            raise ValueError("level must be either 'large' or 'middle'")
+
+        # level별 설정값 정의
+        mapping_key = (
+            "lowering_large_categories"
+            if level == "large"
+            else "lowering_middle_categories"
+        )
+        column_name = f"diner_category_{level}"
+
+        # 매핑이 없을 경우 그대로 반환
+        mappings: Dict[str, List[str]] = self.mappings.get(mapping_key, {})
+        if not mappings:
+            return self
+
         for after_category, before_categories in mappings.items():
-            target_rows: pd.Series = self.df["diner_category_large"].isin(
-                before_categories
-            )
-            self._shift_categories_down(target_rows)
-            self.df.loc[target_rows, "diner_category_large"] = after_category
+            target_rows: pd.Series = self.df[column_name].isin(before_categories)
+
+            if not target_rows.any():
+                continue
+
+            # level에 따라 이동 방식 결정
+            if level == "middle":
+                self._shift_categories_down(
+                    target_rows, target_category="diner_category_middle"
+                )
+            else:
+                self._shift_categories_down(target_rows)
+
+            # 카테고리 업데이트
+            self.df.loc[target_rows, column_name] = after_category
+
         return self
+
+    def process_lowering_middle_categories(self) -> Self:
+        """기존 인터페이스 유지용 래퍼: 중분류 하향 조정 실행"""
+        return self.process_lowering_categories(level="middle")
 
     def process_partly_lowering_categories(self) -> Self:
         """
         부분적 카테고리 조정을 처리합니다.
         mappings의 partly_lowering_large_categories 설정에 따라,
-        특정 조건을 만족하는 경우 대분류 및 중분류를 변경합니다.
+        특정 조건을 만족하는 경우 대분류와 중분류를 변경합니다.
 
         Returns:
             CategoryProcessor: 연쇄 호출이 가능한 self.

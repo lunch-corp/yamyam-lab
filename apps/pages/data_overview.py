@@ -3,7 +3,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from apps.components.utils import load_data
+from apps.components.utils import load_diner_data, load_review_data
 
 
 def analyze_diner_review_counts(diner_df):
@@ -26,13 +26,15 @@ def analyze_diner_review_counts(diner_df):
 
     # 비율 계산
     null_count = len(null_reviews)
-    zero_count = len(zero_reviews)
+    zero_count = len(zero_reviews) + null_count
     valid_count = len(valid_reviews)
 
     # 파이 차트 데이터
-    labels = ["리뷰 수 NULL", "리뷰 수 0 이하", "리뷰 있음"]
-    values = [null_count, zero_count, valid_count]
-
+    labels = ["리뷰 수 0 이하", "리뷰 있음"]
+    values = [zero_count, valid_count]
+    st.write(
+        f"null_count: {null_count}, zero_count: {zero_count}, valid_count: {valid_count}"
+    )
     # 파이 차트 생성
     fig_pie = px.pie(
         names=labels,
@@ -42,9 +44,11 @@ def analyze_diner_review_counts(diner_df):
         color_discrete_sequence=px.colors.qualitative.Safe,
     )
 
-    # 텍스트에 개수와 비율 표시
+    # 퍼센트를 보기 좋게 표시
     fig_pie.update_traces(
-        textinfo="percent+value", texttemplate="%{percent:.1f}% (%{value:,})"
+        textinfo="label+percent",
+        texttemplate="%{label}<br>%{percent:.0%}",  # 0% 단위 퍼센트 표시
+        hovertemplate="%{label}<br>수량: %{value:,}개<br>비율: %{percent}",
     )
 
     # 카테고리별 리뷰 수 분포 (boxplot)
@@ -128,7 +132,9 @@ def analyze_reviewer_counts(review_df):
         hole=0.4,
     )
     fig_pie.update_traces(
-        textinfo="percent+value", texttemplate="%{percent:.1f}% (%{value:,})"
+        textinfo="label+percent",
+        texttemplate="%{label}<br>%{percent:.0%}",  # 0% 단위 퍼센트 표시
+        hovertemplate="%{label}<br>수량: %{value:,}개<br>비율: %{percent}",
     )
 
     # 누적 분포 계산
@@ -172,7 +178,9 @@ def analyze_reviewer_counts(review_df):
 
 
 def data_overview_page():
-    review_df, diner_df = load_data()
+    # 개별 데이터 로드 - 필요한 것만 로드
+    review_df = load_review_data()
+    diner_df = load_diner_data()
 
     st.title("📊 데이터 개요")
 
@@ -275,7 +283,7 @@ def data_overview_page():
                     "베이지안 평점 (가중치 적용)",
                 ],
                 "데이터 타입": [
-                    "float",
+                    "int",
                     "string",
                     "list[string]",
                     "list[string]",
@@ -316,7 +324,7 @@ def data_overview_page():
                     "중분류 카테고리",
                     "소분류 카테고리",
                 ],
-                "데이터 타입": ["float", "string", "string", "string", "string"],
+                "데이터 타입": ["int", "string", "string", "string", "string"],
             }
             st.dataframe(pd.DataFrame(diner_category_schema))
 
@@ -339,7 +347,7 @@ def data_overview_page():
                     "리뷰 작성 날짜",
                     "리뷰 평점",
                 ],
-                "데이터 타입": ["int", "float", "int", "string", "string", "float"],
+                "데이터 타입": ["int", "int", "int", "string", "string", "float"],
             }
             st.dataframe(pd.DataFrame(review_schema))
 

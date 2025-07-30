@@ -1,0 +1,46 @@
+# Menu cleaning configuration
+menu_cleaning:
+  # 정확한 단어 매치를 위한 stopwords (단어 경계 고려)
+  stopwords:
+    - "1인분"
+    - "1인세트"
+    - "세트"
+    - "추가"
+    - "가격표"
+    - "가격"
+    - "참고"
+    - "오시는 길"
+    - "내부에 추천메뉴"
+    - "추가"
+
+  # 단위는 단어 끝에서만 제거 (예: "500g" -> "500" 제거, "김치찌개" -> "김치찌개" 유지)
+  units:
+    - "g"
+    - "kg"
+    - "개"
+    - "mm"
+    - "ml"
+    - "L"
+    - "원"
+
+  # 정규식 패턴들
+  patterns:
+    # 괄호 제거 패턴
+    remove_parentheses: "\\([^)]*\\)"
+    # 한글과 공백만 유지
+    keep_korean_and_space: "[^\\uAC00-\\uD7A3\\s]"
+    # 중복 공백 제거
+    remove_multiple_spaces: "\\s+"
+    # 단위 제거 패턴 (단어 끝에서만)
+    remove_units_at_end: "\\d+(?:g|kg|개|mm|ml|L|원)\\s*"
+
+# 메뉴 필터링 기본값
+menu_filtering:
+  # 최소 메뉴명 길이 (이 값보다 작으면 제거)
+  min_menu_length: 1
+  # 기본 빈도 임계값
+  default_frequency_threshold: 2
+  # 기본 최대 피처 수
+  default_max_features_per_category: 50
+  # 기본 최소 멀티핫 빈도
+  default_min_multi_hot_freq: 5

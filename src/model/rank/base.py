@@ -3,13 +3,12 @@ from __future__ import annotations
 import gc
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Self, TypeVar
+from typing import Any, Self, TypeVar
 
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from omegaconf import DictConfig
 from sklearn.model_selection import KFold
 from tqdm import tqdm
 
@@ -23,9 +22,28 @@ class ModelResult:
 
 
 class BaseModel(ABC):
-    def __init__(self: Self, cfg: DictConfig) -> None:
-        self.cfg = cfg
+    def __init__(
+        self: Self,
+        model_path: str,
+        results: str,
+        params: dict[str, Any],
+        early_stopping_rounds: int,
+        num_boost_round: int,
+        verbose_eval: int,
+        seed: int,
+        features: list[str],
+        recommend_batch_size: int = 1000,
+    ) -> None:
+        self.model_path = model_path
+        self.results = results
+        self.params = params
+        self.early_stopping_rounds = early_stopping_rounds
+        self.num_boost_round = num_boost_round
+        self.verbose_eval = verbose_eval
+        self.seed = seed
         self.model = None
+        self.features = features
+        self.recommend_batch_size = recommend_batch_size
 
     @abstractmethod
     def save_model(self: Self) -> None:
@@ -90,3 +108,31 @@ class BaseModel(ABC):
         self.result = ModelResult(oof_preds=oof_preds, models=models)
 
         return self
+
+    def calculate_rank(self: Self, candidates: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate rank for candidates.
+
+        Args:
+            candidates (pd.DataFrame): Candidates to calculate rank.
+
+        Returns:
+            pd.DataFrame: Candidates with rank.
+        """
+        predictions = np.zeros(len(candidates))
+
+        num_batches = (
+            len(candidates) + self.recommend_batch_size - 1
+        ) // self.recommend_batch_size
+        for i in tqdm(range(num_batches)):
+            start_idx = i * self.recommend_batch_size
+            end_idx = min((i + 1) * self.recommend_batch_size, len(candidates))
+            batch = candidates[self.features].iloc[start_idx:end_idx]
+            predictions[start_idx:end_idx] = self.predict(batch)
+
+        candidates["pred_score"] = predictions
+        candidates = candidates.sort_values(
+            by=["reviewer_id", "pred_score"], ascending=[True, False]
+        )
+
+        return candidates

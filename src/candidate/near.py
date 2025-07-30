@@ -37,26 +37,26 @@ class NearCandidateGenerator:
 
     def get_near_candidate(
         self,
-        coord: NDArray,
+        latitude: float,
+        longitude: float,
         max_distance_km: float,
-        is_radians: bool = True,
+        is_radians: bool = False,
     ) -> NDArray:
         """
         Get near max_distance_km diners given user's coordinate.
 
         Args:
-            coord (NDArray): Should be cautious of ordering (latitude, longitude).
-                Input could be radians or raw coordinates which is converted to
-                radians depending on `is_radians` argument.
+            latitude (float): Latitude value of diner.
+            longitude (float): Longitude value of diner.
             max_distance_km (float): Based on `coord`, distance of how close diners want to get.
             is_radians (bool): Whether `coord` is converted to radians already or not.
         """
         # if coordinate is raw (latitude, longitude), should convert to radians
         if is_radians is False:
-            coord = np.radians(coord)
+            coord = np.radians([latitude, longitude])
         max_distance_rad = self.get_max_distance_rad(max_distance_km)
         near_diner_ids = self.kd_tree.query_ball_point(coord, max_distance_rad)
-        return near_diner_ids
+        return [self.mapping_diner_idx[id] for id in near_diner_ids]
 
     def get_near_candidates_for_all_diners(
         self, max_distance_km: float

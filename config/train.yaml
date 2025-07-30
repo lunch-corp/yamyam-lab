@@ -18,6 +18,16 @@ hydra:
 defaults:
   - _self_
   - data: dataset
-  - models: lightgbm
+  - preprocess: preprocess
+  - models/ranker: lightgbm
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
+
+training:
+  evaluation:
+    recommend_batch_size: 1000000
+    top_k_values_for_pred:
+      - 3
+      - 7
+      - 10
+      - 20

@@ -1,11 +1,20 @@
 import pandas as pd
 import streamlit as st
 
-from apps.components.utils import load_data
+from apps.components.utils import (
+    analyze_keywords,
+    get_word_cloud_data,
+    load_diner_data,
+    load_keyword_data,
+    load_review_data,
+)
 
 
 def diner_analysis_page():
-    review_df, diner_df = load_data()
+    # 개별 데이터 로드
+    review_df = load_review_data()
+    diner_df = load_diner_data()
+    review_keyword_df = load_keyword_data()
 
     st.title("식당 분석")
 
@@ -127,16 +136,28 @@ def diner_analysis_page():
 
             st.line_chart(monthly_scores)
 
-            # # 최근 리뷰 표시
-            # st.subheader("최근 리뷰")
-            # recent_reviews = diner_reviews.sort_values(
-            #     "reviewer_review_date", ascending=False
-            # ).head(5)
-            # for _, review in recent_reviews.iterrows():
-            #     # Timestamp를 문자열로 변환하여 날짜만 표시
-            #     review_date = review["reviewer_review_date"].strftime("%Y-%m-%d")
-            #     with st.expander(f"⭐ {review['reviewer_review_score']} | {review_date}"):
-            #         st.write(review["reviewer_review"])
+            # 키워드 분석
+            st.subheader("🔍 키워드 분석")
+
+            # 키워드 데이터 분석
+            diner_reviews = pd.merge(diner_reviews, review_keyword_df, on="review_id")
+            keyword_df, positive_keywords, negative_keywords = analyze_keywords(
+                diner_reviews["parsed_keywords"]
+            )
+            # 긍정/부정 키워드 탭
+            keyword_tab1, keyword_tab2 = st.tabs(["긍정 키워드", "부정 키워드"])
+
+            with keyword_tab1:
+                if len(positive_keywords) > 0:
+                    get_word_cloud_data(positive_keywords, selected_diner)
+                else:
+                    st.info("긍정 키워드가 없습니다.")
+
+            with keyword_tab2:
+                if len(negative_keywords) > 0:
+                    get_word_cloud_data(negative_keywords, selected_diner)
+                else:
+                    st.info("부정 키워드가 없습니다.")
 
         # 위치 정보
         st.subheader("📍 위치 정보")

@@ -4,11 +4,11 @@ import hydra
 import numpy as np
 import pandas as pd
 from geopy.geocoders import Nominatim
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 
 from data.dataset import load_test_dataset
-from model.rank import build_model
 
 
 def haversine(
@@ -62,18 +62,18 @@ def geocoding(address: str) -> list[float]:
 def _main(cfg: DictConfig):
     test, already_reviewed = load_test_dataset(
         cfg.user_name,
-        cfg.data.user_engineered_feature_names[0],
-        cfg.data.diner_engineered_feature_names[0],
+        cfg.data.user_engineered_feature_names,
+        cfg.data.diner_engineered_feature_names,
     )
     user_lat, user_lon = geocoding(cfg.user_address)
     test["distance"] = haversine(
         user_lat, user_lon, test["diner_lat"], test["diner_lon"]
     )
     test = test.loc[test["distance"] <= cfg.distance_threshold]
-    X_test = test[cfg.data.features]
+    X_test = test[cfg.models.ranker.features]
 
     # load model
-    trainer = build_model(cfg)
+    trainer = instantiate(cfg.models.ranker)
     predictions = trainer.predict(X_test)
 
     test["prediction"] = predictions

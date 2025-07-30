@@ -12,33 +12,36 @@ except ModuleNotFoundError:
 import pandas as pd
 
 from constant.evaluation.qualitative import QualitativeReviewerId
-from data.dataset import DatasetLoader, load_test_dataset
+from data.dataset import DataConfig, DatasetLoader, load_test_dataset
 
 
 def test_loader_dataset():
     data_loader = DatasetLoader(
-        is_timeseries_by_time_point=True,
-        train_time_point="2024-09-01",
-        val_time_point="2024-12-01",
-        test_time_point="2025-01-01",
-        end_time_point="2025-02-01",
-        X_columns=["diner_idx", "reviewer_id"],
-        y_columns=["reviewer_review_score"],
-        random_state=42,
-        stratify="reviewer_id",
-        user_engineered_feature_names={
-            "categorical_feature_count": {
-                "categorical_feature_names": ["diner_category_large"]
-            }
-        },
-        diner_engineered_feature_names={
-            "all_review_cnt": {},
-            "diner_review_tags": {},
-            "diner_menu_price": {},
-        },
-        test=True,
+        data_config=DataConfig(
+            X_columns=["diner_idx", "reviewer_id"],
+            y_columns=["reviewer_review_score"],
+            user_engineered_feature_names={
+                "categorical_feature_count": {
+                    "categorical_feature_names": ["diner_category_large"]
+                }
+            },
+            diner_engineered_feature_names={
+                "all_review_cnt": {},
+                "diner_review_tags": {},
+                "diner_menu_price": {},
+            },
+            is_timeseries_by_time_point=True,
+            train_time_point="2024-09-01",
+            val_time_point="2024-12-01",
+            test_time_point="2025-01-01",
+            end_time_point="2025-02-01",
+            random_state=42,
+            stratify="reviewer_id",
+            test=True,
+            candidate_type="node2vec",
+        ),
     )
-    data = data_loader.prepare_train_val_dataset()
+    data = data_loader.prepare_train_val_dataset(is_tensor=True)
 
     assert data["X_train"].shape[0] > 0
     assert data["X_val"].shape[0] > 0
@@ -51,9 +54,7 @@ def test_loader_dataset():
     assert data["diner_mapping"] is not None
     assert data["user_mapping"] is not None
 
-    rank_data = data_loader.prepare_train_val_dataset(
-        is_rank=True, is_candidate_dataset=True
-    )
+    rank_data = data_loader.prepare_train_val_dataset(is_rank=True)
 
     assert rank_data["X_train"].shape[0] > 0
     assert rank_data["X_val"].shape[0] > 0
