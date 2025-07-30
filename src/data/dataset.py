@@ -311,16 +311,16 @@ class DatasetLoader:
             "reviewer_review_score"
         ].transform(lambda x: x.expanding().mean().shift(1))
 
-        # 첫 번째 리뷰 마스크 생성
         first_review_mask = df.groupby("reviewer_id").cumcount() == 0
 
-        # 첫 번째 리뷰는 자기 자신의 점수, 나머지는 이전까지의 평균
-        df["temporal_reviewer_avg"] = df["temporal_reviewer_avg_shifted"]
+        df["temporal_reviewer_avg"] = df.groupby("reviewer_id")[
+            "reviewer_review_score"
+        ].transform(lambda x: x.expanding().mean().shift(1))
+
         df.loc[first_review_mask, "temporal_reviewer_avg"] = df.loc[
             first_review_mask, "reviewer_review_score"
         ]
 
-        # 임시 컬럼 제거
         df = df.drop("temporal_reviewer_avg_shifted", axis=1)
 
         return df
