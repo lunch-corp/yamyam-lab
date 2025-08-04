@@ -1,33 +1,29 @@
 import os
-import pickle
 import traceback
-from argparse import ArgumentParser
 from datetime import datetime
 
 from data.dataset import DataConfig, DatasetLoader
-from evaluation.metric_calculator import ALSMetricCalculator
-from model import ALS
+from evaluation.metric_calculator import MostPopularMetricCalculator
 from tools.config import load_yaml
-from tools.google_drive import GoogleDriveManager
 from tools.logger import common_logging, setup_logger
-from tools.parse_args import parse_args_als, save_command_to_file
-from tools.zip import zip_files_in_directory
+from tools.parse_args import save_command_to_file
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
 PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
-ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
 
-def main(args: ArgumentParser.parse_args) -> None:
+def main() -> None:
     # set result path
     dt = datetime.now().strftime("%Y%m%d%H%M%S")
-    test_flag = "test" if args.test else "untest"
-    result_path = RESULT_PATH.format(test=test_flag, model="als", dt=dt)
+    test_flag = "untest"
+    result_path = RESULT_PATH.format(test=test_flag, model="most_popular", dt=dt)
     os.makedirs(result_path, exist_ok=True)
     # load config
-    config = load_yaml(CONFIG_PATH.format(model="als"))
+    config = load_yaml(
+        CONFIG_PATH.format(model="als")
+    )  # Note: use als config, because all configs are overlapped.
     preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
     # save command used in argparse
     save_command_to_file(result_path)
@@ -42,13 +38,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     logger = setup_logger(os.path.join(result_path, file_name.log))
 
     try:
-        logger.info(f"alpha: {args.alpha}")
-        logger.info(f"factors: {args.factors}")
-        logger.info(f"regularization: {args.regularization}")
-        logger.info(f"iterations: {args.iterations}")
-        logger.info(f"use_gpu: {args.use_gpu}")
-        logger.info(f"calculate_training_loss: {args.calculate_training_loss}")
-        logger.info(f"test: {args.test}")
+        logger.info("model: most_popular")
         logger.info(f"training results will be saved in {result_path}")
 
         data_loader = DatasetLoader(
@@ -62,9 +52,10 @@ def main(args: ArgumentParser.parse_args) -> None:
                 val_time_point=config.preprocess.data.val_time_point,
                 test_time_point=config.preprocess.data.test_time_point,
                 end_time_point=config.preprocess.data.end_time_point,
-                test=args.test,
+                test=False,  # hard coding
             ),
         )
+        # Note: although is_csr is set True, we do not use train_csr dataset, but use val / test data in pandas dataframe.
         data = data_loader.prepare_train_val_dataset(
             is_csr=True,
             filter_config=preprocess_config.filter,
@@ -76,23 +67,11 @@ def main(args: ArgumentParser.parse_args) -> None:
             logger=logger,
         )
 
-        # train als.
-        # currently, validation loss is not reported because implicit library does not support calculating validation loss.
-        model = ALS(
-            alpha=args.alpha,
-            factors=args.factors,
-            regularization=args.regularization,
-            iterations=args.iterations,
-            use_gpu=args.use_gpu,
-            diner_mapping=data["diner_mapping"],
-            calculate_training_loss=args.calculate_training_loss,
-        )
-        model.fit(data["X_train"])
+        # Note: In most popular model, we do not actually have any machine learning models.
+        # Therefore, we directly calculate validation / test data metric using most popular diner_ids
 
-        # define metric calculator for test data metric
-        metric_calculator = ALSMetricCalculator(
-            diner_ids=list(data["diner_mapping"].values()),
-            model=model,
+        # define metric calculator for validation / test data metric
+        metric_calculator = MostPopularMetricCalculator(
             top_k_values=top_k_values,
             filter_already_liked=True,
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
@@ -100,16 +79,13 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         # calculate metric for **validation data** with warm / cold / all users separately
-        # Note that, we should calculate this metric for each iteration while training als,
-        # but we could not find any methods to integrate it into implicit library,
-        # so, we report validation metric after finishing training als.
         metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
             X_train=data["X_train_df"],
             X_val_warm_users=data["X_val_warm_users"],
             X_val_cold_users=data["X_val_cold_users"],
             most_popular_diner_ids=data["most_popular_diner_ids"],
             filter_already_liked=True,
-            train_csr=data["X_train"],
+            most_popular_rec_to_warm_users=True,
         )
 
         # for each user type, the metric is not yet averaged but summed, so calculate mean
@@ -131,7 +107,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             X_val_cold_users=data["X_test_cold_users"],
             most_popular_diner_ids=data["most_popular_diner_ids"],
             filter_already_liked=True,
-            train_csr=data["X_train"],
+            most_popular_rec_to_warm_users=True,
         )
 
         # for each user type, the metric is not yet averaged but summed, so calculate mean
@@ -146,55 +122,10 @@ def main(args: ArgumentParser.parse_args) -> None:
             metric_dict=metric_dict, data_type="test"
         )
 
-        if args.save_candidate:
-            # generate candidates and zip related files
-            zip_path = ZIP_PATH.format(
-                test=test_flag, model="als", dt=dt
-            )  # hard coding
-            os.makedirs(zip_path, exist_ok=True)
-            candidates_df = model.generate_candidates_for_each_user(
-                top_k_value=config.post_training.candidate_generation.top_k,
-                train_csr=data["X_train"],
-            )
-            # save files to zip
-            pickle.dump(
-                data["user_mapping"],
-                open(os.path.join(zip_path, file_name.user_mapping), "wb"),
-            )
-            pickle.dump(
-                data["diner_mapping"],
-                open(os.path.join(zip_path, file_name.diner_mapping), "wb"),
-            )
-            candidates_df.to_parquet(
-                os.path.join(zip_path, file_name.candidate), index=False
-            )
-            # zip file
-            zip_files_in_directory(
-                dir_path=zip_path,
-                zip_file_name=f"{dt}.zip",
-                allowed_type=[".pkl", ".parquet"],
-                logger=logger,
-            )
-            # upload zip file to google drive
-            manager = GoogleDriveManager(
-                reusable_token_path=args.reusable_token_path,
-                reuse_auth_info=True,
-            )
-            file_id = manager.upload_result(
-                model_name="als",  # hard coding
-                file_path=os.path.join(zip_path, f"{dt}.zip"),
-                download_file_type="candidates",
-            )
-            logger.info(
-                f"Successfully uploaded candidate results to google drive."
-                f"File id: {file_id}"
-            )
-
     except:
         logger.error(traceback.format_exc())
         raise
 
 
 if __name__ == "__main__":
-    args = parse_args_als()
-    main(args)
+    main()

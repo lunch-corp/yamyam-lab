@@ -17,10 +17,11 @@ diner_engineered_feature_names:
   diner_menu_price: {}
 
 num_neg_samples: 200
-sampling_type: random
+sampling_type: popularity
 is_timeseries_by_users: false
 is_timeseries_by_time_point: true
 train_time_point: "2024-09-01"
 val_time_point: "2024-12-01"
 test_time_point: "2025-01-01"
 end_time_point: "2025-02-01"
+candidate_type: node2vec

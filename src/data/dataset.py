@@ -16,9 +16,12 @@ from data.validator import DataValidator
 from features import build_feature
 from preprocess.preprocess import (
     meta_mapping,
+    prepare_networkx_undirected_graph,
+    prepare_torch_dataloader,
     preprocess_common,
     reviewer_diner_mapping,
 )
+from tools.config import load_yaml
 from tools.google_drive import ensure_data_files
 from tools.utils import reduce_mem_usage
 
@@ -42,8 +45,10 @@ class DataConfig:
     test_time_point: str = "2024-06-01"
     val_time_point: str = "2024-03-01"
     end_time_point: str = "2024-12-31"
-    is_graph_model: bool = False
+    use_unique_mapping_id: bool = False
     test: bool = False
+    candidate_type: str = "node2vec"
+    additional_reviews_path: str = "config/data/additional_reviews.yaml"
 
     def __post_init__(self: Self):
         self.user_engineered_feature_names = self.user_engineered_feature_names or {}
@@ -101,12 +106,16 @@ class DatasetLoader:
         self.test_time_point = self.data_config.test_time_point
         self.val_time_point = self.data_config.val_time_point
         self.end_time_point = self.data_config.end_time_point
-        self.is_graph_model = self.data_config.is_graph_model
+        self.use_unique_mapping_id = self.data_config.use_unique_mapping_id
         self.category_column_for_meta = self.data_config.category_column_for_meta
         self.test = self.data_config.test
+        self.additional_reviews = load_yaml(self.data_config.additional_reviews_path)
+        self.diner_ids_from_additional_reviews = (
+            self.get_diner_ids_from_additional_reviews()
+        )
 
         self.data_paths = ensure_data_files()
-        self.candidate_paths = Path("candidates/node2vec")
+        self.candidate_paths = Path(f"candidates/{self.data_config.candidate_type}")
 
         self._validate_input_params()
 
@@ -185,6 +194,26 @@ class DatasetLoader:
                             "time point for val data should not be greater or equal than time point for test data"
                         )
 
+    def _validate_additional_reviews(
+        self, reviewer_mapping: Dict, diner_mapping: Dict
+    ) -> None:
+        """
+        Validate additional_reviews.yaml
+        1. Validate whether reviewer_id from yaml file already exists in original review dataset or not.
+        2. Validate whether diner_ids from yaml file exist in original reviewe dataset or not.
+        """
+        for member_name, info in self.additional_reviews.items():
+            if info["reviewer_id"] in reviewer_mapping:
+                raise ValueError(
+                    f"There is already reviewer_id {info['reviewer_id']}, so please use another reviewer_id."
+                )
+            reviews = info["reviews"]["train"] + info["reviews"]["test"]
+            for review in reviews:
+                if review["diner_id"] not in diner_mapping:
+                    raise ValueError(
+                        f"diner_idx {review['diner_id']} does not exist in review data, please check if you write correct diner_idx."
+                    )
+
     def load_dataset(self: Self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Load and merge review, diner, and category data.
@@ -203,18 +232,142 @@ class DatasetLoader:
             yongsan_diners = diner[
                 diner["diner_road_address"].str.startswith("서울 용산구", na=False)
             ]["diner_idx"].unique()[:100]
-            review = review[review["diner_idx"].isin(yongsan_diners)]
+            review = review[
+                review["diner_idx"].isin(yongsan_diners)
+                | review["diner_idx"].isin(self.diner_ids_from_additional_reviews)
+            ]
 
         return review, diner, diner_with_raw_category
 
     def create_target_column(self: Self, review: pd.DataFrame) -> pd.DataFrame:
         """
-        Create the target column for classification.
+        Create the target column for classification using temporal reviewer_avg.
+
+        이 메서드는 데이터 리키지(Data Leakage)를 방지하기 위해 시점별 조정된
+        reviewer_avg를 사용합니다.
+
+        기존 방식의 문제점:
+        - 전체 기간의 reviewer_avg 사용 → 미래 정보 포함
+        - 실제 서비스 환경과 불일치
+
+        개선된 방식:
+        - 각 리뷰 작성 시점까지의 정보만 사용
+        - temporal_reviewer_avg 기반 타겟 생성
+        - 실제 추천 시스템 환경과 일치
+
+        Returns:
+            pd.DataFrame: temporal 기반 target 컬럼이 포함된 리뷰 데이터
         """
-        review["target"] = (
-            review["reviewer_review_score"] >= review["reviewer_avg"]
+
+        # 시점별 reviewer_avg 계산
+        avg_adjusted_review = self._calculate_temporal_reviewer_avg(review)
+
+        # 시점별 target 계산
+        avg_adjusted_review["target"] = (
+            avg_adjusted_review["reviewer_review_score"]
+            >= avg_adjusted_review["temporal_reviewer_avg"]
         ).astype(np.int8)
-        return review
+
+        # review_avg 컬럼 생성 (temporal_reviewer_avg를 복사)
+        if "review_avg" in avg_adjusted_review.columns:
+            avg_adjusted_review.drop(columns=["review_avg"], inplace=True)
+        avg_adjusted_review["review_avg"] = avg_adjusted_review["temporal_reviewer_avg"]
+
+        # temporal_reviewer_avg 컬럼 제거
+        avg_adjusted_review = avg_adjusted_review.drop(
+            columns=["temporal_reviewer_avg"]
+        )
+
+        return avg_adjusted_review
+
+    def _calculate_temporal_reviewer_avg(
+        self: Self, review: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        각 리뷰 작성 시점에서의 reviewer_avg를 계산합니다.
+
+        Args:
+            review (pd.DataFrame): 리뷰 데이터프레임
+
+        Returns:
+            pd.DataFrame: temporal_reviewer_avg 컬럼이 추가된 데이터프레임
+        """
+        # 리뷰 데이터를 복사하여 작업
+        df = review.copy()
+
+        # 날짜 컬럼을 datetime으로 변환
+        df["reviewer_review_date"] = pd.to_datetime(df["reviewer_review_date"])
+
+        # 각 리뷰어별로 날짜순으로 정렬
+        df = df.sort_values(["reviewer_id", "reviewer_review_date"])
+
+        # 각 리뷰 시점에서의 평균 계산
+        df["temporal_reviewer_avg"] = df.groupby("reviewer_id")[
+            "reviewer_review_score"
+        ].transform(lambda x: x.expanding().mean())
+
+        # shift를 사용하되, 첫 번째 리뷰는 자기 자신의 점수를 사용
+        df["temporal_reviewer_avg_shifted"] = df.groupby("reviewer_id")[
+            "reviewer_review_score"
+        ].transform(lambda x: x.expanding().mean().shift(1))
+
+        first_review_mask = df.groupby("reviewer_id").cumcount() == 0
+
+        df["temporal_reviewer_avg"] = df.groupby("reviewer_id")[
+            "reviewer_review_score"
+        ].transform(lambda x: x.expanding().mean().shift(1))
+
+        df.loc[first_review_mask, "temporal_reviewer_avg"] = df.loc[
+            first_review_mask, "reviewer_review_score"
+        ]
+
+        df = df.drop("temporal_reviewer_avg_shifted", axis=1)
+
+        return df
+
+    # TODO: badge_level를 이용할 경우
+    # def _estimate_temporal_badge_level(
+    #     self: Self, review: pd.DataFrame
+    # ) -> pd.DataFrame:
+    #     """
+    #     시점별 badge_level을 추정합니다.
+    #     리뷰 수 진행률에 비례하여 최종 badge_level을 추정합니다.
+
+    #     Args:
+    #         review (pd.DataFrame): 리뷰 데이터프레임
+
+    #     Returns:
+    #         pd.DataFrame: temporal_badge_level 컬럼이 추가된 데이터프레임
+    #     """
+    #     # 리뷰 데이터를 복사하여 작업
+    #     df = review.copy()
+
+    #     # 날짜 컬럼을 datetime으로 변환
+    #     df["reviewer_review_date"] = pd.to_datetime(df["reviewer_review_date"])
+
+    #     # 각 리뷰어별로 날짜순으로 정렬
+    #     df = df.sort_values(["reviewer_id", "reviewer_review_date"])
+
+    #     # 각 리뷰어별 총 리뷰 수 계산
+    #     total_reviews = df.groupby("reviewer_id").size().to_dict()
+
+    #     # 각 리뷰 시점까지의 누적 리뷰 수 계산
+    #     df["cumulative_review_count"] = df.groupby("reviewer_id").cumcount() + 1
+
+    #     # 진행률 계산 (현재 리뷰 수 / 총 리뷰 수)
+    #     df["review_progress_ratio"] = df.apply(
+    #         lambda row: row["cumulative_review_count"]
+    #         / total_reviews[row["reviewer_id"]],
+    #         axis=1,
+    #     )
+
+    #     # 시점별 badge_level 추정 (진행률 × 최종 badge_level)
+    #     df["temporal_badge_level"] = df["review_progress_ratio"] * df["badge_level"]
+
+    #     # badge_level은 최소 1 이상이어야 한다고 가정
+    #     df["temporal_badge_level"] = df["temporal_badge_level"].clip(lower=1.0)
+
+    #     return df
 
     def train_test_split_stratify(
         self: Self, review: pd.DataFrame
@@ -333,18 +486,25 @@ class DatasetLoader:
 
     def prepare_train_val_dataset(
         self: Self,
+        filter_config: Dict[str, Any] = None,
         is_rank: bool = False,
-        use_metadata: bool = False,
         is_csr: bool = False,
+        is_networkx_graph: bool = False,
+        is_tensor: bool = False,
+        use_metadata: bool = False,
+        weighted_edge: bool = False,
     ) -> Dict[str, Any]:
         """
         Load and process training data.
 
         Args:
+            filter_config (Dict[str, Any]): Filter config used when filtering reviews.
             is_rank (bool): Indicator if it is ranking model or not.
-            use_metadata (bool): Indicator if using metadata or not in graph model.
-            is_candidate_dataset (bool): Indicator if using candidate dataset or not.
             is_csr (bool): Indicator if csr format or not for als model.
+            is_networkx_graph (bool): Indicator if using metworkx graph object or not.
+            is_tensor (bool): Indicator if using tensor or not.
+            use_metadata (bool): Indicator if using metadata or not in graph model, especially for metapath2vec
+            weighted_edge (bool): Indicator if using weighted edge or not.
 
         Returns (Dict[str, Any]):
             A dictionary containing the training and validation sets.
@@ -360,11 +520,12 @@ class DatasetLoader:
             diner_with_raw_category=diner_with_raw_category,
             min_reviews=self.min_reviews,
             is_timeseries_by_time_point=self.is_timeseries_by_time_point,
+            filter_config=filter_config,
         )
 
         # Map reviewer and diner data
         mapped_res = reviewer_diner_mapping(
-            review=review, diner=diner, is_graph_model=self.is_graph_model
+            review=review, diner=diner, use_unique_mapping_id=self.use_unique_mapping_id
         )
         review, diner = mapped_res["review"], mapped_res["diner"]
         mapped_res = {
@@ -395,6 +556,21 @@ class DatasetLoader:
         else:
             train, test = self.train_test_split_stratify(review)
             train, val = self.train_test_split_stratify(train)
+
+        # integrate additional reviews
+        # first validate whether additional_reviews.yaml is incorrectly written or not
+        self._validate_additional_reviews(
+            reviewer_mapping=mapped_res["user_mapping"],
+            diner_mapping=mapped_res["diner_mapping"],
+        )
+        # then, merge additional reviews into train / test dataset
+        mapped_res, train, test = (
+            self.integrate_additional_reviews_to_train_test_dataset(
+                train=train,
+                test=test,
+                mapped_res=mapped_res,
+            )
+        )
 
         # Feature engineering
         user_feature, diner_feature, diner_meta_feature = build_feature(
@@ -556,29 +732,55 @@ class DatasetLoader:
             )
             mapped_res.update(meta_mapping_info)
 
-        return self.create_graph_dataset(
-            train=train,
-            val=val,
-            test=test,
-            train_user_ids=train_user_ids,
-            val_user_ids=val_user_ids,
-            test_user_ids=test_user_ids,
-            train_diner_ids=train_diner_ids,
-            val_diner_ids=val_diner_ids,
-            test_diner_ids=test_diner_ids,
-            val_warm_start_user_ids=val_warm_start_user_ids,
-            val_cold_start_user_ids=val_cold_start_user_ids,
-            test_warm_start_user_ids=test_warm_start_user_ids,
-            test_cold_start_user_ids=test_cold_start_user_ids,
-            val_warm_users=val_warm_users,
-            val_cold_users=val_cold_users,
-            test_warm_users=test_warm_users,
-            test_cold_users=test_cold_users,
-            user_feature=user_feature,
-            diner_feature=diner_feature,
-            diner_meta_feature=diner_meta_feature,
-            mapped_res=mapped_res,
-        )
+        if is_networkx_graph:
+            return self.create_networkx_graph_dataset(
+                train=train,
+                val=val,
+                test=test,
+                train_user_ids=train_user_ids,
+                val_user_ids=val_user_ids,
+                test_user_ids=test_user_ids,
+                train_diner_ids=train_diner_ids,
+                val_diner_ids=val_diner_ids,
+                test_diner_ids=test_diner_ids,
+                val_warm_start_user_ids=val_warm_start_user_ids,
+                val_cold_start_user_ids=val_cold_start_user_ids,
+                test_warm_start_user_ids=test_warm_start_user_ids,
+                test_cold_start_user_ids=test_cold_start_user_ids,
+                user_feature=user_feature,
+                diner_feature=diner_feature,
+                diner_meta_feature=diner_meta_feature,
+                val_warm_users=val_warm_users,
+                val_cold_users=val_cold_users,
+                test_warm_users=test_warm_users,
+                test_cold_users=test_cold_users,
+                mapped_res=mapped_res,
+                use_metadata=use_metadata,
+                weighted_edge=weighted_edge,
+            )
+
+        if is_tensor:
+            return self.create_torch_dataset(
+                train=train,
+                val=val,
+                test=test,
+                train_user_ids=train_user_ids,
+                val_user_ids=val_user_ids,
+                test_user_ids=test_user_ids,
+                train_diner_ids=train_diner_ids,
+                val_diner_ids=val_diner_ids,
+                test_diner_ids=test_diner_ids,
+                val_warm_start_user_ids=val_warm_start_user_ids,
+                val_cold_start_user_ids=val_cold_start_user_ids,
+                test_warm_start_user_ids=test_warm_start_user_ids,
+                test_cold_start_user_ids=test_cold_start_user_ids,
+                val_warm_users=val_warm_users,
+                val_cold_users=val_cold_users,
+                test_warm_users=test_warm_users,
+                test_cold_users=test_cold_users,
+                diner_meta_feature=diner_meta_feature,
+                mapped_res=mapped_res,
+            )
 
     def _validate_user_mappings(
         self: Self,
@@ -797,6 +999,9 @@ class DatasetLoader:
         test_cold_users: pd.DataFrame,
         mapped_res: Dict[str, Any],
     ) -> Dict[str, Any]:
+        """
+        Create train / val csr matrix and return other data used in evaluation.
+        """
         num_total_users = len(mapped_res.get("user_mapping"))
         num_total_diners = len(mapped_res.get("diner_mapping"))
         train_Cui_csr = self.create_csr_matrix_from_review_data(
@@ -904,6 +1109,11 @@ class DatasetLoader:
         # 매핑 로드 및 검증
         user_mapping = pd.read_pickle(self.candidate_paths / "user_mapping.pkl")
         diner_mapping = pd.read_pickle(self.candidate_paths / "diner_mapping.pkl")
+        user_mapping = (
+            {k: v + len(diner_mapping) for k, v in user_mapping.items()}
+            if self.data_config.candidate_type == "als"
+            else user_mapping
+        )
 
         candidate_user_mapping = {
             k: v for k, v in user_mapping.items() if v in candidate["user_id"]
@@ -938,7 +1148,7 @@ class DatasetLoader:
 
         return candidate, candidate_user_mapping_convert, candidate_diner_mapping
 
-    def create_graph_dataset(
+    def create_networkx_graph_dataset(
         self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
@@ -961,44 +1171,40 @@ class DatasetLoader:
         diner_feature: pd.DataFrame,
         diner_meta_feature: pd.DataFrame,
         mapped_res: Dict[str, Any],
+        use_metadata: bool,
+        weighted_edge: bool,
     ) -> Dict[str, Any]:
         """
-        Prepare the standard output for graph embedding.
-
-        Args:
-            train: pd.DataFrame
-            val: pd.DataFrame
-            user_feature: pd.DataFrame
-            diner_feature: pd.DataFrame
-            diner_meta_feature: pd.DataFrame
-            mapped_res: Dict[str, Any]
-
-        Returns (Dict[str, Any]):
-            A dictionary containing the training and validation
+        Create train / val networkx graph object and return other data used in evaluation.
         """
+        train_graph, val_graph = prepare_networkx_undirected_graph(
+            X_train=train[self.X_columns],
+            y_train=train[self.y_columns],
+            X_val=val[self.X_columns],
+            y_val=val[self.y_columns],
+            diner=diner_meta_feature,
+            user_mapping=mapped_res["user_mapping"],
+            diner_mapping=mapped_res["diner_mapping"],
+            meta_mapping=mapped_res["meta_mapping"] if use_metadata else None,
+            weighted=weighted_edge,
+            use_metadata=use_metadata,
+        )
+
         return {
-            "X_train": torch.tensor(train[self.X_columns].values),
-            "y_train": torch.tensor(train[self.y_columns].values, dtype=torch.float32),
-            "X_val": torch.tensor(val[self.X_columns].values),
-            "y_val": torch.tensor(val[self.y_columns].values, dtype=torch.float32),
-            "X_test": torch.tensor(test[self.X_columns].values),
-            "y_test": torch.tensor(test[self.y_columns].values, dtype=torch.float32),
-            "X_val_warm_users": torch.tensor(val_warm_users[self.X_columns].values),
-            "y_val_warm_users": torch.tensor(
-                val_warm_users[self.y_columns].values, dtype=torch.float32
-            ),
-            "X_val_cold_users": torch.tensor(val_cold_users[self.X_columns].values),
-            "y_val_cold_users": torch.tensor(
-                val_cold_users[self.y_columns].values, dtype=torch.float32
-            ),
-            "X_test_warm_users": torch.tensor(test_warm_users[self.X_columns].values),
-            "y_test_warm_users": torch.tensor(
-                test_warm_users[self.y_columns].values, dtype=torch.float32
-            ),
-            "X_test_cold_users": torch.tensor(test_cold_users[self.X_columns].values),
-            "y_test_cold_users": torch.tensor(
-                test_cold_users[self.y_columns].values, dtype=torch.float32
-            ),
+            "X_train": train[self.X_columns],
+            "y_train": train[self.y_columns],
+            "X_val": val[self.X_columns],
+            "y_val": val[self.y_columns],
+            "X_test": test[self.X_columns],
+            "y_test": test[self.y_columns],
+            "X_val_warm_users": val_warm_users[self.X_columns],
+            "y_val_warm_users": val_warm_users[self.y_columns],
+            "X_val_cold_users": val_cold_users[self.X_columns],
+            "y_val_cold_users": val_cold_users[self.y_columns],
+            "X_test_warm_users": test_warm_users[self.X_columns],
+            "y_test_warm_users": test_warm_users[self.y_columns],
+            "X_test_cold_users": test_cold_users[self.X_columns],
+            "y_test_cold_users": test_cold_users[self.y_columns],
             "diner": diner_meta_feature,
             "user_feature": torch.tensor(
                 user_feature.sort_values(by="reviewer_id")
@@ -1025,6 +1231,76 @@ class DatasetLoader:
             "train_diner_ids": train_diner_ids,
             "val_diner_ids": val_diner_ids,
             "test_diner_ids": test_diner_ids,
+            "train_graph": train_graph,
+            "val_graph": val_graph,
+            **mapped_res,
+        }
+
+    def create_torch_dataset(
+        self: Self,
+        train: pd.DataFrame,
+        val: pd.DataFrame,
+        test: pd.DataFrame,
+        train_user_ids: NDArray,
+        val_user_ids: NDArray,
+        test_user_ids: NDArray,
+        train_diner_ids: NDArray,
+        val_diner_ids: NDArray,
+        test_diner_ids: NDArray,
+        val_warm_start_user_ids: NDArray,
+        val_cold_start_user_ids: NDArray,
+        test_warm_start_user_ids: NDArray,
+        test_cold_start_user_ids: NDArray,
+        val_warm_users: pd.DataFrame,
+        val_cold_users: pd.DataFrame,
+        test_warm_users: pd.DataFrame,
+        test_cold_users: pd.DataFrame,
+        diner_meta_feature: pd.DataFrame,
+        mapped_res: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Create torch dataloader and return other data used in evaluation.
+        """
+        X_train = torch.tensor(train[self.X_columns].values)
+        y_train = torch.tensor(train[self.y_columns].values, dtype=torch.float32)
+        X_val = torch.tensor(val[self.X_columns].values)
+        y_val = torch.tensor(val[self.y_columns].values, dtype=torch.float32)
+
+        train_dataloader, val_dataloader = prepare_torch_dataloader(
+            X_train, y_train, X_val, y_val
+        )
+
+        return {
+            "X_train": train[self.X_columns],
+            "y_train": train[self.y_columns],
+            "X_val": val[self.X_columns],
+            "y_val": val[self.y_columns],
+            "X_test": test[self.X_columns],
+            "y_test": test[self.y_columns],
+            "X_val_warm_users": val_warm_users[self.X_columns],
+            "y_val_warm_users": val_warm_users[self.y_columns],
+            "X_val_cold_users": val_cold_users[self.X_columns],
+            "y_val_cold_users": val_cold_users[self.y_columns],
+            "X_test_warm_users": test_warm_users[self.X_columns],
+            "y_test_warm_users": test_warm_users[self.y_columns],
+            "X_test_cold_users": test_cold_users[self.X_columns],
+            "y_test_cold_users": test_cold_users[self.y_columns],
+            "diner": diner_meta_feature,
+            "most_popular_diner_ids": self.get_most_popular_diner_ids(
+                train_review=train
+            ),
+            "val_warm_start_user_ids": val_warm_start_user_ids,
+            "val_cold_start_user_ids": val_cold_start_user_ids,
+            "test_warm_start_user_ids": test_warm_start_user_ids,
+            "test_cold_start_user_ids": test_cold_start_user_ids,
+            "train_user_ids": train_user_ids,
+            "val_user_ids": val_user_ids,
+            "test_user_ids": test_user_ids,
+            "train_diner_ids": train_diner_ids,
+            "val_diner_ids": val_diner_ids,
+            "test_diner_ids": test_diner_ids,
+            "train_dataloader": train_dataloader,
+            "val_dataloader": val_dataloader,
             **mapped_res,
         }
 
@@ -1076,6 +1352,102 @@ class DatasetLoader:
             shape=(num_total_users, num_total_diners),
         )
         return Cui_csr
+
+    def get_diner_ids_from_additional_reviews(self: Self):
+        """
+        Get diner_ids from additional_reviews.yaml which will be used when test mode is set as true.
+        """
+        diner_ids = []
+        for member_name, info in self.additional_reviews.items():
+            reviews = info["reviews"]["train"] + info["reviews"]["test"]
+            for review in reviews:
+                diner_ids.append(review["diner_id"])
+        return diner_ids
+
+    def integrate_additional_reviews_to_train_test_dataset(
+        self: Self,
+        train: pd.DataFrame,
+        test: pd.DataFrame,
+        mapped_res: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], pd.DataFrame, pd.DataFrame]:
+        """
+        Integrate additional reviews into split train and test dataset.
+        This method does following steps.
+            1. Generate mapping id converting original reviewer_id from additional_reviews.yaml
+            2. Using mapped reviewer_id and mapped diner_id, generate pseudo review and integrate it to train and test dataset.
+        Args:
+            train (pd.DataFrame): Original train dataset.
+            test (pd.DataFrame): Original test dataset.
+            mapped_res (Dict[str, Any]): Original mapped_res.
+        Returns (Tuple[Dict[str, Any], pd.DataFrame, pd.DataFrame]):
+            Integrated dataset with user_mapping updated.
+        """
+        max_mapped_reviewer_id = max(mapped_res["user_mapping"].values())
+        for member_name, info in self.additional_reviews.items():
+            # newly define reviewer_id and map it to original reviewer_mapping
+            max_mapped_reviewer_id += 1
+            mapped_res["user_mapping"][info["reviewer_id"]] = max_mapped_reviewer_id
+
+            # train data concatenation
+            for review in info["reviews"]["train"]:
+                # map diner_id using diner_mapping dict
+                mapped_diner_id = mapped_res["diner_mapping"][review["diner_id"]]
+                pseudo_review = self._generate_pseudo_review(
+                    diner_idx=mapped_diner_id,
+                    reviewer_id=max_mapped_reviewer_id,
+                    score=review["score"],
+                    review_text=review["review_text"],
+                )
+                train = pd.concat(
+                    [train, pd.DataFrame([pseudo_review])], ignore_index=True
+                )
+
+            # test data concatenation
+            for review in info["reviews"]["test"]:
+                # map diner_id using diner_mapping dict
+                mapped_diner_id = mapped_res["diner_mapping"][review["diner_id"]]
+                pseudo_review = self._generate_pseudo_review(
+                    diner_idx=mapped_diner_id,
+                    reviewer_id=max_mapped_reviewer_id,
+                    score=review["score"],
+                    review_text=review["review_text"],
+                )
+                test = pd.concat(
+                    [test, pd.DataFrame([pseudo_review])], ignore_index=True
+                )
+        # overwrite some values because mapping dictionary is updated
+        mapped_res["num_users"] = len(mapped_res["user_mapping"])
+        mapped_res["num_diners"] = len(mapped_res["diner_mapping"])
+        return mapped_res, train, test
+
+    def _generate_pseudo_review(
+        self: Self,
+        diner_idx: int,
+        reviewer_id: int,
+        score: float,
+        review_text: str,
+    ) -> Dict[str, Any]:
+        """
+        Generate pseudo review to include train dataset or test dataset.
+        Currently, when training models, diner_idx, reviewer_id, reviewer_review, reviewer_review_score are used.
+        Therefore, we set those values from `additional_reviews.yaml`.
+        `reviewer_review_date` is set arbitrarily because pseudo review will be included train or test manually.
+        Args:
+            diner_idx (int): Mapped diner_idx.
+            reviewer_id (int): Mapped reviewer_id.
+            score (float): Review score.
+            review_text (str): Review text.
+        Returns (Dict[str, Any]):
+            Pseudo review with dictionary.
+        """
+        return {
+            "diner_idx": diner_idx,
+            "reviewer_id": reviewer_id,
+            "review_id": -1,  # pseudo review_id
+            "reviewer_review": review_text,
+            "reviewer_review_date": "2024-12-31",  # pseudo review_date
+            "reviewer_review_score": score,
+        }
 
     @staticmethod
     def is_valid_date_format(date_string: str) -> bool:

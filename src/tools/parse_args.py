@@ -35,7 +35,7 @@ def parse_args_embedding():
         "--model",
         type=str,
         required=True,
-        choices=["node2vec", "metapath2vec", "graphsage"],
+        choices=["node2vec", "metapath2vec", "graphsage", "lightgcn"],
     )
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--batch_size", type=int, default=128)
@@ -66,6 +66,10 @@ def parse_args_embedding():
         "--aggregator_funcs", type=str, nargs="*", default=["mean", "mean"]
     )
     parser.add_argument("--num_neighbor_samples", type=int, default=3)
+
+    # lightgcn parameter
+    parser.add_argument("--num_lightgcn_layers", type=int, default=3)
+    parser.add_argument("--drop_ratio", type=float, default=0.1)
 
     # candidate generation parameter for two-stage reco
     parser.add_argument("--save_candidate", action="store_true", required=False)

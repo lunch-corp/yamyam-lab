@@ -3,6 +3,7 @@ from typing import Any, List
 
 import torch
 from numpy.typing import NDArray
+from torch.nn import Embedding
 
 from evaluation.metric_calculator import BaseMetricCalculator
 from model.mf.svd_bias import Model
@@ -14,6 +15,10 @@ class SVDBiasMetricCalculator(BaseMetricCalculator):
         top_k_values: List[int],
         diner_ids: NDArray,
         model: Model,
+        embed_user: Embedding,
+        embed_item: Embedding,
+        user_bias: Embedding,
+        item_bias: Embedding,
         filter_already_liked: bool = True,
         recommend_batch_size: int = 2000,
         device: str = "cpu",
@@ -38,6 +43,10 @@ class SVDBiasMetricCalculator(BaseMetricCalculator):
             device=device,
             logger=logger,
         )
+        self.embed_user = embed_user
+        self.embed_item = embed_item
+        self.user_bias = user_bias
+        self.item_bias = item_bias
 
     def generate_recommendations(
         self,
@@ -56,18 +65,20 @@ class SVDBiasMetricCalculator(BaseMetricCalculator):
         user_ids = torch.tensor(user_ids, device=self.device)
         diner_ids = torch.tensor(sorted(self.diner_ids), device=self.device)
         num_diners = diner_ids.size(0)
-        num_batch_users = user_ids.size(0)
 
-        # repeat user_ids and diner_ids to compute scores btw users and all of diners
-        user_ids = user_ids.repeat_interleave(num_diners)
-        diner_ids = diner_ids.tile(num_batch_users)
+        user_embedding = self.embed_user(user_ids)
+        item_embedding = self.embed_item(diner_ids)
+        user_bias = self.user_bias(user_ids)
+        item_bias = self.item_bias(diner_ids)
 
-        # inference mode
-        with torch.no_grad():
-            scores = self.model(
-                user_idx=user_ids,
-                item_idx=diner_ids,
-            )
+        # we do not use `forward` method in svd_bias model, because it requires too much memory, resulting in oom
+        # matmul: recommend_batch_size x num_diners
+        # user_bias: recommend_batch_size x 1
+        # item_bias: num_diners x 1
+        # to broadcast item_bias rowwise, transpose it with (1 x num_diners) dimension
+        scores = (
+            torch.matmul(user_embedding, item_embedding.T) + user_bias + item_bias.T
+        )
 
         # should be reshaped because it was broadcast above
         scores = scores.reshape(-1, num_diners)

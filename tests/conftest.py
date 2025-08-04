@@ -36,6 +36,8 @@ def setup_config(request):
     args.num_sage_layers = 2
     args.aggregator_funcs = ["mean", "mean"]
     args.num_neighbor_samples = 3
+    args.num_lightgcn_layers = 3
+    args.drop_ratio = 0.1
     args.test = True
     args.save_candidate = False
     return args
@@ -78,7 +80,7 @@ def setup_ranker_config(request):
             "test": True,
             "random_state": 42,
             "stratify": "reviewer_id",
-            "is_graph_model": False,
+            "use_unique_mapping_id": False,
             "sampling_type": "random",
             "is_timeseries_by_users": False,
             "is_timeseries_by_time_point": True,
@@ -86,6 +88,7 @@ def setup_ranker_config(request):
             "val_time_point": "2024-12-01",
             "test_time_point": "2025-01-01",
             "end_time_point": "2025-02-01",
+            "candidate_type": "node2vec",
         },
         "models": {
             "ranker": {
@@ -123,6 +126,35 @@ def setup_ranker_config(request):
                 "recommend_batch_size": 1000000,
                 "top_k_values_for_pred": [3, 7, 10, 20],
             },
+        },
+        "preprocess": {
+            "filter": {
+                "martial_law_reviews": {
+                    "target_months": ["2025-01", "2024-12"],
+                    "min_common_word_count_with_abusive_words": 3,
+                    "min_review_count_by_diner_id": 3,
+                    "included_tags": ["NNG", "NNP"],
+                    "abusive_words": [
+                        "총",
+                        "내란",
+                        "공수처",
+                        "시위",
+                        "좌우",
+                        "애국",
+                        "정치",
+                        "총살",
+                        "테러",
+                        "민주주의",
+                        "윤석열",
+                        "총기",
+                        "좌파",
+                        "우파",
+                        "극우",
+                        "집회",
+                        "계엄",
+                    ],
+                }
+            }
         },
     }
     return OmegaConf.create(config)

@@ -10,6 +10,7 @@ from torch_geometric.data import Data
 
 from data.validator import DataValidator
 from preprocess.diner_transform import CategoryProcessor
+from preprocess.filter import Filter
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
@@ -40,6 +41,7 @@ def preprocess_common(
     diner: pd.DataFrame,
     diner_with_raw_category: pd.DataFrame,
     min_reviews: int,
+    filter_config: Dict[str, Any] = None,
     is_timeseries_by_time_point: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -50,6 +52,8 @@ def preprocess_common(
         diner (pd.DataFrame): Diner dataset.
         diner_with_raw_category (pd.DataFrame): Diner dataset with raw category not preprocessed before.
         min_reviews (int): Minimum number of reviews for each reviewers.
+        filter_config (Dict[str. Any]): Filter config used when filtering reviews.
+        is_timeseries_by_time_point (bool): Flag if split dataset to train / val / test using datetime.
 
     Returns (Tuple[pd.DataFrame, pd.DataFrame]):
         Preprocessed review dataset and diner dataset.
@@ -104,7 +108,14 @@ def preprocess_common(
     diner["diner_category_large"] = diner["diner_category_large"].fillna("NA")
     diner["diner_category_middle"] = diner["diner_category_middle"].fillna("NA")
 
-    # step 5: convert reviewer_review_date into datetime object
+    # step 5: filter abusive reviews due to martial laws
+    if filter_config is not None:
+        review = Filter().filter_martial_law_reviews(
+            review=review,
+            **filter_config.martial_law_reviews,
+        )
+
+    # step 6: convert reviewer_review_date into datetime object
     review["reviewer_review_date"] = pd.to_datetime(
         review["reviewer_review_date"].fillna("2015-01-01")
     )
@@ -115,7 +126,7 @@ def preprocess_common(
 def reviewer_diner_mapping(
     review: pd.DataFrame,
     diner: pd.DataFrame,
-    is_graph_model: bool = False,
+    use_unique_mapping_id: bool = False,
 ) -> Dict[str, Any]:
     """
     Map reviewer_id, diner_idx to integer in ascending order.
@@ -125,8 +136,8 @@ def reviewer_diner_mapping(
     Args:
         review (pd.DataFrame): Review dataset.
         diner (pd.DataFrame): Diner dataset.
-        is_graph_model (bool): Indicator whether target model is graph based model or not.
-            When set true, all the mapped id should be unique.
+        use_unique_mapping_id (bool): Indicator whether mapping id should be unique or not.
+            This parameter is set as True when using networkx.Graph object, which requires to use unique node_id
 
     Returns (Dict[str, Any]):
         Mapped result.
@@ -137,7 +148,7 @@ def reviewer_diner_mapping(
         start_number=0,
     )
     num_diners = len(diner_mapping)
-    start_number = num_diners if is_graph_model else 0
+    start_number = num_diners if use_unique_mapping_id else 0
     reviewer_mapping, review = map_id_to_ascending_integer(
         id_column="reviewer_id",
         data=review,
@@ -195,7 +206,7 @@ def map_id_to_ascending_integer(
     id_column: str,
     data: pd.DataFrame,
     start_number: int = 0,
-    unique_ids: List[int] = None,
+    unique_ids: List[int] | None = None,
 ) -> Tuple[Dict[int, int], pd.DataFrame]:
     """
     Maps primary key into ascending integer.
@@ -220,9 +231,11 @@ def map_id_to_ascending_integer(
         Mapping dictionary and converted dataframe.
     """
     if unique_ids is None:
-        unique_ids = sorted(list(data[id_column].unique()))
+        unique_ids = sorted(data[id_column].dropna().unique().tolist())
+
     mapping_info = {id_: i + start_number for i, id_ in enumerate(unique_ids)}
     data[id_column] = data[id_column].map(mapping_info)
+
     return mapping_info, data
 
 
@@ -305,10 +318,10 @@ def prepare_torch_geometric_data(
 
 
 def prepare_networkx_undirected_graph(
-    X_train: Tensor,
-    y_train: Tensor,
-    X_val: Tensor,
-    y_val: Tensor,
+    X_train: pd.DataFrame,
+    y_train: pd.DataFrame,
+    X_val: pd.DataFrame,
+    y_val: pd.DataFrame,
     diner: pd.DataFrame,
     user_mapping: Dict[int, int],
     diner_mapping: Dict[int, int],
@@ -321,7 +334,6 @@ def prepare_networkx_undirected_graph(
     Metadata could be integrated into nx.Graph depending on the argument.
 
     There are two types of graphs when integrating metadata nodes to model.
-
         - Directed graph between user and diner.
             - When weighted equals true, rating that user gave to diner is set as weight.
         - Directed graph between diner and metadata.
@@ -331,10 +343,10 @@ def prepare_networkx_undirected_graph(
             However, when traversing reversely, there are lots of paths because multiple diners belong to one metadata.
 
     Args:
-        X_train (Tensor): input features used when training model.
-        y_train (Tensor): target features, which is usually used for edged weight in training data.
-        X_val (Tensor): input features used when validating model.
-        y_val (Tensor): target features, which is usually used for edged weight in validation data.
+        X_train (pd.DataFrame): input features used when training model.
+        y_train (pd.DataFrame): target features, which is usually used for edged weight in training data.
+        X_val (pd.DataFrame): input features used when validating model.
+        y_val (pd.DataFrame): target features, which is usually used for edged weight in validation data.
         diner (pd.DataFrame): diner dataset consisting of diner_id and metadata_id.
         user_mapping (Dict[int, int]): dictionary mapping original user_id to descending integer.
         diner_mapping (Dict[int, int]): dictionary mapping original diner_id to descending integer.
@@ -348,41 +360,52 @@ def prepare_networkx_undirected_graph(
     train_graph = nx.Graph()
     val_graph = nx.Graph()
 
-    # add edge between user and diner
-    for (diner_id, reviewer_id), rating in zip(X_train, y_train):
-        if weighted is True:
-            train_graph.add_edge(
-                diner_id.item(), reviewer_id.item(), weight=rating.item()
-            )
-        else:
-            train_graph.add_edge(diner_id.item(), reviewer_id.item())
+    # Prepare all edges at once
+    train_edges = [
+        (
+            x_row["diner_idx"],
+            x_row["reviewer_id"],
+            {"weight": y_row["reviewer_review_score"]} if weighted else {},
+        )
+        for (_, x_row), (_, y_row) in zip(X_train.iterrows(), y_train.iterrows())
+    ]
+    val_edges = [
+        (
+            x_row["diner_idx"],
+            x_row["reviewer_id"],
+            {"weight": y_row["reviewer_review_score"]} if weighted else {},
+        )
+        for (_, x_row), (_, y_row) in zip(X_val.iterrows(), y_val.iterrows())
+    ]
 
-    for (diner_id, reviewer_id), rating in zip(X_val, y_val):
-        if weighted is True:
-            val_graph.add_edge(
-                diner_id.item(), reviewer_id.item(), weight=rating.item()
-            )
-        else:
-            val_graph.add_edge(diner_id.item(), reviewer_id.item())
-
-    # add edge between diner and metadata
+    # Add metadata edges if needed
     if use_metadata:
-        for i, row in diner.iterrows():
-            diner_idx = row["diner_idx"]
-            metadata_id = row["metadata_id"]
-            train_graph.add_edge(diner_idx, metadata_id)
-            val_graph.add_edge(diner_idx, metadata_id)
-            for meta in row["metadata_id_neighbors"]:
-                train_graph.add_edge(diner_idx, meta)
-                val_graph.add_edge(diner_idx, meta)
+        metadata_edges = [
+            edge
+            for _, row in diner.iterrows()
+            for edge in [
+                (row["diner_idx"], row["metadata_id"], {}),
+                *(
+                    (row["diner_idx"], meta, {})
+                    for meta in row["metadata_id_neighbors"]
+                ),
+            ]
+        ]
+        train_graph.add_edges_from(train_edges + metadata_edges)
+        val_graph.add_edges_from(val_edges + metadata_edges)
 
+    else:
+        train_graph.add_edges_from(train_edges)
+        val_graph.add_edges_from(val_edges)
+
+    # Add node attributes if needed
     if use_metadata:
-        # add node and node attribute (user / diner / meta) to networkx graph
         nodes_metadata = {
-            **{user_id: {"meta": "user"} for _, user_id in user_mapping.items()},
-            **{diner_id: {"meta": "diner"} for _, diner_id in diner_mapping.items()},
-            **{meta_id: {"meta": "category"} for _, meta_id in meta_mapping.items()},
+            **{user_id: {"meta": "user"} for user_id in user_mapping.values()},
+            **{diner_id: {"meta": "diner"} for diner_id in diner_mapping.values()},
+            **{meta_id: {"meta": "category"} for meta_id in meta_mapping.values()},
         }
+
         nx.set_node_attributes(train_graph, nodes_metadata)
         nx.set_node_attributes(val_graph, nodes_metadata)
 
