@@ -18,13 +18,21 @@ def get_kakao_lat_lng(address: str) -> dict[str, str]:
     try:
         url = f"https://dapi.kakao.com/v2/local/search/address.json?query={address}"
         headers = {"Authorization": f"KakaoAK {os.getenv('KAKAO_REST_API_KEY')}"}
-        api_json = json.loads(str(requests.get(url, headers=headers).text))
+
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            raise Exception(
+                f"Geocoding API request failed with status code: {response.status_code}"
+            )
+
+        api_json = json.loads(response.text)
         address = api_json["documents"][0]["address"]
         crd = {"lat": str(address["y"]), "lng": str(address["x"])}
         return crd
 
-    except:
-        raise Exception("Geocoding failed")
+    except Exception as e:
+        raise Exception(f"Geocoding failed: {str(e)}")
 
 
 def convert_tensor(
