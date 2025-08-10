@@ -1,3 +1,4 @@
+import json
 import os
 import warnings
 from collections import defaultdict
@@ -5,10 +6,25 @@ from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
+import requests
 from torch import Tensor
 from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
+
+
+# 위도, 경도 반환하는 함수
+def get_kakao_lat_lng(address: str) -> dict[str, str]:
+    try:
+        url = f"https://dapi.kakao.com/v2/local/search/address.json?query={address}"
+        headers = {"Authorization": f"KakaoAK {os.getenv('KAKAO_REST_API_KEY')}"}
+        api_json = json.loads(str(requests.get(url, headers=headers).text))
+        address = api_json["documents"][0]["address"]
+        crd = {"lat": str(address["y"]), "lng": str(address["x"])}
+        return crd
+
+    except:
+        raise Exception("Geocoding failed")
 
 
 def convert_tensor(
