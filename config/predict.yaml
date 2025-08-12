@@ -26,10 +26,12 @@ model_path: res/models/
 results: lightgbm_ranker
 user_name: 3830746302
 top_n: 20
-user_address: 서울 강남구 강남대로 324
-distance_threshold: 0.5
+user_address: 목동역
+distance_threshold: 1
 diner_category_large:
 - 양식
 - 중식
 - 치킨
 - 한식
+- 일식
+- 아시아음식

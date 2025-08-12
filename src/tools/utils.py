@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore")
 # 위도, 경도 반환하는 함수
 def get_kakao_lat_lng(address: str) -> dict[str, str]:
     try:
-        url = f"https://dapi.kakao.com/v2/local/search/address.json?query={address}"
+        url = f"https://dapi.kakao.com/v2/local/search/keyword.json?query={address}"
         headers = {"Authorization": f"KakaoAK {os.getenv('KAKAO_REST_API_KEY')}"}
 
         response = requests.get(url, headers=headers)
@@ -27,8 +27,8 @@ def get_kakao_lat_lng(address: str) -> dict[str, str]:
             )
 
         api_json = json.loads(response.text)
-        address = api_json["documents"][0]["address"]
-        crd = {"lat": str(address["y"]), "lng": str(address["x"])}
+        address = api_json["documents"][0]
+        crd = {"lat": float(address["y"]), "lng": float(address["x"])}
         return crd
 
     except Exception as e:
