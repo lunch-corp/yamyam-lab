@@ -13,6 +13,7 @@ import pandas as pd
 
 from constant.evaluation.qualitative import QualitativeReviewerId
 from data.dataset import DataConfig, DatasetLoader, load_test_dataset
+from tools.utils import get_kakao_lat_lng
 
 
 def test_loader_dataset():
@@ -92,3 +93,10 @@ def test_load_test_dataset():
     assert len(already_reviewed) >= 0
     assert isinstance(test, pd.DataFrame)
     assert isinstance(already_reviewed, list)
+
+
+def test_get_kakao_lat_lng():
+    location = get_kakao_lat_lng("서울 강남구 강남대로 324")
+    assert location is not None
+    assert location["lat"] is not None
+    assert location["lng"] is not None

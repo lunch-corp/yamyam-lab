@@ -3,12 +3,12 @@ import logging
 import hydra
 import numpy as np
 import pandas as pd
-from geopy.geocoders import Nominatim
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 
 from data.dataset import load_test_dataset
+from tools.utils import get_kakao_lat_lng
 
 
 def haversine(
@@ -46,18 +46,6 @@ def haversine(
     return radius * c
 
 
-# 위도, 경도 반환하는 함수
-def geocoding(address: str) -> list[float]:
-    try:
-        geo_local = Nominatim(user_agent="South Korea")  # 지역설정
-        location = geo_local.geocode(address)
-        geo = [location.latitude, location.longitude]
-        return geo
-
-    except:
-        return [0, 0]
-
-
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
     test, already_reviewed = load_test_dataset(
@@ -65,7 +53,9 @@ def _main(cfg: DictConfig):
         cfg.data.user_engineered_feature_names,
         cfg.data.diner_engineered_feature_names,
     )
-    user_lat, user_lon = geocoding(cfg.user_address)
+    location = get_kakao_lat_lng(cfg.user_address)
+    user_lat, user_lon = float(location["lat"]), float(location["lng"])
+
     test["distance"] = haversine(
         user_lat, user_lon, test["diner_lat"], test["diner_lon"]
     )
