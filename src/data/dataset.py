@@ -479,7 +479,7 @@ class DatasetLoader:
 
         return self.negative_sampling(
             sampling_type=sampling_type,
-            review=df,
+            df=df,
             num_neg_samples=num_neg_samples,
             random_state=random_state,
         )
@@ -837,7 +837,7 @@ class DatasetLoader:
     def negative_sampling(
         self: Self,
         sampling_type: str,
-        review: pd.DataFrame,
+        df: pd.DataFrame,
         num_neg_samples: int,
         random_state: int,
     ):
@@ -856,25 +856,37 @@ class DatasetLoader:
         np.random.seed(random_state)
 
         # Get list of restaurants reviewed by each user
-        user_2_diner_df = review.groupby("reviewer_id").agg({"diner_idx": list})
+        user_2_diner_df = df.groupby("reviewer_id").agg({"diner_idx": list})
         user_2_diner_map = dict(
             zip(user_2_diner_df.index, user_2_diner_df["diner_idx"])
         )
 
         # Get all unique diners and users
-        candidate_pool = review["diner_idx"].unique().tolist()
+        candidate_pool = df["diner_idx"].unique().tolist()
         all_users = list(user_2_diner_map.keys())
 
         # Generate negative samples using popularity-based sampling
-        diner_popularity = review["diner_idx"].value_counts()
+        diner_popularity = df["diner_idx"].value_counts()
 
         neg_samples_list = []
         batch_size = 1000
 
+        # load diner category
+        diner_category = pd.read_csv(self.data_paths["category"])
+        diner_category = diner_category[
+            diner_category["diner_category_large"].isin(
+                ["한식", "중식", "양식", "일식", "아시안", "패스트푸드", "치킨", "술집"]
+            )
+        ]
+
+        # group by category
+        category_groups = diner_category.groupby("diner_category_large")[
+            "diner_idx"
+        ].apply(list)
+
         for i in tqdm(range(0, len(all_users), batch_size), desc="sampling"):
             batch_users = all_users[i : i + batch_size]
             batch_neg_diners = []
-
             for user_id in batch_users:
                 user_diners = set(user_2_diner_map[user_id])
                 available_diners = list(set(candidate_pool) - user_diners)
@@ -906,7 +918,64 @@ class DatasetLoader:
                         size=num_neg_samples,
                         replace=len(available_diners) < num_neg_samples,
                     )
+                elif sampling_type == "diversity":
+                    sampled_diners = []
+                    categories = list(category_groups.keys())
 
+                    # 사용자가 리뷰하지 않은 레스토랑만 필터링
+                    available_diners = list(set(candidate_pool) - user_diners)
+
+                    # 각 카테고리에서 사용 가능한 레스토랑만 필터링
+                    available_category_groups = {}
+                    for category in categories:
+                        category_diners = category_groups[category]
+                        available_in_category = list(
+                            set(category_diners) & set(available_diners)
+                        )
+                        if available_in_category:  # 사용 가능한 레스토랑이 있는 경우만
+                            available_category_groups[category] = available_in_category
+
+                    if available_category_groups:
+                        categories = list(available_category_groups.keys())
+                        samples_per_category = num_neg_samples // len(categories)
+                        remaining_samples = num_neg_samples % len(categories)
+
+                        for i, category in enumerate(categories):
+                            category_diners = available_category_groups[category]
+
+                            # basic sample + remaining sample
+                            n_samples = samples_per_category + (
+                                1 if i < remaining_samples else 0
+                            )
+                            n_samples = min(n_samples, len(category_diners))
+
+                            if n_samples > 0:
+                                category_samples = np.random.choice(
+                                    category_diners,
+                                    size=n_samples,
+                                    replace=len(category_diners) < n_samples,
+                                )
+                                sampled_diners.extend(category_samples)
+
+                        # 부족한 경우 랜덤으로 보충
+                        if len(sampled_diners) < num_neg_samples:
+                            remaining_diners = list(
+                                set(available_diners) - set(sampled_diners)
+                            )
+                            if remaining_diners:
+                                additional_samples = np.random.choice(
+                                    remaining_diners,
+                                    size=num_neg_samples - len(sampled_diners),
+                                    replace=True,
+                                )
+                                sampled_diners.extend(additional_samples)
+                    else:
+                        # 사용 가능한 카테고리가 없는 경우 기본 샘플링
+                        sampled_diners = np.random.choice(
+                            available_diners,
+                            size=num_neg_samples,
+                            replace=len(available_diners) < num_neg_samples,
+                        )
                 else:
                     raise ValueError(f"Invalid sampling type: {sampling_type}")
 
@@ -926,7 +995,7 @@ class DatasetLoader:
 
         # Combine positive and negative samples
         neg_df = pd.DataFrame(neg_samples)
-        all_data = pd.concat([review, neg_df], ignore_index=True)
+        all_data = pd.concat([df, neg_df], ignore_index=True)
 
         return all_data
 
