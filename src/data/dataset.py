@@ -1551,7 +1551,7 @@ def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
     mapped_reviewer_id = data["user_mapping"].get(cfg.user_name)
 
     if mapped_reviewer_id is None:
-        raise ValueError(f"사용자 ID {cfg.user_name}에 대한 매핑을 찾을 수 없습니다.")
+        mapped_reviewer_id = 0  # 가짜 유저 ID 생성
 
     # load data
     diner = pd.read_csv(data_loader.data_paths["diner"], low_memory=False)

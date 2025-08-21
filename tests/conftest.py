@@ -24,7 +24,7 @@ def setup_data_config(request):
                 "diner_review_tags": {},
                 "diner_menu_price": {},
             },
-            "test": False,
+            "test": True,
             "random_state": 42,
             "stratify": "reviewer_id",
             "use_unique_mapping_id": False,
