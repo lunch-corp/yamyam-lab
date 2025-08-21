@@ -1547,7 +1547,6 @@ def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
         filter_config=cfg.preprocess.filter,
     )
     review = data["X_test"]
-
     # 원본 reviewer_id를 mapping된 ID로 변환
     mapped_reviewer_id = data["user_mapping"].get(cfg.user_name)
 
