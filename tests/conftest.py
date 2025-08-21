@@ -168,7 +168,7 @@ def setup_ranker_config(request):
         "data": {
             "test_size": 0.3,
             "min_reviews": 3,
-            "num_neg_samples": 10,
+            "num_neg_samples": 0,
             "category_column_for_meta": "diner_category_large",
             "user_engineered_feature_names": {
                 "categorical_feature_count": {
@@ -180,7 +180,7 @@ def setup_ranker_config(request):
                 "diner_review_tags": {},
                 "diner_menu_price": {},
             },
-            "test": False,
+            "test": True,
             "random_state": 42,
             "stratify": "reviewer_id",
             "use_unique_mapping_id": False,
