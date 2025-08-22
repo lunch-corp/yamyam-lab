@@ -1551,7 +1551,12 @@ def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
     mapped_reviewer_id = data["user_mapping"].get(cfg.user_name)
 
     if mapped_reviewer_id is None:
-        mapped_reviewer_id = 0  # 가짜 유저 ID 생성
+        if not data_loader.data_config.test:
+            raise ValueError(
+                f"Test mode is enabled but reviewer ID {cfg.user_name} not found in test dataset."
+            )
+        else:
+            mapped_reviewer_id = 0  # 가짜 유저 ID 생성
 
     # load data
     diner = pd.read_csv(data_loader.data_paths["diner"], low_memory=False)
