@@ -9,10 +9,8 @@ from datetime import datetime
 import torch
 from torch import optim
 
-from data.dataset import (
-    DataConfig,
-    DatasetLoader,
-)
+from data.config import DataConfig
+from data.graph import GraphDatasetLoader
 from evaluation.metric_calculator import SVDBiasMetricCalculator
 from loss.custom import svd_loss
 from tools.config import load_yaml
@@ -57,7 +55,7 @@ def main(args: ArgumentParser.parse_args):
         logger.info(f"training results will be saved in {result_path}")
 
         # generate dataloader for pytorch training pipeline
-        data_loader = DatasetLoader(
+        data_loader = GraphDatasetLoader(
             data_config=DataConfig(
                 X_columns=["diner_idx", "reviewer_id"],
                 y_columns=["reviewer_review_score"],
@@ -69,7 +67,7 @@ def main(args: ArgumentParser.parse_args):
                 test=args.test,
             ),
         )
-        data = data_loader.prepare_train_val_dataset(
+        data = data_loader.prepare_graph_dataset(
             is_tensor=True,
             filter_config=preprocess_config.filter,
         )

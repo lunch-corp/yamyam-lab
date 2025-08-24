@@ -5,7 +5,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from prettytable import PrettyTable
 
-from data.dataset import load_test_dataset
+from data.ranker import load_test_dataset
 from tools.utils import get_kakao_lat_lng, haversine
 
 

@@ -9,7 +9,8 @@ import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
-from data.dataset import DataConfig, DatasetLoader
+from data.config import DataConfig
+from data.graph import GraphDatasetLoader
 from evaluation.metric_calculator import EmbeddingMetricCalculator
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
@@ -80,7 +81,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
 
-        data_loader = DatasetLoader(
+        data_loader = GraphDatasetLoader(
             data_config=DataConfig(
                 X_columns=["diner_idx", "reviewer_id"],
                 y_columns=["reviewer_review_score"],
@@ -96,7 +97,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                 test=args.test,
             ),
         )
-        data = data_loader.prepare_train_val_dataset(
+        data = data_loader.prepare_graph_dataset(
             is_networkx_graph=True,
             use_metadata=args.use_metadata,
             weighted_edge=args.weighted_edge,

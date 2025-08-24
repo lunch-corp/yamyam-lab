@@ -12,12 +12,14 @@ except ModuleNotFoundError:
 import pandas as pd
 import pytest
 
-from data.dataset import DataConfig, DatasetLoader, load_test_dataset
+from data.base import BaseDatasetLoader
+from data.config import DataConfig
+from data.ranker import load_test_dataset
 from tools.utils import get_kakao_lat_lng
 
 
 def test_loader_dataset():
-    data_loader = DatasetLoader(
+    data_loader = BaseDatasetLoader(
         data_config=DataConfig(
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
@@ -44,32 +46,13 @@ def test_loader_dataset():
     )
     data = data_loader.prepare_train_val_dataset(is_tensor=True)
 
-    assert data["X_train"].shape[0] > 0
-    assert data["X_val"].shape[0] > 0
-    assert data["X_test"].shape[0] > 0
-    assert data["y_train"].shape[0] > 0
-    assert data["y_val"].shape[0] > 0
-    assert data["y_test"].shape[0] > 0
-    assert data["num_diners"] > 0
-    assert data["num_users"] > 0
-    assert data["diner_mapping"] is not None
-    assert data["user_mapping"] is not None
-
-    rank_data = data_loader.prepare_train_val_dataset(is_rank=True)
-
-    assert rank_data["X_train"].shape[0] > 0
-    assert rank_data["X_val"].shape[0] > 0
-    assert rank_data["y_train"].shape[0] > 0
-    assert rank_data["y_val"].shape[0] > 0
-    assert rank_data["X_train"].shape[0] == rank_data["y_train"].shape[0]
-    assert rank_data["X_val"].shape[0] == rank_data["y_val"].shape[0]
-    assert rank_data["num_diners"] > 0
-    assert rank_data["num_users"] > 0
-    assert rank_data["diner_mapping"] is not None
-    assert rank_data["user_mapping"] is not None
-    assert rank_data["candidates"] is not None
-    assert rank_data["candidate_user_mapping"] is not None
-    assert rank_data["candidate_diner_mapping"] is not None
+    assert data["train"].shape[0] > 0
+    assert data["val"].shape[0] > 0
+    assert data["test"].shape[0] > 0
+    assert data["user_feature"].shape[0] > 0
+    assert data["diner_feature"].shape[0] > 0
+    assert data["diner_meta_feature"].shape[0] > 0
+    assert data["mapped_res"] is not None
 
 
 @pytest.mark.parametrize(

@@ -4,7 +4,8 @@ import traceback
 from argparse import ArgumentParser
 from datetime import datetime
 
-from data.dataset import DataConfig, DatasetLoader
+from data.config import DataConfig
+from data.csr import CsrDatasetLoader
 from evaluation.metric_calculator import ALSMetricCalculator
 from model import ALS
 from tools.config import load_yaml
@@ -51,7 +52,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
 
-        data_loader = DatasetLoader(
+        data_loader = CsrDatasetLoader(
             data_config=DataConfig(
                 X_columns=["diner_idx", "reviewer_id"],
                 y_columns=["reviewer_review_score"],
@@ -65,7 +66,7 @@ def main(args: ArgumentParser.parse_args) -> None:
                 test=args.test,
             ),
         )
-        data = data_loader.prepare_train_val_dataset(
+        data = data_loader.prepare_csr_dataset(
             is_csr=True,
             filter_config=preprocess_config.filter,
         )

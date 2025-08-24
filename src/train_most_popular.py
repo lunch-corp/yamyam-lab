@@ -2,7 +2,8 @@ import os
 import traceback
 from datetime import datetime
 
-from data.dataset import DataConfig, DatasetLoader
+from data.config import DataConfig
+from data.csr import CsrDatasetLoader
 from evaluation.metric_calculator import MostPopularMetricCalculator
 from tools.config import load_yaml
 from tools.logger import common_logging, setup_logger
@@ -41,7 +42,7 @@ def main() -> None:
         logger.info("model: most_popular")
         logger.info(f"training results will be saved in {result_path}")
 
-        data_loader = DatasetLoader(
+        data_loader = CsrDatasetLoader(
             data_config=DataConfig(
                 X_columns=["diner_idx", "reviewer_id"],
                 y_columns=["reviewer_review_score"],
@@ -56,7 +57,7 @@ def main() -> None:
             ),
         )
         # Note: although is_csr is set True, we do not use train_csr dataset, but use val / test data in pandas dataframe.
-        data = data_loader.prepare_train_val_dataset(
+        data = data_loader.prepare_csr_dataset(
             is_csr=True,
             filter_config=preprocess_config.filter,
         )

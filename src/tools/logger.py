@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict
 
-from data.dataset import DatasetLoader
+from data.base import BaseDatasetLoader
 
 
 def setup_logger(log_file):
@@ -27,7 +27,7 @@ def setup_logger(log_file):
 
 
 def common_logging(
-    config: Dict[str, Any], data: DatasetLoader, logger: logging.Logger = logging
+    config: Dict[str, Any], data: BaseDatasetLoader, logger: logging.Logger = logging
 ):
     """
     Common logging with dataset period and basic statistics about train / val / test dataset.
