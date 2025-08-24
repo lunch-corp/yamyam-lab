@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 import torch
 from numpy.typing import NDArray
+from omegaconf import DictConfig
 from scipy.sparse import csr_matrix
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from data.validator import DataValidator
 from features import build_feature
 from preprocess.preprocess import (
     meta_mapping,
@@ -672,6 +672,8 @@ class DatasetLoader:
             data["candidates"] = candidates
             data["candidate_user_mapping"] = candidate_user_mapping
             data["candidate_diner_mapping"] = candidate_diner_mapping
+            data["user_feature"] = user_feature
+            data["diner_feature"] = diner_feature
 
             return data
 
@@ -1527,11 +1529,7 @@ class DatasetLoader:
         return bool(re.match(pattern, date_string))
 
 
-def load_test_dataset(
-    reviewer_id: int,
-    user_feature_param_pair: Dict[str, Any],
-    diner_feature_param_pair: Dict[str, Any],
-) -> Tuple[pd.DataFrame, list[str]]:
+def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
     """
     Load test dataset for inference
     Args:
@@ -1539,24 +1537,30 @@ def load_test_dataset(
         user_feature_param_pair: dict
         diner_feature_param_pair: dict
 
-    Returns (Tuple[pd.DataFrame, list[str]]):
-        test, already_reviewed
+    Returns (pd.DataFrame):
+        test
     """
+    # load dataset
+    data_loader = DatasetLoader(data_config=DataConfig(**cfg.data))
+    data = data_loader.prepare_train_val_dataset(
+        is_rank=True,
+        filter_config=cfg.preprocess.filter,
+    )
+    review = data["X_test"]
+    # 원본 reviewer_id를 mapping된 ID로 변환
+    mapped_reviewer_id = data["user_mapping"].get(cfg.user_name)
 
-    # 필요한 데이터 다운로드 확인
-    data_paths = ensure_data_files()
+    if mapped_reviewer_id is None:
+        if not data_loader.data_config.test:
+            raise ValueError(
+                f"Test mode is enabled but reviewer ID {cfg.user_name} not found in test dataset."
+            )
+        else:
+            mapped_reviewer_id = 0  # 가짜 유저 ID 생성
 
     # load data
-    diner = pd.read_csv(data_paths["diner"], low_memory=False)
-    review = pd.read_csv(data_paths["review"])
-    reviewer = pd.read_csv(data_paths["reviewer"])
-
-    diner_with_raw_category = pd.read_csv(data_paths["category"])
-    data_validator = DataValidator()
-    review = data_validator.validate(review, name_of_df="review")
-    diner = data_validator.validate(diner, name_of_df="diner")
-    reviewer = reviewer[reviewer["reviewer_id"] == reviewer_id]
-    review = pd.merge(review, reviewer, on="reviewer_id", how="left")
+    diner = pd.read_csv(data_loader.data_paths["diner"], low_memory=False)
+    diner_with_raw_category = pd.read_csv(data_loader.data_paths["category"])
 
     # merge category column
     diner = pd.merge(
@@ -1566,37 +1570,50 @@ def load_test_dataset(
         on="diner_idx",
     )
 
-    # feature engineering
-    user_feature, diner_feature, diner_meta_feature = build_feature(
-        review=review,
-        diner=diner,
-        all_user_ids=review["reviewer_id"].unique(),
-        all_diner_ids=review["diner_idx"].unique(),
-        user_engineered_feature_names=user_feature_param_pair,
-        diner_engineered_feature_names=diner_feature_param_pair,
-    )
+    # diner_mapping을 사용하여 diner_idx를 mapping된 ID로 변환
+    # 원본 diner_idx를 mapping된 ID로 변환
+    diner["mapped_diner_idx"] = diner["diner_idx"].map(data["diner_mapping"])
+    diner = diner.dropna(subset=["mapped_diner_idx"])  # mapping되지 않은 diner 제거
 
-    # 사용자별 리뷰한 레스토랑 ID 목록 생성
+    # 사용자별 리뷰한 레스토랑 ID 목록 생성 (mapping된 ID 사용)
     user_2_diner_df = review.groupby("reviewer_id").agg({"diner_idx": list})
     user_2_diner_map = dict(zip(user_2_diner_df.index, user_2_diner_df["diner_idx"]))
 
-    # 레스토랑 후보군 리스트
-    candidate_pool = diner["diner_idx"].unique().tolist()
+    # 레스토랑 후보군 리스트 (mapping된 ID 사용)
+    candidate_pool = diner["mapped_diner_idx"].unique().tolist()
 
-    reviewed_diners = list(set(user_2_diner_map.get(reviewer_id, [])))
+    reviewed_diners = list(set(user_2_diner_map.get(mapped_reviewer_id, [])))
     candidates = [d for d in candidate_pool if d not in reviewed_diners]
 
     review = review.drop(columns=["diner_idx"])
 
-    # Create test data
-    test = pd.DataFrame({"reviewer_id": reviewer_id, "diner_idx": candidates})
-    test = test.merge(user_feature, on="reviewer_id", how="left")
-    test = test.merge(diner_feature, on="diner_idx", how="left")
-    test = test.merge(review, on="reviewer_id", how="left")
+    # Create test data (mapping된 diner_idx 사용)
+    test = pd.DataFrame({"reviewer_id": mapped_reviewer_id, "diner_idx": candidates})
+
+    # user_feature와 diner_feature만 병합 (review는 제외)
+    test = test.merge(data["user_feature"], on="reviewer_id", how="left")
+    test = test.merge(data["diner_feature"], on="diner_idx", how="left")
+
+    # diner 정보 병합 시 mapping된 ID 사용
+    test = test.merge(
+        diner[
+            [
+                "mapped_diner_idx",
+                "diner_name",
+                "diner_lat",
+                "diner_lon",
+                "diner_category_large",
+                "diner_category_middle",
+            ]
+        ],
+        left_on="diner_idx",
+        right_on="mapped_diner_idx",
+        how="left",
+    )
+    test = test.drop(columns=["mapped_diner_idx"])  # 중복 컬럼 제거
 
     # reduce memory usage
     test = reduce_mem_usage(test)
-
     # Add diner columns
     diner_cols = [
         "diner_name",
@@ -1606,8 +1623,6 @@ def load_test_dataset(
         "diner_category_middle",
     ]
     for col in diner_cols:
-        test[col] = diner[col].loc[diner["diner_idx"].isin(candidates)]
+        test[col] = diner[col].loc[diner["mapped_diner_idx"].isin(candidates)]
 
-    already_reviewed = user_2_diner_map.get(reviewer_id, [])
-
-    return test, already_reviewed
+    return test

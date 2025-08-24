@@ -11,11 +11,7 @@ from tools.utils import get_kakao_lat_lng, haversine
 
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
-    test, already_reviewed = load_test_dataset(
-        cfg.user_name,
-        cfg.data.user_engineered_feature_names,
-        cfg.data.diner_engineered_feature_names,
-    )
+    test = load_test_dataset(cfg)
     location = get_kakao_lat_lng(cfg.user_address)
     user_lat, user_lon = float(location["lat"]), float(location["lng"])
 
@@ -52,9 +48,7 @@ def _main(cfg: DictConfig):
             ]
         )
 
-    logging.info(
-        f"{test['reviewer_user_name'].values[0]}님을 위한 추천 식당 리스트를 알립니다.\n{table}"
-    )
+    logging.info(f"추천 식당 리스트를 알립니다.\n{table}")
 
 
 if __name__ == "__main__":

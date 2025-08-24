@@ -6,6 +6,109 @@ from omegaconf import OmegaConf
 
 
 @pytest.fixture(scope="function")
+def setup_data_config(request):
+    model, params, epoch = request.param
+    config = {
+        "data": {
+            "test_size": 0.3,
+            "min_reviews": 3,
+            "num_neg_samples": 0,
+            "category_column_for_meta": "diner_category_large",
+            "user_engineered_feature_names": {
+                "categorical_feature_count": {
+                    "categorical_feature_names": ["diner_category_large"]
+                },
+            },
+            "diner_engineered_feature_names": {
+                "all_review_cnt": {},
+                "diner_review_tags": {},
+                "diner_menu_price": {},
+            },
+            "test": True,
+            "random_state": 42,
+            "stratify": "reviewer_id",
+            "use_unique_mapping_id": False,
+            "sampling_type": "random",
+            "is_timeseries_by_users": False,
+            "is_timeseries_by_time_point": True,
+            "train_time_point": "2024-09-01",
+            "val_time_point": "2024-12-01",
+            "test_time_point": "2025-01-01",
+            "end_time_point": "2025-02-01",
+            "candidate_type": "node2vec",
+        },
+        "models": {
+            "ranker": {
+                "_target_": "src.model.rank.boosting.LightGBMTrainer",
+                "model_path": f"result/{model}/",
+                "results": "ranker",
+                "features": [
+                    "diner_review_cnt_category",
+                    "min_price",
+                    "max_price",
+                    "mean_price",
+                    "median_price",
+                    "menu_count",
+                    "taste",
+                    "kind",
+                    "mood",
+                    "chip",
+                    "parking",
+                    "asian",
+                    "japanese",
+                    "chinese",
+                    "korean",
+                    "western",
+                ],
+                "cat_features": ["diner_review_cnt_category"],
+                "params": OmegaConf.create(params),
+                "num_boost_round": epoch,
+                "verbose_eval": epoch,
+                "early_stopping_rounds": 1,
+                "seed": 42,
+            },
+        },
+        "model_path": "res/models/",
+        "results": "lightgbm_ranker",
+        "user_name": 3830746302,
+        "top_n": 20,
+        "user_address": "강남역",
+        "distance_threshold": 0.5,
+        "diner_category_large": ["한식"],
+        "preprocess": {
+            "filter": {
+                "martial_law_reviews": {
+                    "target_months": ["2025-01", "2024-12"],
+                    "min_common_word_count_with_abusive_words": 3,
+                    "min_review_count_by_diner_id": 3,
+                    "included_tags": ["NNG", "NNP"],
+                    "abusive_words": [
+                        "총",
+                        "내란",
+                        "공수처",
+                        "시위",
+                        "좌우",
+                        "애국",
+                        "정치",
+                        "총살",
+                        "테러",
+                        "민주주의",
+                        "윤석열",
+                        "총기",
+                        "좌파",
+                        "우파",
+                        "극우",
+                        "집회",
+                        "계엄",
+                    ],
+                }
+            }
+        },
+    }
+    return OmegaConf.create(config)
+
+
+@pytest.fixture(scope="function")
 def setup_config(request):
     model, use_metadata = request.param
     args = argparse.ArgumentParser()
@@ -65,7 +168,7 @@ def setup_ranker_config(request):
         "data": {
             "test_size": 0.3,
             "min_reviews": 3,
-            "num_neg_samples": 10,
+            "num_neg_samples": 0,
             "category_column_for_meta": "diner_category_large",
             "user_engineered_feature_names": {
                 "categorical_feature_count": {
