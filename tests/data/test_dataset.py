@@ -10,9 +10,10 @@ except ModuleNotFoundError:
     raise Exception("Module not found")
 
 import pandas as pd
+import pytest
 
-from constant.evaluation.qualitative import QualitativeReviewerId
 from data.dataset import DataConfig, DatasetLoader, load_test_dataset
+from tools.utils import get_kakao_lat_lng
 
 
 def test_loader_dataset():
@@ -71,24 +72,18 @@ def test_loader_dataset():
     assert rank_data["candidate_diner_mapping"] is not None
 
 
-def test_load_test_dataset():
-    reviewer_id = QualitativeReviewerId.ROCKY
-    test, already_reviewed = load_test_dataset(
-        reviewer_id=reviewer_id,
-        user_feature_param_pair={
-            "categorical_feature_count": {
-                "categorical_feature_names": ["diner_category_large"]
-            }
-        },
-        diner_feature_param_pair={
-            "all_review_cnt": {},
-            "diner_review_tags": {},
-            "diner_menu_price": {},
-        },
-    )
+@pytest.mark.parametrize(
+    "setup_data_config", [("lightgbm", {}, 1)], indirect=["setup_data_config"]
+)
+def test_load_test_dataset(setup_data_config):
+    test = load_test_dataset(setup_data_config)
     assert test is not None
-    assert already_reviewed is not None
     assert len(test) > 0
-    assert len(already_reviewed) >= 0
     assert isinstance(test, pd.DataFrame)
-    assert isinstance(already_reviewed, list)
+
+
+def test_get_kakao_lat_lng():
+    location = get_kakao_lat_lng("서울 강남구 강남대로 324")
+    assert location is not None
+    assert location["lat"] is not None
+    assert location["lng"] is not None

@@ -18,6 +18,7 @@ hydra:
 defaults:
   - _self_
   - data: dataset
+  - preprocess: preprocess
   - models/ranker: lightgbm
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
@@ -26,10 +27,12 @@ model_path: res/models/
 results: lightgbm_ranker
 user_name: 3830746302
 top_n: 20
-user_address: 서울특별시 강남구 강남대로 324
+user_address: 강남역
 distance_threshold: 0.5
 diner_category_large:
 - 양식
 - 중식
 - 치킨
 - 한식
+- 일식
+- 아시아음식

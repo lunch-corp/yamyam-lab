@@ -1,3 +1,4 @@
+import json
 import os
 import warnings
 from collections import defaultdict
@@ -5,10 +6,68 @@ from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
+import requests
 from torch import Tensor
 from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
+
+
+def haversine(
+    reviewer_lat: float, reviewer_lon: float, diner_lat: pd.Series, diner_lon: pd.Series
+) -> np.ndarray:
+    """
+    Compute the great-circle distance between a single point (lat1, lon1) and multiple points (lat2, lon2)
+    using the Haversine formula in a vectorized way.
+
+    Args:
+        reviewer_lat (float): Latitude of the reviewer.
+        reviewer_lon (float): Longitude of the reviewer.
+        diner_lat (pd.Series): Latitude of the diners.
+        diner_lon (pd.Series): Longitude of the diners.
+
+    Returns:
+        np.ndarray: Array of distances.
+    """
+    # Convert degrees to radians
+    reviewer_lat, reviewer_lon = np.radians(reviewer_lat), np.radians(reviewer_lon)
+    diner_lat, diner_lon = np.radians(diner_lat), np.radians(diner_lon)
+
+    # Haversine formula
+    dlat = diner_lat - reviewer_lat
+    dlon = diner_lon - reviewer_lon
+    a = (
+        np.sin(dlat / 2) ** 2
+        + np.cos(reviewer_lat) * np.cos(diner_lat) * np.sin(dlon / 2) ** 2
+    )
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+
+    # Earth's radius in kilometers
+    radius = 6371.0
+
+    return radius * c
+
+
+# 위도, 경도 반환하는 함수
+def get_kakao_lat_lng(address: str) -> dict[str, str]:
+    try:
+        url = f"https://dapi.kakao.com/v2/local/search/keyword.json?query={address}"
+        headers = {"Authorization": f"KakaoAK {os.getenv('KAKAO_REST_API_KEY')}"}
+
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            raise Exception(
+                f"Geocoding API request failed with status code: {response.status_code}"
+            )
+
+        api_json = json.loads(response.text)
+        address = api_json["documents"][0]
+        crd = {"lat": float(address["y"]), "lng": float(address["x"])}
+        return crd
+
+    except Exception as e:
+        raise Exception(f"Geocoding failed: {str(e)}")
 
 
 def convert_tensor(
