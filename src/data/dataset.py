@@ -531,15 +531,15 @@ class DatasetLoader:
         mapped_res = {
             k: v for k, v in mapped_res.items() if k not in ["review", "diner"]
         }
-        self.diner_meta = diner.rename(
-            columns={
-                "diner_category_large": "category",
-                "diner_lat": "lat",
-                "diner_lon": "lon",
-            }
-        )[
-            ["diner_idx", "category", "lat", "lon", "diner_road_address"]
-        ].drop_duplicates("diner_idx")
+        self.diner_meta = diner[
+            [
+                "diner_idx",
+                "diner_category_large",
+                "diner_lat",
+                "diner_lon",
+                "diner_road_address",
+            ]
+        ]
         # Split data into train and validation
         if self.is_timeseries_by_users and not self.is_timeseries_by_time_point:
             train, test = self.train_test_split_timeseries_by_users(review)
