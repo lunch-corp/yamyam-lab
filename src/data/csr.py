@@ -91,6 +91,21 @@ class CsrDatasetLoader(BaseDatasetLoader):
             mapped_res=mapped_res,
         )
 
+    def create_csr_matrix_from_review_data(
+        self: Self,
+        df: pd.DataFrame,
+        num_total_users: int,
+        num_total_diners: int,
+    ) -> csr_matrix:
+        """
+        Create csr matrix from review data for als model.
+        """
+        Cui_csr = csr_matrix(
+            (df["reviewer_review_score"], (df["reviewer_id"], df["diner_idx"])),
+            shape=(num_total_users, num_total_diners),
+        )
+        return Cui_csr
+
     def create_csr_dataset(
         self: Self,
         train: pd.DataFrame,
@@ -160,18 +175,3 @@ class CsrDatasetLoader(BaseDatasetLoader):
             "test_diner_ids": test_diner_ids,
             **mapped_res,
         }
-
-    def create_csr_matrix_from_review_data(
-        self: Self,
-        df: pd.DataFrame,
-        num_total_users: int,
-        num_total_diners: int,
-    ) -> csr_matrix:
-        """
-        Create csr matrix from review data for als model.
-        """
-        Cui_csr = csr_matrix(
-            (df["reviewer_review_score"], (df["reviewer_id"], df["diner_idx"])),
-            shape=(num_total_users, num_total_diners),
-        )
-        return Cui_csr

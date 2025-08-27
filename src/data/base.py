@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Self, Tuple
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from scipy.sparse import csr_matrix
 from sklearn.model_selection import train_test_split
 
 from data.config import DataConfig
@@ -404,21 +403,6 @@ class BaseDatasetLoader(ABC):
         warm_start_user_ids = np.array(list(train_user_ids & test_user_ids))
         cold_start_user_ids = np.array(list(test_user_ids - train_user_ids))
         return warm_start_user_ids, cold_start_user_ids
-
-    def create_csr_matrix_from_review_data(
-        self: Self,
-        df: pd.DataFrame,
-        num_total_users: int,
-        num_total_diners: int,
-    ) -> csr_matrix:
-        """
-        Create csr matrix from review data for als model.
-        """
-        Cui_csr = csr_matrix(
-            (df["reviewer_review_score"], (df["reviewer_id"], df["diner_idx"])),
-            shape=(num_total_users, num_total_diners),
-        )
-        return Cui_csr
 
     def get_diner_ids_from_additional_reviews(self: Self):
         """
