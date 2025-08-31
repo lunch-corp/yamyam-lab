@@ -26,3 +26,15 @@ filter:
       - 극우
       - 집회
       - 계엄
+    # this diner_ids are pre-calculated from above filter config to avoid redundant calculation
+    pre_calculated_diner_ids:
+      - 20557155
+      - 561814157
+      - 717255023
+      - 1210281986
+      - 1210386151
+      - 1275807781
+      - 1390211388
+      - 1420824177
+      - 1567102742
+      - 1983344097
