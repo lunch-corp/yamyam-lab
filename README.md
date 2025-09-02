@@ -85,24 +85,24 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
    Use the following Python code to ensure the data files are available and load them into Pandas DataFrames:
 
    ```python
-   import sys
-   sys.path.appehd("/PATH/TO/YAMYAM_ROOT/src") # you may add this line to add PYTHONPATH
-
    from tools.google_drive import ensure_data_files
    import pandas as pd
 
    # Ensure required data files are available
    data_paths = ensure_data_files()
 
-   # Load data into Pandas DataFrames
+   # load data
    diner = pd.read_csv(data_paths["diner"])
+   diner_category = pd.read_csv(data_paths["category"])
+
+
+   diner = pd.merge(diner, diner_category, on="diner_idx", how="left")
+
+
    review = pd.read_csv(data_paths["review"])
-
-   # Merge review and reviewer data
-   review = pd.merge(review, pd.read_csv(data_paths["reviewer"]), on="reviewer_id", how="left")
-
-   # print loaded review data
-   print(review.shape) # (2287474, 12)
+   reviewer = pd.read_csv(data_paths["reviewer"])
+   review_keyword = pd.read_csv(data_paths["review_keyword"])
+   review = pd.merge(review, reviewer, on="reviewer_id", how="left")
    ```
 
 3. Data Description:
