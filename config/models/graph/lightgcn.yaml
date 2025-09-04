@@ -11,8 +11,17 @@ preprocess:
 
 training:
   evaluation:
-    top_k_values_for_pred: [5, 10, 20, 50]
-    top_k_values_for_candidate: [100]
+    top_k_values_for_pred:
+    - 3
+    - 7
+    - 10
+    - 20
+    top_k_values_for_candidate:
+    - 100
+    - 300
+    - 500
+    - 1000
+    - 2000
     recommend_batch_size: 2000
   model:
     num_lightgcn_layers: 3
