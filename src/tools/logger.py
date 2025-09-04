@@ -42,6 +42,10 @@ def common_logging(
         f"test dataset period: {config.preprocess.data.test_time_point} <= dt < {config.preprocess.data.end_time_point}"
     )
 
+    logger.info("######## Warm users / diners statistics ########")
+    logger.info(f"Number of warm users: {len(set(data['train_user_ids']))}")
+    logger.info(f"Number of warm diners: {len(set(data['train_diner_ids']))}")
+
     logger.info("######## Number of reviews statistics ########")
     logger.info(f"Number of reviews in train: {data['X_train'].shape[0]}")
     logger.info(f"Number of reviews in val: {data['X_val'].shape[0]}")
@@ -86,21 +90,30 @@ def common_logging(
     logger.info(
         "######## Warm / Cold users analysis in validation and test dataset ########"
     )
+    all_users = (
+        set(data["train_user_ids"])
+        | set(data["val_user_ids"])
+        | set(data["test_user_ids"])
+    )
+    all_cold_users = set(data["val_cold_start_user_ids"]) | set(
+        data["test_cold_start_user_ids"]
+    )
+    logger.info(f"Total number of users including warm / cold: {len(all_users)}")
     logger.info(
-        f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
+        f"Number of warm users: {len(set(data['train_user_ids']))} ({round(100 * len(set(data['train_user_ids'])) / len(all_users), 2)}%)"
     )
     logger.info(
-        f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
+        f"Number of cold users: {len(all_cold_users)} ({round(100 * len(all_cold_users) / len(all_users), 2)}%)"
     )
     logger.info(
-        f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
+        f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])} ({round(100 * len(data['val_warm_start_user_ids']) / len(data['val_user_ids']), 2)}%)"
     )
     logger.info(
-        f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
+        f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])} ({round(100 * len(data['val_cold_start_user_ids']) / len(data['val_user_ids']), 2)}%)"
     )
     logger.info(
-        f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
+        f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])} ({round(100 * len(data['test_warm_start_user_ids']) / len(data['test_user_ids']), 2)}%)"
     )
     logger.info(
-        f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
+        f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])} ({round(100 * len(data['test_cold_start_user_ids']) / len(data['test_user_ids']), 2)}%)"
     )
