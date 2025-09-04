@@ -1,3 +1,4 @@
+import copy
 import importlib
 import os
 import pickle
@@ -15,7 +16,7 @@ from evaluation.metric_calculator import EmbeddingMetricCalculator
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
 from tools.logger import common_logging, setup_logger
-from tools.parse_args import parse_args_embedding, save_command_to_file
+from tools.parse_args import parse_args_graph, save_command_to_file
 from tools.plot import plot_metric_at_k
 from tools.zip import zip_files_in_directory
 
@@ -175,6 +176,9 @@ def main(args: ArgumentParser.parse_args) -> None:
             batch_size=args.batch_size,
             shuffle=True,
         )
+
+        best_val_ndcg = -float("inf")
+        early_stopping = False
         for epoch in range(args.epochs):
             logger.info(f"################## epoch {epoch} ##################")
             total_loss = 0
@@ -233,19 +237,62 @@ def main(args: ArgumentParser.parse_args) -> None:
                 metric_at_k_total_epochs=model.metric_at_k_total_epochs,
             )
 
-            torch.save(
-                model.state_dict(),
-                str(os.path.join(result_path, file_name.weight)),
-            )
-            pickle.dump(
-                model.tr_loss,
-                open(os.path.join(result_path, file_name.training_loss), "wb"),
-            )
-            pickle.dump(
-                model.metric_at_k_total_epochs,
-                open(os.path.join(result_path, file_name.metric), "wb"),
-            )
-            logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
+            # we track last validation ndcg@3,
+            # because we do not calculate validation loss
+            val_ndcg = model.metric_at_k_total_epochs[3]["ndcg"][-1]
+
+            if val_ndcg == 0:
+                logger.info(
+                    "Validation ndcg@3 is still ZERO... Going to train again..."
+                )
+                continue
+
+            # when validation ndcg@3 is greater than 0 and previous best value
+            if best_val_ndcg < val_ndcg:
+                prev_best_val_ndcg = best_val_ndcg
+                best_val_ndcg = val_ndcg
+                best_model_weights = copy.deepcopy(model.state_dict())
+                patience = args.patience
+                torch.save(
+                    model.state_dict(),
+                    str(os.path.join(result_path, file_name.weight)),
+                )
+                pickle.dump(
+                    model.tr_loss,
+                    open(os.path.join(result_path, file_name.training_loss), "wb"),
+                )
+                pickle.dump(
+                    model.metric_at_k_total_epochs,
+                    open(os.path.join(result_path, file_name.metric), "wb"),
+                )
+                logger.info(
+                    f"Best validation: {best_val_ndcg}, Previous validation loss: {prev_best_val_ndcg}"
+                )
+                logger.info(f"successfully saved {args.model} model: epoch {epoch}")
+            else:
+                patience -= 1
+                logger.info(
+                    f"Validation loss did not decrease. Patience {patience} left."
+                )
+                if patience == 0:
+                    logger.info(
+                        f"Patience over. Early stopping at epoch {epoch} with {best_val_ndcg} validation loss"
+                    )
+                    early_stopping = True
+
+            # if patience is over, we early stop training
+            if early_stopping:
+                break
+
+        # Load the best model weights with highest validation ndcg@3
+        model.load_state_dict(best_model_weights)
+        logger.info("Load weight with best validation ndcg@3")
+
+        torch.save(
+            model.state_dict(),
+            str(os.path.join(result_path, file_name.weight)),
+        )
+        logger.info("Save final model with best validation ndcg@3")
 
         # calculate metric for test data with warm / cold / all users separately
         metric_dict_test = (
@@ -326,5 +373,5 @@ def main(args: ArgumentParser.parse_args) -> None:
 
 
 if __name__ == "__main__":
-    args = parse_args_embedding()
+    args = parse_args_graph()
     main(args)

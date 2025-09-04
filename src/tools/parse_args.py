@@ -28,7 +28,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def parse_args_embedding():
+def parse_args_graph():
     parser = argparse.ArgumentParser()
     # common parameter
     parser.add_argument(
@@ -47,6 +47,7 @@ def parse_args_embedding():
     parser.add_argument("--num_negative_samples", type=int, default=1)
     parser.add_argument("--weighted_edge", action="store_true")
     parser.add_argument("--use_metadata", action="store_true")
+    parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--test", action="store_true")
 
     # node2vec parameter
