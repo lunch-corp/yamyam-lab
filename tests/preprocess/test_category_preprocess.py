@@ -24,6 +24,12 @@ def test_category_preprocess():
     processor = CategoryProcessor(diner_with_raw_category)
     processor.process_all()
     diner_with_processd_category = processor.category_preprocessed_diners
+    integrated_diner_category_middle = []
+    for diner_category_large, config in processor.mappings[
+        "integrate_diner_category_middle"
+    ].items():
+        for asis, tobe in config.items():
+            integrated_diner_category_middle += [cat for cat in tobe if cat != asis]
 
     config = load_yaml(CONFIG_PATH)
 
@@ -33,6 +39,8 @@ def test_category_preprocess():
         before_category_large,
     ) in config.lowering_large_categories.items():
         for cat in before_category_large:
+            if cat in integrated_diner_category_middle:
+                continue
             diner_filter = diner_with_processd_category[
                 lambda x: (x["diner_category_large"] == after_category_large)
                 & (x["diner_category_middle"] == cat)
