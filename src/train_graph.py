@@ -178,6 +178,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         best_val_ndcg = -float("inf")
+        best_val_ndcg_epoch = -1
         early_stopping = False
         for epoch in range(args.epochs):
             logger.info(f"################## epoch {epoch} ##################")
@@ -249,8 +250,9 @@ def main(args: ArgumentParser.parse_args) -> None:
 
             # when validation ndcg@3 is greater than 0 and previous best value
             if best_val_ndcg < val_ndcg:
+                best_val_ndcg_epoch = epoch
                 prev_best_val_ndcg = best_val_ndcg
-                best_val_ndcg = val_ndcg
+                best_val_ndcg = round(val_ndcg, 6)
                 best_model_weights = copy.deepcopy(model.state_dict())
                 patience = args.patience
                 torch.save(
@@ -266,17 +268,17 @@ def main(args: ArgumentParser.parse_args) -> None:
                     open(os.path.join(result_path, file_name.metric), "wb"),
                 )
                 logger.info(
-                    f"Best validation: {best_val_ndcg}, Previous validation loss: {prev_best_val_ndcg}"
+                    f"Best validation ndcg@3: {best_val_ndcg} at epoch {best_val_ndcg_epoch}, Previous best validation ndcg@3: {prev_best_val_ndcg}"
                 )
                 logger.info(f"successfully saved {args.model} model: epoch {epoch}")
             else:
                 patience -= 1
                 logger.info(
-                    f"Validation loss did not decrease. Patience {patience} left."
+                    f"Validation ndcg@3 did not decrease. Patience {patience} left."
                 )
                 if patience == 0:
                     logger.info(
-                        f"Patience over. Early stopping at epoch {epoch} with {best_val_ndcg} validation loss"
+                        f"Patience over. Early stopping at epoch {epoch} with {best_val_ndcg} validation ndcg@3"
                     )
                     early_stopping = True
 

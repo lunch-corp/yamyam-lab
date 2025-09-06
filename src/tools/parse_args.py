@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument("--embedding_dim", type=int, default=32)
     parser.add_argument("--test_ratio", type=float, default=0.3)
     parser.add_argument("--random_state", type=int, default=42)
-    parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--test", action="store_true")
     return parser.parse_args()
 
@@ -47,7 +47,7 @@ def parse_args_graph():
     parser.add_argument("--num_negative_samples", type=int, default=1)
     parser.add_argument("--weighted_edge", action="store_true")
     parser.add_argument("--use_metadata", action="store_true")
-    parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--test", action="store_true")
 
     # node2vec parameter
