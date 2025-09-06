@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Self
+from typing import Any, Dict, List
 
 import pandas as pd
 import yaml
@@ -22,12 +22,8 @@ class CategoryProcessor:
 
     Examples:
         >>> processor = CategoryProcessor(df)
-        >>> processed_df = (
-        ...     processor.process_lowering_categories()
-        ...              .process_partly_lowering_categories()
-        ...              .process_chicken_categories()
-        ...              .df
-        ... )
+        >>> processor.process_all()
+        >>> processed_df = processor.category_preprocessed_diners
     """
 
     def __init__(self, df: pd.DataFrame) -> None:
@@ -67,21 +63,29 @@ class CategoryProcessor:
             logger.error(f"Failed to load category mappings from {config_path}: {e}")
             raise
 
-    def process_all(self) -> Self:
+    @property
+    def category_preprocessed_diners(self) -> pd.DataFrame:
+        """
+        카테고리 처리가 완료된 데이터프레임을 반환합니다.
+
+        Returns:
+            pd.DataFrame: 카테고리 처리가 완료된 데이터프레임.
+        """
+        return self.df
+
+    def process_all(self) -> None:
         """
         모든 카테고리 처리 함수를 순차적으로 실행합니다.
 
         Returns:
             CategoryProcessor: 연쇄 호출이 가능한 self.
         """
-        return (
-            self.process_chicken_categories()
-            .process_lowering_categories()
-            .process_lowering_middle_categories()
-            .process_partly_lowering_categories()
-        )
+        self.process_chicken_categories()
+        self.process_lowering_categories(level="large")
+        self.process_lowering_categories(level="middle")
+        self.process_partly_lowering_categories()
 
-    def process_lowering_categories(self, level: str = "large") -> Self:
+    def process_lowering_categories(self, level: str = "large") -> None:
         """
         대/중분류 카테고리 조정을 처리합니다.
 
@@ -121,23 +125,12 @@ class CategoryProcessor:
                 continue
 
             # level에 따라 이동 방식 결정
-            if level == "middle":
-                self._shift_categories_down(
-                    target_rows, target_category="diner_category_middle"
-                )
-            else:
-                self._shift_categories_down(target_rows)
+            self._shift_categories_down(target_rows, target_category=column_name)
 
             # 카테고리 업데이트
             self.df.loc[target_rows, column_name] = after_category
 
-        return self
-
-    def process_lowering_middle_categories(self) -> Self:
-        """기존 인터페이스 유지용 래퍼: 중분류 하향 조정 실행"""
-        return self.process_lowering_categories(level="middle")
-
-    def process_partly_lowering_categories(self) -> Self:
+    def process_partly_lowering_categories(self) -> None:
         """
         부분적 카테고리 조정을 처리합니다.
         mappings의 partly_lowering_large_categories 설정에 따라,
@@ -167,11 +160,10 @@ class CategoryProcessor:
             self._shift_categories_down(target_rows)
             self.df.loc[target_rows, "diner_category_middle"] = new_middle
             self.df.loc[target_rows, "diner_category_large"] = after_category
-        return self
 
     def process_chicken_categories(
         self, target_categories: List[str] = ["치킨"]
-    ) -> Self:
+    ) -> None:
         """
         치킨 카테고리에 대한 특수 처리를 수행합니다.
         - '치킨' 대분류의 경우, 소분류를 기존 중분류 값으로 이동합니다.
@@ -204,8 +196,6 @@ class CategoryProcessor:
         self.df.loc[target_rows & is_grilled, "diner_category_middle"] = "구이"
         self.df.loc[target_rows & ~is_grilled, "diner_category_middle"] = "프라이드"
 
-        return self
-
     def _shift_categories_down(
         self, target_rows: pd.Series, target_category: str = "diner_category_large"
     ) -> None:
@@ -226,7 +216,7 @@ class CategoryProcessor:
         else:
             category_depth = self.category_depth
 
-        for cat in category_depth:
-            self.df.loc[target_rows, f"diner_category_{cat[0]}"] = self.df.loc[
-                target_rows, f"diner_category_{cat[1]}"
+        for to_category, from_category in category_depth:
+            self.df.loc[target_rows, f"diner_category_{to_category}"] = self.df.loc[
+                target_rows, f"diner_category_{from_category}"
             ]

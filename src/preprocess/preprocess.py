@@ -95,7 +95,8 @@ def preprocess_common(
         diner = diner[columns_exclude_category_columns]
 
     processor = CategoryProcessor(diner_with_raw_category)
-    diner_with_processd_category = processor.process_all().df
+    processor.process_all()
+    diner_with_processd_category = processor.category_preprocessed_diners
 
     diner = pd.merge(
         left=diner,

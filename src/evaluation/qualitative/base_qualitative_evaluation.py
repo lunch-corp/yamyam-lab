@@ -39,8 +39,12 @@ class BaseQualitativeEvaluation(ABC):
         # merge category
         diner_category = pd.read_csv(os.path.join(DATA_PATH, "diner_category_raw.csv"))
         processor = CategoryProcessor(diner_category)
+        processor.process_all()
         self.diners = pd.merge(
-            self.diners, processor.process_all().df, how="left", on="diner_idx"
+            self.diners,
+            processor.category_preprocessed_diners,
+            how="left",
+            on="diner_idx",
         )
         self.user_mapping = user_mapping
         # reverse mapping to original diner_id

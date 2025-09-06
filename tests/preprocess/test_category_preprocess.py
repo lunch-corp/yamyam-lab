@@ -22,7 +22,8 @@ def test_category_preprocess():
     diner_with_raw_category = pd.read_csv(data_paths["category"])
 
     processor = CategoryProcessor(diner_with_raw_category)
-    diner_with_processd_category = processor.process_all().df
+    processor.process_all()
+    diner_with_processd_category = processor.category_preprocessed_diners
 
     config = load_yaml(CONFIG_PATH)
 
