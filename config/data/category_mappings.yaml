@@ -122,3 +122,26 @@ chicken_category:
     - 화신바베큐치킨
     - 훌랄라
   프라이드: []
+
+
+integrate_diner_category_middle:
+  한식:
+    국밥:
+      - 국밥
+      - 순대
+      - 감자탕
+      - 해장국
+      - 설렁탕
+      - 곰탕
+    한정식:
+      - 한정식
+      - 쌈밥
+      - 기사식당
+    국수:
+      - 국수
+      - 수제비
+
+
+rename_diner_category_middle:
+  한식:
+    두부전문점: 순두부,두부전문점

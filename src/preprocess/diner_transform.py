@@ -84,6 +84,8 @@ class CategoryProcessor:
         self.process_lowering_categories(level="large")
         self.process_lowering_categories(level="middle")
         self.process_partly_lowering_categories()
+        self.integrate_diner_category_middle()
+        self.rename_diner_category_middle()
 
     def process_lowering_categories(self, level: str = "large") -> None:
         """
@@ -195,6 +197,28 @@ class CategoryProcessor:
 
         self.df.loc[target_rows & is_grilled, "diner_category_middle"] = "구이"
         self.df.loc[target_rows & ~is_grilled, "diner_category_middle"] = "프라이드"
+
+    def integrate_diner_category_middle(self) -> None:
+        """
+        diner_category_large별로 diner_category_middle을 통합합니다.
+        """
+        integration_config = self.mappings["integrate_diner_category_middle"]
+        for diner_category_large, config in integration_config.items():
+            for new_middle, old_middles in config.items():
+                target_rows = self.df["diner_category_large"] == diner_category_large
+                target_rows &= self.df["diner_category_middle"].isin(old_middles)
+                self.df.loc[target_rows, "diner_category_middle"] = new_middle
+
+    def rename_diner_category_middle(self) -> None:
+        """
+        diner_category_middle의 이름을 재정의합니다.
+        """
+        rename_config = self.mappings["rename_diner_category_middle"]
+        for diner_category_large, config in rename_config.items():
+            for old_name, new_name in config.items():
+                target_rows = self.df["diner_category_large"] == diner_category_large
+                target_rows &= self.df["diner_category_middle"] == old_name
+                self.df.loc[target_rows, "diner_category_middle"] = new_name
 
     def _shift_categories_down(
         self, target_rows: pd.Series, target_category: str = "diner_category_large"
