@@ -37,7 +37,7 @@ def main(args) -> None:
     save_command_to_file(str(RESULT_PATH))
 
     try:
-        logger.info("model: most_popular")
+        logger.info("model: rerank_most_popular")
         logger.info(f"training results will be saved in {RESULT_PATH}")
 
         # 데이터 로딩
