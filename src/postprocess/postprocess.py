@@ -1,10 +1,10 @@
 import re
+from typing import Dict, Iterable, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 
 from tools.utils import haversine
-
-from typing import Dict, Iterable, List, Optional, Tuple
 
 
 class ReRankerUtils:
@@ -32,7 +32,6 @@ class ReRankerUtils:
 
         m = re.match(r"^(\S+)\s+(\S+구|\S+군|\S+시)", addr)
         return m.group(0) if m else parts[0]
-    
 
     @staticmethod
     def minmax(x: np.ndarray) -> np.ndarray:
@@ -49,10 +48,14 @@ class ReRankerUtils:
         x = x.astype(np.float32, copy=False)
         mn, mx = float(np.min(x)), float(np.max(x))
         rng = mx - mn
-        return (x - mn) / (rng + 1e-8) if rng > 0 else np.zeros_like(x, dtype=np.float32)
+        return (
+            (x - mn) / (rng + 1e-8) if rng > 0 else np.zeros_like(x, dtype=np.float32)
+        )
 
     @staticmethod
-    def validate_and_clip_k(item_ids: np.ndarray, base_scores: np.ndarray, k: int) -> int:
+    def validate_and_clip_k(
+        item_ids: np.ndarray, base_scores: np.ndarray, k: int
+    ) -> int:
         """
         Validate and clip k to be within the valid range of candidate items.
 
@@ -111,6 +114,7 @@ class BaseReranker:
 
 class MostPopularReranker(BaseReranker):
     """Rerank most popular items with diversity (category + geo) using MMR."""
+
     @staticmethod
     def prepare_meta(item_meta: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[int, int]]:
         """
@@ -212,9 +216,14 @@ class MostPopularReranker(BaseReranker):
         region_of = region_of or {}
         categories_str = cats.astype(str).to_numpy()
 
-        lab_cat = np.array([f"diner_category_large:{c}" for c in categories_str], dtype=object)
+        lab_cat = np.array(
+            [f"diner_category_large:{c}" for c in categories_str], dtype=object
+        )
         lab_reg = np.array(
-            [f"diner_road_address:{region_of.get(int(cid), 'unknown')}" for cid in item_ids],
+            [
+                f"diner_road_address:{region_of.get(int(cid), 'unknown')}"
+                for cid in item_ids
+            ],
             dtype=object,
         )
 
@@ -264,7 +273,6 @@ class MostPopularReranker(BaseReranker):
                     cand_mask[pos] = False
 
         return cand_idx[cand_mask]
-
 
     @staticmethod
     def coverage_min_bonus_candonly(
@@ -343,7 +351,9 @@ class MostPopularReranker(BaseReranker):
         return np.exp(-np.asarray(d_km, dtype=np.float64) * inv_tau).astype(np.float32)
 
     @staticmethod
-    def geo_precompute(meta_sorted: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def geo_precompute(
+        meta_sorted: pd.DataFrame,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Precompute geographic values for efficiency.
 
@@ -378,7 +388,6 @@ class MostPopularReranker(BaseReranker):
         top_m: Optional[int] = None,
         debug: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray]:
-
         k = ReRankerUtils.validate_and_clip_k(item_ids, base_scores, k)
         if k == 0:
             return np.array([], dtype=int), np.array([], dtype=float)
@@ -397,8 +406,10 @@ class MostPopularReranker(BaseReranker):
 
         # --- 2. prepare metadata ---
         meta, id2row = MostPopularReranker.prepare_meta(item_meta)
-        item_ids_f, rel_f, rows = MostPopularReranker.filter_candidates_by_meta_and_topm(
-            item_ids, rel_n, id2row, top_m
+        item_ids_f, rel_f, rows = (
+            MostPopularReranker.filter_candidates_by_meta_and_topm(
+                item_ids, rel_n, id2row, top_m
+            )
         )
         if item_ids_f.size == 0:
             return np.array([], dtype=int), np.array([], dtype=float)
@@ -406,7 +417,9 @@ class MostPopularReranker(BaseReranker):
         meta_sorted = meta.iloc[rows]
         cat_codes, cats = MostPopularReranker.encode_categories(meta_sorted)
         lat_rad, lon_rad, _ = MostPopularReranker.geo_precompute(meta_sorted)
-        labels_by_idx, label_to_indices = MostPopularReranker.build_coverage_labels(item_ids_f, cats, self.region_of)
+        labels_by_idx, label_to_indices = MostPopularReranker.build_coverage_labels(
+            item_ids_f, cats, self.region_of
+        )
 
         # --- 3. prefix freeze ---
         T = min(max(0, self.prefix_freeze), k, item_ids_f.size)
@@ -457,15 +470,27 @@ class MostPopularReranker(BaseReranker):
                 break
 
             bonus_c = MostPopularReranker.coverage_min_bonus_candonly(
-                cand_idx, cov_counts, self.coverage_min, label_to_indices, step=self.coverage_step
+                cand_idx,
+                cov_counts,
+                self.coverage_min,
+                label_to_indices,
+                step=self.coverage_step,
             )
 
             # normalize similarity
             sim_c = current_max_sim[cand_idx]
             rng = sim_c.max() - sim_c.min()
-            sim_c_n = (sim_c - sim_c.min()) / (rng + 1e-8) if rng > 0 else np.zeros_like(sim_c)
+            sim_c_n = (
+                (sim_c - sim_c.min()) / (rng + 1e-8)
+                if rng > 0
+                else np.zeros_like(sim_c)
+            )
 
-            mmr = self.lambda_div * rel_n[cand_idx] - (1.0 - self.lambda_div) * sim_c_n + bonus_c
+            mmr = (
+                self.lambda_div * rel_n[cand_idx]
+                - (1.0 - self.lambda_div) * sim_c_n
+                + bonus_c
+            )
             best_idx = int(cand_idx[np.argmax(mmr)])
 
             chosen_ids.append(int(item_ids_f[best_idx]))
@@ -504,6 +529,7 @@ class MostPopularReranker(BaseReranker):
 
 class RegionPeripheryReranker(MostPopularReranker):
     """Rerank items within a region by adding periphery bonus, then MMR reranking."""
+
     def __init__(
         self,
         region_label: str = "서울 강남구",
@@ -528,7 +554,6 @@ class RegionPeripheryReranker(MostPopularReranker):
         k: int,
         **kwargs,
     ) -> Tuple[np.ndarray, np.ndarray]:
-
         item_ids = np.asarray(item_ids, dtype=np.int64)
         base_scores = np.asarray(base_scores, dtype=np.float32)
         meta = item_meta
@@ -537,7 +562,8 @@ class RegionPeripheryReranker(MostPopularReranker):
         target_region = ReRankerUtils.extract_region_label(self.region_label)
         region_idx = (
             meta.loc[
-                meta["diner_road_address"].map(ReRankerUtils.extract_region_label) == target_region,
+                meta["diner_road_address"].map(ReRankerUtils.extract_region_label)
+                == target_region,
                 "diner_idx",
             ].to_numpy(np.int64, copy=False)
             if "diner_road_address" in meta.columns
@@ -555,7 +581,9 @@ class RegionPeripheryReranker(MostPopularReranker):
 
         # --- 2. coordinates ---
         meta_idx = meta.set_index("diner_idx", drop=False)
-        latlon = meta_idx.reindex(item_ids_g)[["diner_lat", "diner_lon"]].to_numpy(np.float32)
+        latlon = meta_idx.reindex(item_ids_g)[["diner_lat", "diner_lon"]].to_numpy(
+            np.float32
+        )
         valid = np.isfinite(latlon).all(axis=1)
         latlon_valid = latlon[valid]
 
@@ -567,14 +595,24 @@ class RegionPeripheryReranker(MostPopularReranker):
 
             n_clusters = min(self.n_auto_hotspots, latlon_valid.shape[0])
             km = KMeans(n_clusters=n_clusters, n_init=5, random_state=42)
-            centers = km.fit(latlon_valid).cluster_centers_.astype(np.float32, copy=False)
+            centers = km.fit(latlon_valid).cluster_centers_.astype(
+                np.float32, copy=False
+            )
         else:
             centers = np.empty((0, 2), dtype=np.float32)
 
         # --- 4. periphery bonus ---
         periphery_bonus = np.zeros_like(base_scores_g, dtype=np.float32)
-        if centers.size and latlon_valid.shape[0] and self.periphery_strength > 0 and self.periphery_cap > 0:
-            diner_lat, diner_lon = pd.Series(latlon_valid[:, 0]), pd.Series(latlon_valid[:, 1])
+        if (
+            centers.size
+            and latlon_valid.shape[0]
+            and self.periphery_strength > 0
+            and self.periphery_cap > 0
+        ):
+            diner_lat, diner_lon = (
+                pd.Series(latlon_valid[:, 0]),
+                pd.Series(latlon_valid[:, 1]),
+            )
             dists = [
                 np.asarray(
                     haversine(
@@ -589,10 +627,16 @@ class RegionPeripheryReranker(MostPopularReranker):
             ]
             if dists:
                 dmin = np.min(np.vstack(dists).T, axis=1).astype(np.float32)
-                bonus_valid = np.clip(self.periphery_strength * ReRankerUtils.minmax(dmin), 0.0, self.periphery_cap)
+                bonus_valid = np.clip(
+                    self.periphery_strength * ReRankerUtils.minmax(dmin),
+                    0.0,
+                    self.periphery_cap,
+                )
                 periphery_bonus[valid] = bonus_valid
 
         boosted_scores = base_scores_g + periphery_bonus
 
         # --- 5. delegate to MostPopularReranker ---
-        return super().rerank(item_ids=item_ids_g, base_scores=boosted_scores, item_meta=meta, k=k)
+        return super().rerank(
+            item_ids=item_ids_g, base_scores=boosted_scores, item_meta=meta, k=k
+        )

@@ -5,16 +5,15 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from model import ALS
-from tools.parse_args import parse_args_als, save_command_to_file
-
 from data.dataset import DataConfig, DatasetLoader
 from evaluation.metric_calculator import ALSMetricCalculator
+from model import ALS
+from postprocess.postprocess import RegionPeripheryReranker
+
 # from postprocess.postprocess import rerank_region_periphery
 from tools.config import load_yaml
 from tools.logger import setup_logger
-from tools.parse_args import save_command_to_file
-from postprocess.postprocess import RegionPeripheryReranker
+from tools.parse_args import parse_args_als, save_command_to_file
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
@@ -88,12 +87,11 @@ def main(args) -> None:
         reranked_ids, _ = reranker.rerank(
             item_ids=candidates,
             base_scores=base_scores,
-            item_meta=diner_meta,   # 주의: 함수 버전에서는 item_meta_std였는데, 클래스에서는 그냥 item_meta로 받음
+            item_meta=diner_meta,  # 주의: 함수 버전에서는 item_meta_std였는데, 클래스에서는 그냥 item_meta로 받음
             k=max(top_k_values),
         )
 
         reranked_most_popular = reranked_ids.tolist()
-
 
         logger.info("######## Number of reviews statistics ########")
         logger.info(f"Number of reviews in train: {data['X_train'].data.shape[0]}")
@@ -173,7 +171,6 @@ def main(args) -> None:
             calculate_training_loss=args.calculate_training_loss,
         )
 
-
         model.fit(data["X_train"])
 
         metric_calculator = ALSMetricCalculator(
@@ -223,7 +220,6 @@ def main(args) -> None:
         metric_calculator.report_metric_with_warm_cold_all_users(
             metric_dict=metric_dict, data_type="test"
         )
-
 
     except Exception as e:
         print("Error during project run:", repr(e))
