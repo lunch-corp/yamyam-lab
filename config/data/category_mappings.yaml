@@ -137,9 +137,22 @@ integrate_diner_category_middle:
       - 한정식
       - 쌈밥
       - 기사식당
-    국수:
+    국수류:
       - 국수
+      - 냉면
       - 수제비
+    도시락류:
+      - 도시락
+      - 야식
+      - 주먹밥
+  술집:
+    일본식주점:
+      - 일본식주점
+      - 오뎅바
+  기타:
+    단체식당:
+      - 구내식당
+      - 푸드코트
 
 
 rename_diner_category_middle:

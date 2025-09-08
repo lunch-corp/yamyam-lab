@@ -214,11 +214,22 @@ class CategoryProcessor:
         diner_category_middle의 이름을 재정의합니다.
         """
         rename_config = self.mappings["rename_diner_category_middle"]
-        for diner_category_large, config in rename_config.items():
-            for old_name, new_name in config.items():
-                target_rows = self.df["diner_category_large"] == diner_category_large
-                target_rows &= self.df["diner_category_middle"] == old_name
-                self.df.loc[target_rows, "diner_category_middle"] = new_name
+
+        flat_mapping = {
+            (large, middle): new_middle
+            for large, middles in rename_config.items()
+            for middle, new_middle in middles.items()
+        }
+
+        # 튜플 (diner_category_large, diner_category_middle)을 기반으로 매핑
+        self.df["diner_category_middle"] = self.df.apply(
+            lambda row: flat_mapping.get(
+                (row["diner_category_large"], row["diner_category_middle"]),
+                row["diner_category_middle"],
+            ),
+            axis=1,
+        )
+        print("hi")
 
     def _shift_categories_down(
         self, target_rows: pd.Series, target_category: str = "diner_category_large"
