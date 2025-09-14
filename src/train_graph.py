@@ -1,3 +1,4 @@
+import copy
 import importlib
 import os
 import pickle
@@ -5,23 +6,24 @@ import traceback
 from argparse import ArgumentParser
 from datetime import datetime
 
-import pandas as pd
 import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
-from data.dataset import DataConfig, DatasetLoader
+from data.config import DataConfig
+from data.graph import GraphDatasetLoader
 from evaluation.metric_calculator import EmbeddingMetricCalculator
-from preprocess.preprocess import prepare_networkx_undirected_graph
 from tools.config import load_yaml
 from tools.google_drive import GoogleDriveManager
-from tools.logger import setup_logger
-from tools.parse_args import parse_args_embedding, save_command_to_file
+from tools.logger import common_logging, setup_logger
+from tools.parse_args import parse_args_graph, save_command_to_file
 from tools.plot import plot_metric_at_k
 from tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/graph/{model}.yaml")
+PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
+
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
@@ -34,6 +36,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     os.makedirs(result_path, exist_ok=True)
     # load config
     config = load_yaml(CONFIG_PATH.format(model=args.model))
+    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
     # save command used in argparse
     save_command_to_file(result_path)
 
@@ -70,21 +73,16 @@ def main(args: ArgumentParser.parse_args) -> None:
         elif args.model == "graphsage":
             logger.info(f"number of sage layers: {args.num_sage_layers}")
             logger.info(f"aggregator functions: {args.aggregator_funcs}")
+
+        elif args.model == "lightgcn":
+            logger.info(f"number of layers: {args.num_lightgcn_layers}")
+            logger.info(f"drop ratio: {args.drop_ratio}")
+
         logger.info(f"result path: {result_path}")
         logger.info(f"test: {args.test}")
         logger.info(f"training results will be saved in {result_path}")
 
-        logger.info(
-            f"train dataset period: {config.preprocess.data.train_time_point} <= dt < {config.preprocess.data.val_time_point}"
-        )
-        logger.info(
-            f"val dataset period: {config.preprocess.data.val_time_point} <= dt < {config.preprocess.data.test_time_point}"
-        )
-        logger.info(
-            f"test dataset period: {config.preprocess.data.test_time_point} <= dt < {config.preprocess.data.end_time_point}"
-        )
-
-        data_loader = DatasetLoader(
+        data_loader = GraphDatasetLoader(
             data_config=DataConfig(
                 X_columns=["diner_idx", "reviewer_id"],
                 y_columns=["reviewer_review_score"],
@@ -96,85 +94,22 @@ def main(args: ArgumentParser.parse_args) -> None:
                 val_time_point=config.preprocess.data.val_time_point,
                 test_time_point=config.preprocess.data.test_time_point,
                 end_time_point=config.preprocess.data.end_time_point,
-                is_graph_model=True,
+                use_unique_mapping_id=True,
                 test=args.test,
             ),
         )
-        data = data_loader.prepare_train_val_dataset(use_metadata=args.use_metadata)
-        train_graph, val_graph = prepare_networkx_undirected_graph(
-            X_train=data["X_train"],
-            y_train=data["y_train"],
-            X_val=data["X_val"],
-            y_val=data["y_val"],
-            diner=data["diner"],
-            user_mapping=data["user_mapping"],
-            diner_mapping=data["diner_mapping"],
-            meta_mapping=data["meta_mapping"] if args.use_metadata else None,
-            weighted=args.weighted_edge,
+        data = data_loader.prepare_graph_dataset(
+            is_networkx_graph=True,
             use_metadata=args.use_metadata,
+            weighted_edge=args.weighted_edge,
+            filter_config=preprocess_config.filter,
         )
+        train_graph, val_graph = data["train_graph"], data["val_graph"]  # noqa
 
-        logger.info("######## Number of reviews statistics ########")
-        logger.info(f"Number of reviews in train: {data['X_train'].size(0)}")
-        logger.info(f"Number of reviews in val: {data['X_val'].size(0)}")
-        logger.info(f"Number of reviews in test: {data['X_test'].size(0)}")
-
-        logger.info("######## Train data statistics ########")
-        logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
-        logger.info(f"Number of diners in train: {len(data['train_diner_ids'])}")
-        logger.info(f"Number of feedbacks in train: {data['X_train'].size(0)}")
-        train_density = round(
-            100
-            * data["X_train"].size(0)
-            / (len(data["train_user_ids"]) * len(data["train_diner_ids"])),
-            4,
-        )
-        logger.info(f"Train data density: {train_density}%")
-
-        logger.info("######## Validation data statistics ########")
-        logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
-        logger.info(f"Number of diners in val: {len(data['val_diner_ids'])}")
-        logger.info(f"Number of feedbacks in val: {data['X_val'].size(0)}")
-        val_density = round(
-            100
-            * data["X_val"].size(0)
-            / (len(data["val_user_ids"]) * len(data["val_diner_ids"])),
-            4,
-        )
-        logger.info(f"Validation data density: {val_density}%")
-
-        logger.info("######## Test data statistics ########")
-        logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
-        logger.info(f"Number of diners in test: {len(data['test_diner_ids'])}")
-        logger.info(f"Number of feedbacks in test: {data['X_test'].size(0)}")
-        test_density = round(
-            100
-            * data["X_test"].size(0)
-            / (len(data["test_user_ids"]) * len(data["test_diner_ids"])),
-            4,
-        )
-        logger.info(f"Test data density: {test_density}%")
-
-        logger.info(
-            "######## Warm / Cold users analysis in validation and test dataset ########"
-        )
-        logger.info(
-            f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
-        )
-        logger.info(
-            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
-        )
-        logger.info(
-            f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
+        common_logging(
+            config=config,
+            data=data,
+            logger=logger,
         )
 
         # for qualitative eval
@@ -210,7 +145,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
             num_workers=4,  # can be tuned based on server spec
             meta_path=args.meta_path,  # metapath2vec parameter
-            num_layers=args.num_sage_layers,  # graphsage parameter
+            num_sage_layers=args.num_sage_layers,  # graphsage parameter
             aggregator_funcs=args.aggregator_funcs,  # graphsage parameter
             num_neighbor_samples=args.num_neighbor_samples,  # graphsage parameter
             user_raw_features=data["user_feature"].to(
@@ -219,6 +154,8 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner_raw_features=data["diner_feature"].to(
                 args.device
             ),  # graphsage parameter
+            num_layers=args.num_lightgcn_layers,  # lightgcn parameter
+            drop_ratio=args.drop_ratio,  # lightgcn parameter
         ).to(args.device)
         optimizer = torch.optim.Adam(list(model.parameters()), lr=args.lr)
 
@@ -227,7 +164,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             diner_ids=list(data["diner_mapping"].values()),
             top_k_values=top_k_values,
             all_embeds=model._embedding
-            if args.model == "graphsage"
+            if args.model in ["graphsage", "lightgcn"]
             else model._embedding.weight,
             filter_already_liked=True,
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
@@ -239,6 +176,10 @@ def main(args: ArgumentParser.parse_args) -> None:
             batch_size=args.batch_size,
             shuffle=True,
         )
+
+        best_val_ndcg = -float("inf")
+        best_val_ndcg_epoch = -1
+        early_stopping = False
         for epoch in range(args.epochs):
             logger.info(f"################## epoch {epoch} ##################")
             total_loss = 0
@@ -253,9 +194,9 @@ def main(args: ArgumentParser.parse_args) -> None:
                 if batch_idx % 500 == 0:
                     logger.info(f"current batch index: {batch_idx} out of {batch_len}")
 
-            # when training graphsage for every epoch,
+            # when training graphsage or lightgcn for every epoch,
             # propagation should be run to store embeddings for each node
-            if args.model == "graphsage":
+            if args.model in ["graphsage", "lightgcn"]:
                 for batch_nodes in DataLoader(
                     torch.tensor([node for node in train_graph.nodes()]),
                     batch_size=args.batch_size,
@@ -271,15 +212,9 @@ def main(args: ArgumentParser.parse_args) -> None:
             # calculate metric for test data with warm / cold / all users separately
             metric_dict = (
                 metric_calculator.generate_recommendations_and_calculate_metric(
-                    X_train=pd.DataFrame(
-                        data["X_train"], columns=["diner_idx", "reviewer_id"]
-                    ),
-                    X_val_warm_users=pd.DataFrame(
-                        data["X_val_warm_users"], columns=["diner_idx", "reviewer_id"]
-                    ),
-                    X_val_cold_users=pd.DataFrame(
-                        data["X_val_cold_users"], columns=["diner_idx", "reviewer_id"]
-                    ),
+                    X_train=data["X_train"],
+                    X_val_warm_users=data["X_val_warm_users"],
+                    X_val_cold_users=data["X_val_cold_users"],
                     most_popular_diner_ids=data["most_popular_diner_ids"],
                     filter_already_liked=True,
                 )
@@ -303,32 +238,70 @@ def main(args: ArgumentParser.parse_args) -> None:
                 metric_at_k_total_epochs=model.metric_at_k_total_epochs,
             )
 
-            torch.save(
-                model.state_dict(),
-                str(os.path.join(result_path, file_name.weight)),
-            )
-            pickle.dump(
-                model.tr_loss,
-                open(os.path.join(result_path, file_name.training_loss), "wb"),
-            )
-            pickle.dump(
-                model.metric_at_k_total_epochs,
-                open(os.path.join(result_path, file_name.metric), "wb"),
-            )
-            logger.info(f"successfully saved node2vec torch model: epoch {epoch}")
+            # we track last validation ndcg@3,
+            # because we do not calculate validation loss
+            val_ndcg = model.metric_at_k_total_epochs[3]["ndcg"][-1]
+
+            if val_ndcg == 0:
+                logger.info(
+                    "Validation ndcg@3 is still ZERO... Going to train again..."
+                )
+                continue
+
+            # when validation ndcg@3 is greater than 0 and previous best value
+            if best_val_ndcg < val_ndcg:
+                best_val_ndcg_epoch = epoch
+                prev_best_val_ndcg = best_val_ndcg
+                best_val_ndcg = round(val_ndcg, 6)
+                best_model_weights = copy.deepcopy(model.state_dict())
+                patience = args.patience
+                torch.save(
+                    model.state_dict(),
+                    str(os.path.join(result_path, file_name.weight)),
+                )
+                pickle.dump(
+                    model.tr_loss,
+                    open(os.path.join(result_path, file_name.training_loss), "wb"),
+                )
+                pickle.dump(
+                    model.metric_at_k_total_epochs,
+                    open(os.path.join(result_path, file_name.metric), "wb"),
+                )
+                logger.info(
+                    f"Best validation ndcg@3: {best_val_ndcg} at epoch {best_val_ndcg_epoch}, Previous best validation ndcg@3: {prev_best_val_ndcg}"
+                )
+                logger.info(f"successfully saved {args.model} model: epoch {epoch}")
+            else:
+                patience -= 1
+                logger.info(
+                    f"Validation ndcg@3 did not decrease. Patience {patience} left."
+                )
+                if patience == 0:
+                    logger.info(
+                        f"Patience over. Early stopping at epoch {epoch} with {best_val_ndcg} validation ndcg@3"
+                    )
+                    early_stopping = True
+
+            # if patience is over, we early stop training
+            if early_stopping:
+                break
+
+        # Load the best model weights with highest validation ndcg@3
+        model.load_state_dict(best_model_weights)
+        logger.info("Load weight with best validation ndcg@3")
+
+        torch.save(
+            model.state_dict(),
+            str(os.path.join(result_path, file_name.weight)),
+        )
+        logger.info("Save final model with best validation ndcg@3")
 
         # calculate metric for test data with warm / cold / all users separately
         metric_dict_test = (
             metric_calculator.generate_recommendations_and_calculate_metric(
-                X_train=pd.DataFrame(
-                    data["X_train"], columns=["diner_idx", "reviewer_id"]
-                ),
-                X_val_warm_users=pd.DataFrame(
-                    data["X_test_warm_users"], columns=["diner_idx", "reviewer_id"]
-                ),
-                X_val_cold_users=pd.DataFrame(
-                    data["X_test_cold_users"], columns=["diner_idx", "reviewer_id"]
-                ),
+                X_train=data["X_train"],
+                X_val_warm_users=data["X_test_warm_users"],
+                X_val_cold_users=data["X_test_cold_users"],
                 most_popular_diner_ids=data["most_popular_diner_ids"],
                 filter_already_liked=True,
             )
@@ -402,5 +375,5 @@ def main(args: ArgumentParser.parse_args) -> None:
 
 
 if __name__ == "__main__":
-    args = parse_args_embedding()
+    args = parse_args_graph()
     main(args)

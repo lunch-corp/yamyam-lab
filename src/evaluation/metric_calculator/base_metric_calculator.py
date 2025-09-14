@@ -75,30 +75,40 @@ class BaseMetricCalculator:
         X_val_warm_users: pd.DataFrame,
         X_val_cold_users: pd.DataFrame,
         most_popular_diner_ids: List[int],
+        most_popular_rec_to_warm_users: bool = False,
         **kwargs: Any,
     ) -> Dict[str, Dict]:
         """
         Generate recommendations for warm / cold start users separately and calculate metric.
         For warm start users, `generate_recommendations` method will be used to generate recommendations.
         For cold start users, most popular items from train data will be used.
+        Note that depending on `most_popular_rec_to_warm_users` argument, most_popular logic will be identically applied to
+        warm users as it will be done to cold users.
 
         Args:
             X_train (pd.DataFrame): Train dataset in pandas dataframe.
             X_val_warm_users (pd.DataFrame): Validation or test dataset in pandas dataframe which consists only with warm start users.
             X_val_cold_users (pd.DataFrame): Validation or test dataset in pandas dataframe which consists only with cold start users.
             most_popular_diner_ids (List[int]): List of most popular diner_ids from train dataset.
+            most_popular_rec_to_warm_users (bool): Whether to recommend most_popular items to warm users or not.
 
         Returns (Dict[str, Dict]):
             Dictionary including calculated metric for warm start users, cold start users and all of users.
         """
         # calculate metric for warm/cold users separately
-        metric_at_k_warm_users = (
-            self._generate_recommendations_and_calculate_metric_for_warm_start_users(
+        # when `generate_recommendations` method is normally applied to warm users
+        if most_popular_rec_to_warm_users is False:
+            metric_at_k_warm_users = self._generate_recommendations_and_calculate_metric_for_warm_start_users(
                 X_train=X_train,
                 X_val_warm_users=X_val_warm_users,
                 **kwargs,
             )
-        )
+        # when `generate_recommendations` method will not be applied to warm users
+        else:
+            metric_at_k_warm_users = self._generate_recommendations_and_calculate_metric_for_cold_start_users(
+                X_val_cold_users=X_val_warm_users,
+                most_popular_diner_ids=most_popular_diner_ids,
+            )
         metric_at_k_cold_users = (
             self._generate_recommendations_and_calculate_metric_for_cold_start_users(
                 X_val_cold_users=X_val_cold_users,

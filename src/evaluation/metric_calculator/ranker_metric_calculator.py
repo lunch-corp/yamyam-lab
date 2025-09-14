@@ -50,7 +50,8 @@ class RankerMetricCalculator(BaseMetricCalculator):
         reco_items = []
         for user_id in user_ids:
             if user_id not in user_group.groups:
-                reco_items.append(np.array([]))
+                # 사용자에 대한 후보가 없는 경우 -1로 패딩
+                reco_items.append(np.full(max_k, -1))
                 continue
 
             user_candidates = user_group.get_group(user_id)["diner_idx"].values
@@ -66,7 +67,13 @@ class RankerMetricCalculator(BaseMetricCalculator):
                     ~np.isin(user_candidates, already_liked)
                 ]
 
-            # top-K만 추출
-            reco_items.append(user_candidates[:max_k])
+            # 후보가 max_k보다 적은 경우 -1로 패딩
+            if len(user_candidates) < max_k:
+                padded_candidates = np.full(max_k, -1)
+                padded_candidates[: len(user_candidates)] = user_candidates
+                reco_items.append(padded_candidates)
+            else:
+                # top-K만 추출
+                reco_items.append(user_candidates[:max_k])
 
         return np.vstack(reco_items)

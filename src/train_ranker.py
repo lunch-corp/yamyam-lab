@@ -5,15 +5,19 @@ import numpy as np
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from data.dataset import DataConfig, DatasetLoader
+from data.config import DataConfig
+from data.ranker import RankerDatasetLoader
 from evaluation.metric_calculator.ranker_metric_calculator import RankerMetricCalculator
 
 
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")
 def main(cfg: DictConfig):
     # load dataset
-    data_loader = DatasetLoader(data_config=DataConfig(**cfg.data))
-    data = data_loader.prepare_train_val_dataset(is_rank=True)
+    data_loader = RankerDatasetLoader(data_config=DataConfig(**cfg.data))
+    data = data_loader.prepare_ranker_dataset(
+        is_rank=True,
+        filter_config=cfg.preprocess.filter,
+    )
 
     # mapping reverse
     X_train, y_train, X_valid, y_valid, X_test_cold_users, X_test_warm_users = (
@@ -59,7 +63,6 @@ def main(cfg: DictConfig):
         recommend_batch_size=cfg.training.evaluation.recommend_batch_size,
         filter_already_liked=True,
     )
-
     metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
         X_train=X_train,
         X_val_warm_users=X_test_warm_users,

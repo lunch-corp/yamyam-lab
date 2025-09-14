@@ -78,7 +78,7 @@ class BaseEmbedding(nn.Module):
         if self.model_name in ["node2vec", "metapath2vec"]:
             # trainable parameters
             self._embedding = Embedding(self.num_nodes, self.embedding_dim)
-        elif self.model_name == "graphsage":
+        elif self.model_name in ["graphsage", "lightgcn"]:
             # not trainable parameters, but result tensors from model forwarding
             self._embedding = torch.empty((self.num_nodes, self.embedding_dim)).to(
                 self.device
