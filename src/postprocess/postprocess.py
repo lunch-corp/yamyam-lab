@@ -4,7 +4,11 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from abc import ABC, abstractmethod
+
 from tools.utils import haversine
+
+from typing import Dict, Iterable, List, Tuple
 
 
 class ReRankerUtils:
@@ -76,18 +80,17 @@ class ReRankerUtils:
         return min(k, L)
 
 
-class BaseReranker:
+class BaseReranker(ABC):
     """Abstract base class for reranking strategies."""
-
     def __init__(
         self,
         lambda_div: float = 0.55,
         w_cat: float = 0.5,
         w_geo: float = 0.5,
         geo_tau_km: float = 2.0,
-        coverage_min: Optional[Dict[str, int]] = None,
-        coverage_max: Optional[Dict[str, int]] = None,
-        region_of: Optional[Dict[int, str]] = None,
+        coverage_min: dict[str, int] | None = None,
+        coverage_max: dict[str, int] | None = None,
+        region_of: dict[int, str] | None= None,
         prefix_freeze: int = 0,
         coverage_step: float = 0.05,
     ) -> None:
@@ -100,7 +103,8 @@ class BaseReranker:
         self.region_of = region_of
         self.prefix_freeze = prefix_freeze
         self.coverage_step = coverage_step
-
+    
+    @abstractmethod
     def rerank(
         self,
         item_ids: np.ndarray,
@@ -114,6 +118,8 @@ class BaseReranker:
 
 class MostPopularReranker(BaseReranker):
     """Rerank most popular items with diversity (category + geo) using MMR."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     @staticmethod
     def prepare_meta(item_meta: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[int, int]]:
@@ -148,7 +154,7 @@ class MostPopularReranker(BaseReranker):
         item_ids: np.ndarray,
         rel: np.ndarray,
         id2row: Dict[int, int],
-        top_m: Optional[int] = None,
+        top_m: int | None = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Filter candidate items by available metadata and optionally keep only top-M by relevance.
@@ -157,7 +163,7 @@ class MostPopularReranker(BaseReranker):
             item_ids (np.ndarray): Candidate item IDs.
             rel (np.ndarray): Relevance scores for items.
             id2row (Dict[int, int]): Mapping from diner_idx to row index.
-            top_m (Optional[int]): If set, keep only top-M items by relevance.
+            top_m (int | None): If set, keep only top-M items by relevance.
 
         Returns:
             Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -198,7 +204,7 @@ class MostPopularReranker(BaseReranker):
     def build_coverage_labels(
         item_ids: np.ndarray,
         cats: pd.Series,
-        region_of: Optional[Dict[int, str]] = None,
+        region_of: dict[int, str] | None = None,
     ) -> Tuple[List[List[str]], Dict[str, np.ndarray]]:
         """
         Build coverage labels for items (category + region) and index mapping.
@@ -206,7 +212,7 @@ class MostPopularReranker(BaseReranker):
         Args:
             item_ids (np.ndarray): Candidate item IDs.
             cats (pd.Series): Category labels for items.
-            region_of (Optional[Dict[int, str]]): Mapping from item_id to region label.
+            region_of (dict[int, str] | None): Mapping from item_id to region label.
 
         Returns:
             Tuple[List[List[str]], Dict[str, np.ndarray]]:
@@ -376,16 +382,17 @@ class MostPopularReranker(BaseReranker):
             np.ascontiguousarray(cos_lat, dtype=np.float32),
         )
 
+    @abstractmethod 
     def rerank(
         self,
         item_ids: np.ndarray,
         base_scores: np.ndarray,
         item_meta: pd.DataFrame,
         k: int,
-        popularity_scores: Optional[np.ndarray] = None,
+        popularity_scores: np.ndarray | None = None,
         popularity_weight: float = 0.0,
         normalize_rel: bool = True,
-        top_m: Optional[int] = None,
+        top_m: int | None = None,
         debug: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray]:
         k = ReRankerUtils.validate_and_clip_k(item_ids, base_scores, k)
@@ -533,7 +540,7 @@ class RegionPeripheryReranker(MostPopularReranker):
     def __init__(
         self,
         region_label: str = "서울 강남구",
-        hotspot_coords: Optional[Iterable[Tuple[float, float]]] = None,
+        hotspot_coords: Iterable[tuple[float, float]] | None = None,
         n_auto_hotspots: int = 5,
         periphery_strength: float = 0.5,
         periphery_cap: float = 0.15,

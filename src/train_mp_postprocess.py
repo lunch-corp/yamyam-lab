@@ -6,14 +6,13 @@ import numpy as np
 import pandas as pd
 
 from data.dataset import DataConfig, DatasetLoader
-from evaluation.metric_calculator import ALSMetricCalculator
-from model import ALS
-from postprocess.postprocess import RegionPeripheryReranker
 
-# from postprocess.postprocess import rerank_region_periphery
 from tools.config import load_yaml
-from tools.logger import setup_logger
-from tools.parse_args import parse_args_als, save_command_to_file
+from tools.logger import setup_logger, common_logging
+from tools.parse_args import save_command_to_file
+from postprocess.postprocess import RegionPeripheryReranker
+from evaluation.metric_calculator import MostPopularMetricCalculator
+
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
@@ -56,6 +55,8 @@ def main(args) -> None:
         data_loader = DatasetLoader(data_config=data_config)
         data = data_loader.prepare_train_val_dataset(is_csr=True)
 
+        common_logging(config, data, logger)
+
         _, diner_data, diner_category_data = data_loader.load_dataset()
         diner_meta = pd.merge(
             diner_data[["diner_idx", "diner_lat", "diner_lon"]],
@@ -72,121 +73,48 @@ def main(args) -> None:
         candidates = np.array(data["most_popular_diner_ids"], dtype=np.int64)
         base_scores = 1.0 / (np.arange(len(candidates)) + 1)
 
+
         reranker = RegionPeripheryReranker(
-            region_label="서울 강남구",
-            hotspot_coords=None,
-            n_auto_hotspots=5,
-            periphery_strength=0.5,
-            periphery_cap=0.15,
-            lambda_div=0.55,
-            w_cat=0.5,
-            w_geo=0.5,
-            geo_tau_km=2.0,
+            region_label=args.region_label,
+            hotspot_coords=args.hotspot_coords,
+            n_auto_hotspots=args.n_auto_hotspots,
+            periphery_strength=args.periphery_strength,
+            periphery_cap=args.periphery_cap,
+            lambda_div=args.lambda_div,
+            w_cat=args.w_cat,
+            w_geo=args.w_geo,
+            geo_tau_km=args.geo_tau_km,
         )
 
         reranked_ids, _ = reranker.rerank(
             item_ids=candidates,
             base_scores=base_scores,
-            item_meta=diner_meta,  # 주의: 함수 버전에서는 item_meta_std였는데, 클래스에서는 그냥 item_meta로 받음
+            item_meta=diner_meta,  
             k=max(top_k_values),
         )
 
-        reranked_most_popular = reranked_ids.tolist()
+        # reranked_most_popular = reranked_ids.tolist()
+        diner_mapping = data["diner_mapping"]
+        reranked_most_popular_internal = [
+            diner_mapping[ext_id] for ext_id in reranked_ids if ext_id in diner_mapping
+        ]
+        
 
-        logger.info("######## Number of reviews statistics ########")
-        logger.info(f"Number of reviews in train: {data['X_train'].data.shape[0]}")
-        logger.info(f"Number of reviews in val: {data['X_val'].data.shape[0]}")
-        logger.info(f"Number of reviews in test: {data['X_test'].data.shape[0]}")
 
-        logger.info("######## Train data statistics ########")
-        logger.info(f"Number of users in train: {len(data['train_user_ids'])}")
-        logger.info(f"Number of diners in train: {len(data['train_diner_ids'])}")
-        logger.info(f"Number of feedbacks in train: {data['X_train'].data.shape[0]}")
-        train_density = round(
-            100
-            * data["X_train"].data.shape[0]
-            / (len(data["train_user_ids"]) * len(data["train_diner_ids"])),
-            4,
-        )
-        logger.info(f"Train data density: {train_density}%")
-
-        logger.info("######## Validation data statistics ########")
-        logger.info(f"Number of users in val: {len(data['val_user_ids'])}")
-        logger.info(f"Number of diners in val: {len(data['val_diner_ids'])}")
-        logger.info(f"Number of feedbacks in val: {data['X_val'].data.shape[0]}")
-        val_density = round(
-            100
-            * data["X_val"].data.shape[0]
-            / (len(data["val_user_ids"]) * len(data["val_diner_ids"])),
-            4,
-        )
-        logger.info(f"Validation data density: {val_density}%")
-
-        logger.info("######## Test data statistics ########")
-        logger.info(f"Number of users in test: {len(data['test_user_ids'])}")
-        logger.info(f"Number of diners in test: {len(data['test_diner_ids'])}")
-        logger.info(f"Number of feedbacks in test: {data['X_test'].data.shape[0]}")
-        test_density = round(
-            100
-            * data["X_test"].data.shape[0]
-            / (len(data["test_user_ids"]) * len(data["test_diner_ids"])),
-            4,
-        )
-        logger.info(f"Test data density: {test_density}%")
-
-        logger.info(
-            "######## Warm / Cold users analysis in validation and test dataset ########"
-        )
-        logger.info(
-            f"Number of users within train, but not in val: {len(set(data['train_user_ids']) - set(data['val_user_ids']))}"
-        )
-        logger.info(
-            f"Number of users within train, but not in test: {len(set(data['train_user_ids']) - set(data['test_user_ids']))}"
-        )
-        logger.info(
-            f"Number of warm start users in val: {len(data['val_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in val: {len(data['val_cold_start_user_ids'])}"
-        )
-        logger.info(
-            f"Ratio of cold start users in val: {100 * round(len(data['val_cold_start_user_ids']) / (len(data['val_warm_start_user_ids']) + len(data['val_cold_start_user_ids'])), 4)}%"
-        )
-        logger.info(
-            f"Number of warm start users in test: {len(data['test_warm_start_user_ids'])}"
-        )
-        logger.info(
-            f"Number of cold start users in test: {len(data['test_cold_start_user_ids'])}"
-        )
-        logger.info(
-            f"Ratio of cold start users in test: {100 * round(len(data['test_cold_start_user_ids']) / (len(data['test_warm_start_user_ids']) + len(data['test_cold_start_user_ids'])), 4)}%"
-        )
-
-        model = ALS(
-            alpha=args.alpha,
-            factors=args.factors,
-            regularization=args.regularization,
-            iterations=args.iterations,
-            use_gpu=args.use_gpu,
-            calculate_training_loss=args.calculate_training_loss,
-        )
-
-        model.fit(data["X_train"])
-
-        metric_calculator = ALSMetricCalculator(
+        metric_calculator = MostPopularMetricCalculator(
             diner_ids=list(data["diner_mapping"].values()),
-            model=model,
             top_k_values=top_k_values,
             filter_already_liked=True,
             recommend_batch_size=config.training.evaluation.recommend_batch_size,
             logger=logger,
         )
 
+
         metric_dict = metric_calculator.generate_recommendations_and_calculate_metric(
             X_train=data["X_train_df"],
             X_val_warm_users=data["X_val_warm_users"],
             X_val_cold_users=data["X_val_cold_users"],
-            most_popular_diner_ids=reranked_most_popular,
+            most_popular_diner_ids=reranked_most_popular_internal,
             filter_already_liked=True,
             train_csr=data["X_train"],
         )
@@ -208,7 +136,7 @@ def main(args) -> None:
             X_train=data["X_train_df"],
             X_val_warm_users=data["X_test_warm_users"],
             X_val_cold_users=data["X_test_cold_users"],
-            most_popular_diner_ids=reranked_most_popular,
+            most_popular_diner_ids=reranked_most_popular_internal,
             filter_already_liked=True,
             train_csr=data["X_train"],
         )
@@ -227,5 +155,4 @@ def main(args) -> None:
 
 
 if __name__ == "__main__":
-    args = parse_args_als()
-    main(args)
+    main()
