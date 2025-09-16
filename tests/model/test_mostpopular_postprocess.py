@@ -1,0 +1,146 @@
+
+try:
+    import os
+    import sys
+    sys.path.append(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src")
+    )
+except ModuleNotFoundError:
+    raise Exception("Module not found")
+
+import pytest
+from types import SimpleNamespace
+
+from train_most_popular_postprocess import main
+
+@pytest.mark.parametrize(
+       "setup_mostpopular_config",
+    [
+        (
+            "mostpopular",
+            {
+                "region_label": "서울 강남구",
+                "hotspot_coords": None,
+                "n_auto_hotspots": 0,
+                "periphery_strength": 0.1,
+                "periphery_cap": 0.03,
+                "lambda_div": 0.9,
+                "w_cat": 0.1,
+                "w_geo": 0.1,
+                "geo_tau_km": 8.0,
+                "prefix_freeze": 15,
+            },
+            1,
+        ),
+        (
+            "mostpopular",
+            {
+                "region_label": "서울 강남구",
+                "hotspot_coords": None,
+                "n_auto_hotspots": 0,
+                "periphery_strength": 0.12,
+                "periphery_cap": 0.04,
+                "lambda_div": 0.85,
+                "w_cat": 0.15,
+                "w_geo": 0.15,
+                "geo_tau_km": 10.0,
+                "prefix_freeze": 10,
+            },
+            1,
+        ),
+        (
+            "mostpopular",
+            {
+                "region_label": "서울 강남구",
+                "hotspot_coords": None,
+                "n_auto_hotspots": 0,
+                "periphery_strength": 0.08,
+                "periphery_cap": 0.03,
+                "lambda_div": 0.92,
+                "w_cat": 0.12,
+                "w_geo": 0.05,
+                "geo_tau_km": 12.0,
+                "prefix_freeze": 20,
+            },
+            1,
+        ),
+        (
+            "mostpopular",
+            {
+                "region_label": "서울 강남구",
+                "hotspot_coords": None,
+                "n_auto_hotspots": 0,
+                "periphery_strength": 0.0,
+                "periphery_cap": 0.15,
+                "lambda_div": 0.55,
+                "w_cat": 0.5,
+                "w_geo": 0.5,
+                "geo_tau_km": 2.0,
+            },
+            1,
+        ),
+        (
+            "mostpopular",
+            {
+                "region_label": "서울 강남구",
+                "hotspot_coords": None,
+                "n_auto_hotspots": 0,
+                "periphery_strength": 0.8,
+                "periphery_cap": 0.20,
+                "lambda_div": 0.40,
+                "w_cat": 0.3,
+                "w_geo": 0.7,
+                "geo_tau_km": 1.0,
+            },
+            1,
+        ),
+        (
+            "mostpopular",
+            {
+                "region_label": "서울 강남구",
+                "hotspot_coords": None,
+                "n_auto_hotspots": 3,
+                "periphery_strength": 0.5,
+                "periphery_cap": 0.10,
+                "lambda_div": 0.20,
+                "w_cat": 0.7,
+                "w_geo": 0.3,
+                "geo_tau_km": 3.0,
+            },
+            1,
+        ),
+        (
+            "mostpopular",
+            {
+                "region_label": "서울 강남구",
+                "hotspot_coords": None,
+                "n_auto_hotspots": 5,
+                "periphery_strength": 0.2,
+                "periphery_cap": 0.05,
+                "lambda_div": 0.90,
+                "w_cat": 0.6,
+                "w_geo": 0.4,
+                "geo_tau_km": 5.0,
+            },
+            1,
+        ),
+        (
+            "mostpopular",
+            {
+                "region_label": "서울 강남구",
+                "hotspot_coords": None,
+                "n_auto_hotspots": 2,
+                "periphery_strength": 0.6,
+                "periphery_cap": 0.25,
+                "lambda_div": 0.50,
+                "w_cat": 0.1,
+                "w_geo": 0.9,
+                "geo_tau_km": 0.5,
+            },
+            1,
+        ),
+    ],
+    indirect=["setup_mostpopular_config"],
+)
+def test_run_rerank_most_popular(most_popular_postprocess_config):
+    main(most_popular_postprocess_config)

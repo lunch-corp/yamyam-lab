@@ -23,19 +23,19 @@ def parse_args():
     parser.add_argument("--embedding_dim", type=int, default=32)
     parser.add_argument("--test_ratio", type=float, default=0.3)
     parser.add_argument("--random_state", type=int, default=42)
-    parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--test", action="store_true")
     return parser.parse_args()
 
 
-def parse_args_embedding():
+def parse_args_graph():
     parser = argparse.ArgumentParser()
     # common parameter
     parser.add_argument(
         "--model",
         type=str,
         required=True,
-        choices=["node2vec", "metapath2vec", "graphsage"],
+        choices=["node2vec", "metapath2vec", "graphsage", "lightgcn"],
     )
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--batch_size", type=int, default=128)
@@ -47,6 +47,7 @@ def parse_args_embedding():
     parser.add_argument("--num_negative_samples", type=int, default=1)
     parser.add_argument("--weighted_edge", action="store_true")
     parser.add_argument("--use_metadata", action="store_true")
+    parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--test", action="store_true")
 
     # node2vec parameter
@@ -66,6 +67,10 @@ def parse_args_embedding():
         "--aggregator_funcs", type=str, nargs="*", default=["mean", "mean"]
     )
     parser.add_argument("--num_neighbor_samples", type=int, default=3)
+
+    # lightgcn parameter
+    parser.add_argument("--num_lightgcn_layers", type=int, default=3)
+    parser.add_argument("--drop_ratio", type=float, default=0.1)
 
     # candidate generation parameter for two-stage reco
     parser.add_argument("--save_candidate", action="store_true", required=False)
@@ -102,6 +107,23 @@ def parse_args_als():
     parser.add_argument("--save_candidate", action="store_true", required=False)
     parser.add_argument("--reusable_token_path", type=str, required=False)
     return parser.parse_args()
+
+
+
+def parse_args_mostpopular_postprocess():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--region_label", type=str, default="서울 강남구")
+    parser.add_argument("--hotspot_coords", type=str, default=None)
+    parser.add_argument("--n_auto_hotspots", type=int, default=2)
+    parser.add_argument("--periphery_strength", type=float, default=0.25)
+    parser.add_argument("--periphery_cap", type=float, default=0.05)
+    parser.add_argument("--lambda_div", type=float, default=0.9)
+    parser.add_argument("--w_cat", type=float, default=0.1)
+    parser.add_argument("--w_geo", type=float, default=0.2)
+    parser.add_argument("--geo_tau_km", type=float, default=0.1)
+    return parser.parse_args()
+
+
 
 
 def save_command_to_file(save_path):
