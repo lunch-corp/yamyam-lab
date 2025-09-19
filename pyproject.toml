@@ -42,6 +42,10 @@ shap = "^0.47.2"
 lime = "^0.2.0.1"
 wordcloud = "^1.9.4"
 kiwipiepy = "0.21.0"
+networkx = "^3.5"
+osmnx = "^2.0.6"
+geopandas = "^1.1.1"
+requests = "^2.32.5"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "4.0.*"

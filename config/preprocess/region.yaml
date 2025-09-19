@@ -1,0 +1,100 @@
+# 지역 클러스터링 설정 파일
+# yamyam-lab 음식점 추천용 도보 권역 생성 설정
+
+# 기본 지역 설정
+region:
+  default_name: "서울특별시"
+  test_regions:
+    - "영등포구"  # 작고 테스트하기 좋음 (추천!)
+    - "중구"      # 작은 지역, 빠른 실행
+    - "성동구"    # 중간 크기
+    - "강남구"    # 상대적으로 큰 지역
+
+# H3 설정
+h3:
+  resolution: 10  # H3 해상도 (10 권장)
+
+# 거리 설정 (미터) - h3 resolution에 따라 달라져야하는 값
+distance:
+  walking_threshold: 500    # 도보 거리 임계값
+  max_region_distance: 2000 # 최대 권역 거리 (지름)
+  max_reassign_distance: 750 # 고아 셀 재할당 최대 거리 (walking_threshold * 1.5)
+
+# 거리 계산 방식
+distance_calculation:
+  metric: "osrm_then_haversine"  # osrm, haversine, osrm_then_haversine
+  osrm:
+    base_url: "https://router.project-osrm.org"
+    profile: "foot"  # foot, driving, cycling
+    timeout: 5.0     # 초
+
+# 권역 크기 제한
+region_size:
+  min_cells: 2      # 권역당 최소 셀 수
+  max_cells: null   # 권역당 최대 셀 수 (null = 제한 없음)
+
+# 고아 셀 처리
+orphan_handling:
+  enable_reassign: true    # 고아 셀 재할당 활성화
+  max_distance: null       # null이면 walking_threshold * 1.5 사용
+
+# 캐시 설정
+cache:
+  use_osrm_cache: true
+  osrm_cache_dir: "data/cache/osrm"
+
+# 성능 설정
+performance:
+  kring: 1  # H3 k-ring 이웃 탐색 깊이 (1 권장)
+
+# 출력 설정
+output:
+  default_dir: "data/processed/regions"
+  save_intermediate: true   # 중간 그래프 분석 결과 저장
+  formats:
+    - "csv"
+    - "geojson"
+
+# 음식점 데이터 설정
+restaurant_data:
+  use_data: true           # 음식점 데이터 사용 여부
+  required_columns:        # 필수 컬럼들
+    - "diner_idx"
+    - "diner_name"
+    - "diner_lat"
+    - "diner_lon"
+    - "diner_review_cnt"
+    - "diner_review_avg"
+    - "diner_road_address"
+  optional_columns:        # 선택 컬럼들
+    - "bayesian_score"
+
+# 로깅 설정
+logging:
+  level: "INFO"           # DEBUG, INFO, WARNING, ERROR
+  save_to_file: true
+  log_dir: "logs"
+
+# 검증 설정
+validation:
+  coordinate_bounds:      # 서울 좌표 범위
+    lat_min: 37.0
+    lat_max: 38.0
+    lon_min: 126.0
+    lon_max: 128.0
+
+# 프리셋 설정들
+presets:
+  test:
+    region_name: "중구"
+    walking_threshold: 400
+    max_region_distance: 1500
+    min_cells: 20
+    max_cells: 25
+
+  production:
+    region_name: "서울특별시"
+    walking_threshold: 500
+    max_region_distance: 2500
+    min_cells: 20
+    max_cells: 25

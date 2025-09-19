@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Self
 
+import yaml
+
 
 @dataclass
 class DataConfig:
@@ -31,3 +33,38 @@ class DataConfig:
         self.diner_engineered_feature_names = self.diner_engineered_feature_names or {}
         self.X_columns = self.X_columns or ["diner_idx", "reviewer_id"]
         self.y_columns = self.y_columns or ["reviewer_review_score"]
+
+    @classmethod
+    def from_yaml(cls, path: str) -> "DataConfig":
+        """
+        Create DataConfig from a YAML file. Unknown fields are ignored.
+        """
+        with open(path, "r") as f:
+            obj = yaml.safe_load(f) or {}
+
+        # Only keep keys that exist in DataConfig
+        valid_keys = {
+            "user_engineered_feature_names",
+            "diner_engineered_feature_names",
+            "X_columns",
+            "y_columns",
+            "category_column_for_meta",
+            "num_neg_samples",
+            "sampling_type",
+            "test_size",
+            "min_reviews",
+            "random_state",
+            "stratify",
+            "is_timeseries_by_users",
+            "is_timeseries_by_time_point",
+            "train_time_point",
+            "test_time_point",
+            "val_time_point",
+            "end_time_point",
+            "use_unique_mapping_id",
+            "test",
+            "candidate_type",
+            "additional_reviews_path",
+        }
+        filtered = {k: v for k, v in obj.items() if k in valid_keys}
+        return cls(**filtered)
