@@ -53,7 +53,7 @@ class CategoryProcessor:
             yaml.YAMLError: YAML 파일 파싱 오류 발생 시.
         """
         config_path: Path = (
-            Path(__file__).parents[2] / "config" / "data" / "category_mappings.yaml"
+            Path(__file__).parents[3] / "config" / "data" / "category_mappings.yaml"
         )
         try:
             with open(config_path, "r", encoding="utf-8") as f:
