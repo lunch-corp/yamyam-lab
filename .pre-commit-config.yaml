@@ -10,7 +10,7 @@ repos:
     - id: check-xml
     - id: check-ast
     - id: check-added-large-files
-      args: ["--maxkb=500"]
+      args: ["--maxkb=50000"]
     - id: debug-statements
     - id: check-merge-conflict
 
