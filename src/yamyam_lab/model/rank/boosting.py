@@ -13,7 +13,7 @@ import xgboost as xgb
 from catboost import CatBoostRanker, Pool
 from omegaconf import OmegaConf
 
-from model.rank.base import BaseModel
+from yamyam_lab.model.rank.base import BaseModel
 
 
 class LightGBMTrainer(BaseModel):

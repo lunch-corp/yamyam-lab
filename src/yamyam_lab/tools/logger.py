@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict
 
-from data.base import BaseDatasetLoader
+from yamyam_lab.data.base import BaseDatasetLoader
 
 
 def setup_logger(log_file):

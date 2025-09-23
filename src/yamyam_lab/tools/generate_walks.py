@@ -5,12 +5,13 @@ from typing import Any, Dict, List, Tuple, Union
 import networkx as nx
 import numpy as np
 import torch
-from constant.embedding.metapath2vec import TransitionKeyMetaPath
-from constant.embedding.node2vec import TransitionKey
 from numpy.typing import NDArray
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
+
+from yamyam_lab.constant.embedding.metapath2vec import TransitionKeyMetaPath
+from yamyam_lab.constant.embedding.node2vec import TransitionKey
 
 """
 source: https://github.com/eliorc/node2vec/blob/master/node2vec/parallel.py

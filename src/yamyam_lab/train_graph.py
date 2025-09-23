@@ -8,17 +8,17 @@ from datetime import datetime
 
 import torch
 import torch.multiprocessing as mp
-from evaluation.metric_calculator import EmbeddingMetricCalculator
-from tools.config import load_yaml
-from tools.google_drive import GoogleDriveManager
-from tools.logger import common_logging, setup_logger
-from tools.parse_args import parse_args_graph, save_command_to_file
-from tools.plot import plot_metric_at_k
-from tools.zip import zip_files_in_directory
 from torch.utils.data import DataLoader
 
-from data.config import DataConfig
-from data.graph import GraphDatasetLoader
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.graph import GraphDatasetLoader
+from yamyam_lab.evaluation.metric_calculator import EmbeddingMetricCalculator
+from yamyam_lab.tools.config import load_yaml
+from yamyam_lab.tools.google_drive import GoogleDriveManager
+from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.parse_args import parse_args_graph, save_command_to_file
+from yamyam_lab.tools.plot import plot_metric_at_k
+from yamyam_lab.tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/graph/{model}.yaml")

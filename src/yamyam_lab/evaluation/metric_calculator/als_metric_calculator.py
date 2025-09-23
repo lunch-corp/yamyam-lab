@@ -1,10 +1,12 @@
 import logging
 from typing import Any, List
 
-from model.mf.als import ALS
 from numpy.typing import NDArray
 
-from evaluation.metric_calculator.base_metric_calculator import BaseMetricCalculator
+from yamyam_lab.evaluation.metric_calculator.base_metric_calculator import (
+    BaseMetricCalculator,
+)
+from yamyam_lab.model.mf.als import ALS
 
 
 class ALSMetricCalculator(BaseMetricCalculator):

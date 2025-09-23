@@ -1,9 +1,10 @@
 from typing import Dict
 
 import numpy as np
-from constant.metric.metric import Metric
 from numpy.typing import NDArray
-from tools.utils import safe_divide
+
+from yamyam_lab.constant.metric.metric import Metric
+from yamyam_lab.tools.utils import safe_divide
 
 
 def ranked_precision(liked_item: int, reco_items: NDArray) -> float:

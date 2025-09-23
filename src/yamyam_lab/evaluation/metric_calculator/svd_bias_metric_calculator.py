@@ -2,11 +2,11 @@ import logging
 from typing import Any, List
 
 import torch
-from model.mf.svd_bias import Model
 from numpy.typing import NDArray
 from torch.nn import Embedding
 
-from evaluation.metric_calculator import BaseMetricCalculator
+from yamyam_lab.evaluation.metric_calculator import BaseMetricCalculator
+from yamyam_lab.model.mf.svd_bias import Model
 
 
 class SVDBiasMetricCalculator(BaseMetricCalculator):

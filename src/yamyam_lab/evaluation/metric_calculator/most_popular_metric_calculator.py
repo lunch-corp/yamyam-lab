@@ -3,7 +3,9 @@ from typing import Any, List
 
 from numpy.typing import NDArray
 
-from evaluation.metric_calculator.base_metric_calculator import BaseMetricCalculator
+from yamyam_lab.evaluation.metric_calculator.base_metric_calculator import (
+    BaseMetricCalculator,
+)
 
 
 class MostPopularMetricCalculator(BaseMetricCalculator):

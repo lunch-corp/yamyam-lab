@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from tools.sampling import np_edge_dropout
 from torch import Tensor
 
-from model.graph.base_embedding import BaseEmbedding
+from yamyam_lab.model.graph.base_embedding import BaseEmbedding
 
 
 class Model(BaseEmbedding):

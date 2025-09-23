@@ -1,6 +1,5 @@
 import os
 import pickle
-import sys
 import traceback
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -9,18 +8,13 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
+from evaluation.qualitative.base_qualitative_evaluation import BaseQualitativeEvaluation
 from numpy.typing import NDArray
 from torch import Tensor
 
-sys.path.append(
-    os.path.join(os.path.join(os.path.dirname(__file__), "../../.."), "src")
-)
-
-from model.graph.node2vec import Model
-from tools.logger import setup_logger
-from tools.parse_args import parse_args_eval
-
-from evaluation.qualitative.base_qualitative_evaluation import BaseQualitativeEvaluation
+from yamyam_lab.model.graph.node2vec import Model
+from yamyam_lab.tools.logger import setup_logger
+from yamyam_lab.tools.parse_args import parse_args_eval
 
 
 class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):

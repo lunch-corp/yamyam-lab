@@ -4,9 +4,9 @@ import hydra
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from prettytable import PrettyTable
-from tools.utils import get_kakao_lat_lng, haversine
 
-from data.ranker import load_test_dataset
+from yamyam_lab.data.ranker import load_test_dataset
+from yamyam_lab.tools.utils import get_kakao_lat_lng, haversine
 
 
 @hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")

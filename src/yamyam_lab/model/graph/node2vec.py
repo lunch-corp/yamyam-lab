@@ -2,11 +2,11 @@ from typing import List, Tuple, Union
 
 import networkx as nx
 import torch
-from loss.custom import basic_contrastive_loss
-from tools.generate_walks import precompute_probabilities
 from torch import Tensor
 
-from model.graph.base_embedding import BaseEmbedding
+from yamyam_lab.loss.custom import basic_contrastive_loss
+from yamyam_lab.model.graph.base_embedding import BaseEmbedding
+from yamyam_lab.tools.generate_walks import precompute_probabilities
 
 
 class Model(BaseEmbedding):

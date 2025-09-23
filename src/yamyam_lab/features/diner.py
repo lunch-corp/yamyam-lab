@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Self
 import numpy as np
 import pandas as pd
 import yaml
-from tools.h3 import get_h3_index, get_hexagon_neighbors
+
+from yamyam_lab.tools.h3 import get_h3_index, get_hexagon_neighbors
 
 from .base import BaseFeatureStore
 

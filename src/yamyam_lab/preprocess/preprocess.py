@@ -8,9 +8,9 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
-from data.validator import DataValidator
-from preprocess.diner_transform import CategoryProcessor
-from preprocess.filter import Filter
+from yamyam_lab.data.validator import DataValidator
+from yamyam_lab.preprocess.diner_transform import CategoryProcessor
+from yamyam_lab.preprocess.filter import Filter
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 

@@ -9,7 +9,7 @@ from preprocess.diner_transform import CategoryProcessor
 from prettytable import PrettyTable
 from torch import Tensor
 
-from candidate.near import NearCandidateGenerator
+from yamyam_lab.candidate.near import NearCandidateGenerator
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../data")
 

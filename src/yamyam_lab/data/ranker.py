@@ -3,11 +3,11 @@ from typing import Any, Dict, Self, Tuple
 import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
-from tools.utils import reduce_mem_usage
 from tqdm import tqdm
 
-from data.base import BaseDatasetLoader
-from data.config import DataConfig
+from yamyam_lab.data.base import BaseDatasetLoader
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.tools.utils import reduce_mem_usage
 
 
 class RankerDatasetLoader(BaseDatasetLoader):
