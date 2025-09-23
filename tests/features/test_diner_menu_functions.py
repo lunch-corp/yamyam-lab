@@ -65,7 +65,7 @@ class TestDinerMenuFunctions:
         # Mock h3 imports and config loading
         with patch.dict("sys.modules", {"tools": Mock(), "tools.h3": Mock()}):
             # Import after mocking
-            from src.features.diner import DinerFeatureStore
+            from src.yamyam_lab.features.diner import DinerFeatureStore
 
             # Mock the config loading
             def mock_load_config(self):
