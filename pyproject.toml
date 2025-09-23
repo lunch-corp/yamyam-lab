@@ -1,9 +1,10 @@
 [tool.poetry]
-name = "src"
+name = "yamyam-lab"
 version = "0.1.0"
 description = ""
 authors = ["yamyam-members"]
 readme = "README.md"
+packages = [{include = "yamyam_lab", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
