@@ -33,9 +33,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
-from src.data.config import DataConfig  # noqa: E402
-from src.preprocess.region import build_walking_regions  # noqa: E402
-from src.tools.config import load_yaml  # noqa: E402
+from yamyam_lab.data.config import DataConfig  # noqa: E402
+from yamyam_lab.preprocess.region import build_walking_regions  # noqa: E402
+from yamyam_lab.tools.config import load_yaml  # noqa: E402
 
 # 로깅 설정
 logging.basicConfig(

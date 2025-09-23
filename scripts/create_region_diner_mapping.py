@@ -33,7 +33,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
-from src.tools.region_mapper import RegionMapper  # noqa: E402
+from yamyam_lab.tools.region_mapper import RegionMapper  # noqa: E402
 
 # 로깅 설정
 logging.basicConfig(
