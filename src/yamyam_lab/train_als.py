@@ -14,7 +14,7 @@ from yamyam_lab.tools.logger import common_logging, setup_logger
 from yamyam_lab.tools.parse_args import parse_args_als, save_command_to_file
 from yamyam_lab.tools.zip import zip_files_in_directory
 
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
 PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")

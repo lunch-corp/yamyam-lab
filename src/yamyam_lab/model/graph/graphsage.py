@@ -4,10 +4,10 @@ import networkx as nx
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model.graph.base_embedding import BaseEmbedding
 from torch import Tensor
 
 from yamyam_lab.loss.custom import basic_contrastive_loss
+from yamyam_lab.model.graph.base_embedding import BaseEmbedding
 from yamyam_lab.tools.generate_walks import precompute_probabilities
 from yamyam_lab.tools.sampling import (
     uniform_sampling_without_replacement_from_small_size_pool,

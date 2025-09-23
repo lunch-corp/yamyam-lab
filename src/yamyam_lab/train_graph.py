@@ -20,7 +20,7 @@ from yamyam_lab.tools.parse_args import parse_args_graph, save_command_to_file
 from yamyam_lab.tools.plot import plot_metric_at_k
 from yamyam_lab.tools.zip import zip_files_in_directory
 
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/graph/{model}.yaml")
 PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
 
@@ -124,7 +124,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
 
         # import embedding module
-        model_path = f"model.graph.{args.model}"
+        model_path = f"yamyam_lab.model.graph.{args.model}"
         model_module = importlib.import_module(model_path).Model
         model = model_module(
             user_ids=torch.tensor(list(data["user_mapping"].values())).to(args.device),

@@ -135,7 +135,7 @@ class MFDatasetLoader(BaseDatasetLoader):
         """
         Create torch dataloader and return other data used in evaluation.
         """
-        from preprocess.preprocess import prepare_torch_dataloader
+        from yamyam_lab.preprocess.preprocess import prepare_torch_dataloader
 
         X_train = torch.tensor(train[self.X_columns].values)
         y_train = torch.tensor(train[self.y_columns].values, dtype=torch.float32)

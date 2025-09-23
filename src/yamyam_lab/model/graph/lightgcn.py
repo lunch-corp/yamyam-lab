@@ -6,10 +6,10 @@ import scipy.sparse as sp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tools.sampling import np_edge_dropout
 from torch import Tensor
 
 from yamyam_lab.model.graph.base_embedding import BaseEmbedding
+from yamyam_lab.tools.sampling import np_edge_dropout
 
 
 class Model(BaseEmbedding):
