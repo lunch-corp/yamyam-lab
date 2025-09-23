@@ -1,18 +1,7 @@
-try:
-    import os
-    import sys
-
-    sys.path.append(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src")
-    )
-
-except ModuleNotFoundError:
-    raise Exception("No module found")
-
 import numpy as np
 from sklearn.metrics import ndcg_score
 
-from evaluation.metric import (
+from yamyam_lab.evaluation.metric import (
     fully_vectorized_ranking_metrics_at_k,
     ranked_precision,
     ranking_metrics_at_k,

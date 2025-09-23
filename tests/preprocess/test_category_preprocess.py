@@ -1,14 +1,10 @@
 import os
-import sys
 
 import pandas as pd
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src"))
-
-
-from preprocess.diner_transform import CategoryProcessor
-from tools.config import load_yaml
-from tools.google_drive import ensure_data_files
+from yamyam_lab.preprocess.diner_transform import CategoryProcessor
+from yamyam_lab.tools.config import load_yaml
+from yamyam_lab.tools.google_drive import ensure_data_files
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/data/category_mappings.yaml")
