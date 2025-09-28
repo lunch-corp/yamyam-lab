@@ -109,6 +109,20 @@ def parse_args_als():
     return parser.parse_args()
 
 
+def parse_args_mostpopular_rerank():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--region_label", type=str, default="서울 강남구")
+    parser.add_argument("--hotspot_coords", type=str, default=None)
+    parser.add_argument("--n_auto_hotspots", type=int, default=2)
+    parser.add_argument("--periphery_strength", type=float, default=0.25)
+    parser.add_argument("--periphery_cap", type=float, default=0.05)
+    parser.add_argument("--lambda_div", type=float, default=0.9)
+    parser.add_argument("--w_cat", type=float, default=0.1)
+    parser.add_argument("--w_geo", type=float, default=0.2)
+    parser.add_argument("--geo_tau_km", type=float, default=0.1)
+    return parser.parse_args()
+
+
 def save_command_to_file(save_path):
     os.makedirs(save_path, exist_ok=True)
 
