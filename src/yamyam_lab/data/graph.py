@@ -3,10 +3,13 @@ from typing import Any, Dict, Self
 import pandas as pd
 import torch
 from numpy.typing import NDArray
-from preprocess.preprocess import meta_mapping, prepare_networkx_undirected_graph
 
-from data.base import BaseDatasetLoader
-from data.config import DataConfig
+from yamyam_lab.data.base import BaseDatasetLoader
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.preprocess.preprocess import (
+    meta_mapping,
+    prepare_networkx_undirected_graph,
+)
 
 
 class GraphDatasetLoader(BaseDatasetLoader):

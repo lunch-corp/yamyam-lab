@@ -4,15 +4,15 @@ from typing import List, Tuple, Union
 import networkx as nx
 import numpy as np
 import torch
-from loss.custom import basic_contrastive_loss
-from tools.generate_walks import (
+from torch import Tensor
+
+from yamyam_lab.loss.custom import basic_contrastive_loss
+from yamyam_lab.model.graph.base_embedding import BaseEmbedding
+from yamyam_lab.tools.generate_walks import (
     generate_walks_metapath,
     precompute_probabilities_metapath,
 )
-from tools.tensor import unpad_by_mask
-from torch import Tensor
-
-from model.graph.base_embedding import BaseEmbedding
+from yamyam_lab.tools.tensor import unpad_by_mask
 
 
 class Model(BaseEmbedding):

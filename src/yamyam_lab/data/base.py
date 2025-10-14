@@ -6,14 +6,14 @@ from typing import Any, Dict, List, Self, Tuple
 
 import numpy as np
 import pandas as pd
-from features import build_feature
 from numpy.typing import NDArray
-from preprocess.preprocess import preprocess_common, reviewer_diner_mapping
 from sklearn.model_selection import train_test_split
-from tools.config import load_yaml
-from tools.google_drive import ensure_data_files
 
-from data.config import DataConfig
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.features import build_feature
+from yamyam_lab.preprocess.preprocess import preprocess_common, reviewer_diner_mapping
+from yamyam_lab.tools.config import load_yaml
+from yamyam_lab.tools.google_drive import ensure_data_files
 
 
 class BaseDatasetLoader(ABC):

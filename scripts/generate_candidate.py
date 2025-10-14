@@ -11,10 +11,10 @@ from datetime import datetime
 
 import torch
 
-from preprocess.preprocess import prepare_networkx_undirected_graph
-from tools.config import load_yaml
-from tools.google_drive import GoogleDriveManager
-from tools.zip import zip_files_in_directory
+from src.yamyam_lab.preprocess.preprocess import prepare_networkx_undirected_graph
+from src.yamyam_lab.tools.config import load_yaml
+from src.yamyam_lab.tools.google_drive import GoogleDriveManager
+from src.yamyam_lab.tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/embedding/{model}.yaml")

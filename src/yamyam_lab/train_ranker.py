@@ -6,12 +6,14 @@ import hydra
 import mlflow
 import mlflow.lightgbm
 import numpy as np
-from evaluation.metric_calculator.ranker_metric_calculator import RankerMetricCalculator
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from data.config import DataConfig
-from data.ranker import RankerDatasetLoader
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.ranker import RankerDatasetLoader
+from yamyam_lab.evaluation.metric_calculator.ranker_metric_calculator import (
+    RankerMetricCalculator,
+)
 
 
 @hydra.main(config_path="../config/", config_name="train", version_base="1.2.0")

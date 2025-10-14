@@ -2,8 +2,9 @@ from typing import List
 
 import torch
 import torch.nn as nn
-from constant.metric.metric import Metric
 from torch import Tensor
+
+from yamyam_lab.constant.metric.metric import Metric
 
 
 class Model(nn.Module):

@@ -5,7 +5,8 @@ from typing import List
 
 import pandas as pd
 from kiwipiepy import Kiwi
-from tools.morpheme import tokenize_with_kiwi
+
+from yamyam_lab.tools.morpheme import tokenize_with_kiwi
 
 
 class Filter:

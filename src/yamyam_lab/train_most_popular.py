@@ -2,13 +2,12 @@ import os
 import traceback
 from datetime import datetime
 
-from evaluation.metric_calculator import MostPopularMetricCalculator
-from tools.config import load_yaml
-from tools.logger import common_logging, setup_logger
-from tools.parse_args import save_command_to_file
-
-from data.config import DataConfig
-from data.csr import CsrDatasetLoader
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.csr import CsrDatasetLoader
+from yamyam_lab.evaluation.metric_calculator import MostPopularMetricCalculator
+from yamyam_lab.tools.config import load_yaml
+from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.parse_args import save_command_to_file
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")

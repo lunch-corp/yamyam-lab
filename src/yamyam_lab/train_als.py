@@ -4,16 +4,15 @@ import traceback
 from argparse import ArgumentParser
 from datetime import datetime
 
-from evaluation.metric_calculator import ALSMetricCalculator
-from model import ALS
-from tools.config import load_yaml
-from tools.google_drive import GoogleDriveManager
-from tools.logger import common_logging, setup_logger
-from tools.parse_args import parse_args_als, save_command_to_file
-from tools.zip import zip_files_in_directory
-
-from data.config import DataConfig
-from data.csr import CsrDatasetLoader
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.csr import CsrDatasetLoader
+from yamyam_lab.evaluation.metric_calculator import ALSMetricCalculator
+from yamyam_lab.model import ALS
+from yamyam_lab.tools.config import load_yaml
+from yamyam_lab.tools.google_drive import GoogleDriveManager
+from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.parse_args import parse_args_als, save_command_to_file
+from yamyam_lab.tools.zip import zip_files_in_directory
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")

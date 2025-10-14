@@ -7,15 +7,15 @@ from argparse import ArgumentParser
 from datetime import datetime
 
 import torch
-from evaluation.metric_calculator import SVDBiasMetricCalculator
-from loss.custom import svd_loss
-from tools.config import load_yaml
-from tools.logger import common_logging, setup_logger
-from tools.plot import plot_metric_at_k
 from torch import optim
 
-from data.config import DataConfig
-from data.mf import MFDatasetLoader
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.mf import MFDatasetLoader
+from yamyam_lab.evaluation.metric_calculator import SVDBiasMetricCalculator
+from yamyam_lab.loss.custom import svd_loss
+from yamyam_lab.tools.config import load_yaml
+from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.plot import plot_metric_at_k
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")

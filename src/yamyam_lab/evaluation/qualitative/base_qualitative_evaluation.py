@@ -5,11 +5,11 @@ from typing import Dict, List, Tuple
 import pandas as pd
 import torch
 from numpy.typing import NDArray
-from preprocess.diner_transform import CategoryProcessor
 from prettytable import PrettyTable
 from torch import Tensor
 
-from candidate.near import NearCandidateGenerator
+from yamyam_lab.candidate.near import NearCandidateGenerator
+from yamyam_lab.preprocess.diner_transform import CategoryProcessor
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../data")
 

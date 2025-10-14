@@ -36,8 +36,8 @@ import requests
 from shapely.geometry import Polygon
 from tqdm import tqdm
 
-from data.base import BaseDatasetLoader
-from data.config import DataConfig
+from yamyam_lab.data.base import BaseDatasetLoader
+from yamyam_lab.data.config import DataConfig
 
 # 로깅 설정
 logger = logging.getLogger(__name__)

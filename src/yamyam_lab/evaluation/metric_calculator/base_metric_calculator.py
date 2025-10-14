@@ -4,13 +4,13 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
-from constant.metric.metric import Metric
 from numpy.typing import NDArray
-from tools.utils import safe_divide
 from torch import Tensor
 from tqdm import tqdm
 
-from evaluation.metric import fully_vectorized_ranking_metrics_at_k
+from yamyam_lab.constant.metric.metric import Metric
+from yamyam_lab.evaluation.metric import fully_vectorized_ranking_metrics_at_k
+from yamyam_lab.tools.utils import safe_divide
 
 
 class BaseMetricCalculator:

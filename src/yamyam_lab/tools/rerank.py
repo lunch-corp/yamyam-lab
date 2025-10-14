@@ -3,7 +3,8 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-from inference import haversine
+
+from yamyam_lab.inference import haversine
 
 
 def extract_region_label(addr: str) -> str:

@@ -1,9 +1,10 @@
 from typing import Dict, List, Union
 
 import numpy as np
-from model.graph.node2vec import Model as Node2Vec
 from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import cosine_similarity
+
+from yamyam_lab.model.graph.node2vec import Model as Node2Vec
 
 
 class UserBasedCollaborativeFiltering:

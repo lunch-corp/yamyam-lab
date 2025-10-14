@@ -4,8 +4,8 @@ import pandas as pd
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
-from data.base import BaseDatasetLoader
-from data.config import DataConfig
+from yamyam_lab.data.base import BaseDatasetLoader
+from yamyam_lab.data.config import DataConfig
 
 
 class CsrDatasetLoader(BaseDatasetLoader):

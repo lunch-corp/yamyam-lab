@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from omegaconf import OmegaConf
 
-from model.rank.base import BaseModel
+from yamyam_lab.model.rank.base import BaseModel
 
 
 class LightGBMTrainer(BaseModel):

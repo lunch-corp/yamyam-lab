@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
-from tools.google_drive import ensure_data_files
+
+from yamyam_lab.tools.google_drive import ensure_data_files
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 

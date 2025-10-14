@@ -4,7 +4,8 @@ from typing import Any, Dict, List
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from constant.metric.metric import Metric
+
+from yamyam_lab.constant.metric.metric import Metric
 
 sns.set_style("darkgrid")
 

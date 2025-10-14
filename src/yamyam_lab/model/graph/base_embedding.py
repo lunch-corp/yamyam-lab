@@ -6,12 +6,13 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from constant.metric.metric import Metric
 from numpy.typing import NDArray
-from tools.generate_walks import generate_walks
 from torch import Tensor
 from torch.nn import Embedding
 from torch.utils.data import DataLoader
+
+from yamyam_lab.constant.metric.metric import Metric
+from yamyam_lab.tools.generate_walks import generate_walks
 
 
 class BaseEmbedding(nn.Module):

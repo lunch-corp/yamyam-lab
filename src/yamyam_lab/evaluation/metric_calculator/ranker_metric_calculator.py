@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from evaluation.metric_calculator import BaseMetricCalculator
+from yamyam_lab.evaluation.metric_calculator import BaseMetricCalculator
 
 
 class RankerMetricCalculator(BaseMetricCalculator):

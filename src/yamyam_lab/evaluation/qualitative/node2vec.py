@@ -16,11 +16,12 @@ sys.path.append(
     os.path.join(os.path.join(os.path.dirname(__file__), "../../.."), "src")
 )
 
-from model.graph.node2vec import Model
-from tools.logger import setup_logger
-from tools.parse_args import parse_args_eval
-
-from evaluation.qualitative.base_qualitative_evaluation import BaseQualitativeEvaluation
+from yamyam_lab.evaluation.qualitative.base_qualitative_evaluation import (
+    BaseQualitativeEvaluation,
+)
+from yamyam_lab.model.graph.node2vec import Model
+from yamyam_lab.tools.logger import setup_logger
+from yamyam_lab.tools.parse_args import parse_args_eval
 
 
 class Node2VecQualitativeEvaluation(BaseQualitativeEvaluation):

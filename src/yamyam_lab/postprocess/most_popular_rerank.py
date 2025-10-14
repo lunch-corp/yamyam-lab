@@ -3,9 +3,11 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
-from inference import haversine
 from sklearn.cluster import KMeans
-from tools.rerank import (
+
+from yamyam_lab.inference import haversine
+from yamyam_lab.postprocess.base import BaseReranker
+from yamyam_lab.tools.rerank import (
     apply_coverage_max_candonly,
     build_coverage_labels,
     coverage_min_bonus_candonly,
@@ -18,8 +20,6 @@ from tools.rerank import (
     prepare_meta,
     validate_and_clip_k,
 )
-
-from postprocess.base import BaseReranker
 
 
 class MostPopularReranker(BaseReranker):
