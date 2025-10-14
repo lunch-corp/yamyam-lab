@@ -1,17 +1,6 @@
-try:
-    import os
-    import sys
-
-    sys.path.append(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src")
-    )
-
-except ModuleNotFoundError:
-    raise Exception("Module not found")
-
 import pytest
 
-from train_torch import main
+from yamyam_lab.train_torch import main
 
 
 @pytest.mark.parametrize(
