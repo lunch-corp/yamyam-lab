@@ -9,10 +9,11 @@ import pandas as pd
 from data.config import DataConfig
 from data.csr import CsrDatasetLoader
 from evaluation.metric_calculator import MostPopularMetricCalculator
-from postprocess.postprocess import RegionPeripheryReranker, ReRankerUtils
+from postprocess.most_popular_rerank import RegionPeripheryReranker
 from tools.config import load_yaml
 from tools.logger import common_logging, setup_logger
 from tools.parse_args import parse_args_mostpopular_rerank, save_command_to_file
+from tools.rerank import extract_region_label
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
@@ -76,13 +77,11 @@ def main(args: ArgumentParser.parse_args) -> None:
             how="left",
         )
 
-        target_region = ReRankerUtils.extract_region_label(args.region_label)
+        target_region = extract_region_label(args.region_label)
         if "diner_road_address" in diner_meta.columns:
             diner_meta = diner_meta.copy()
             diner_meta["region_label"] = (
-                diner_meta["diner_road_address"]
-                .map(ReRankerUtils.extract_region_label)
-                .astype(str)
+                diner_meta["diner_road_address"].map(extract_region_label).astype(str)
             )
         else:
             diner_meta["region_label"] = "unknown"
@@ -129,9 +128,7 @@ def main(args: ArgumentParser.parse_args) -> None:
 
         region_ids_mapped = set(
             diner_meta_mp.loc[
-                diner_meta_mp["diner_road_address"].map(
-                    ReRankerUtils.extract_region_label
-                )
+                diner_meta_mp["diner_road_address"].map(extract_region_label)
                 == target_region,
                 "diner_idx",
             ]
