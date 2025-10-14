@@ -1,4 +1,4 @@
-_target_: src.model.rank.boosting.LightGBMTrainer
+_target_: src.yamyam_lab.model.rank.boosting.LightGBMTrainer
 
 model_path: result/lightgbm/
 results: lgb_ranker
