@@ -42,13 +42,12 @@ class ItemBasedCollaborativeFiltering:
 
         # Transpose for item-based operations (items x users)
         self.item_user_matrix = self.user_item_matrix.T
-        
+
         # Prepare diner lookup if available
         if diner_df is not None:
-            self.diner_info = diner_df.set_index('diner_idx').to_dict('index')
+            self.diner_info = diner_df.set_index("diner_idx").to_dict("index")
         else:
             self.diner_info = None
-
 
     def _get_item_idx(self, item_id: int) -> int:
         """Return item index or None if not found."""
@@ -85,56 +84,50 @@ class ItemBasedCollaborativeFiltering:
         sims[target_idx] = 0.0
         return sims
 
-    
-    def _calculate_content_similarity(
-        self, 
-        target_id: int, 
-        candidate_id: int
-    ) -> float:
+    def _calculate_content_similarity(self, target_id: int, candidate_id: int) -> float:
         """
         Calculate simple content-based similarity.
         Simple version using only category information.
         """
         if self.diner_info is None:
             return 0.0
-        
+
         if target_id not in self.diner_info or candidate_id not in self.diner_info:
             return 0.0
-        
+
         target = self.diner_info[target_id]
         candidate = self.diner_info[candidate_id]
-        
+
         # Simple category comparison
-        if 'diner_category_large' in target and 'diner_category_large' in candidate:
-            if target['diner_category_large'] == candidate['diner_category_large']:
+        if "diner_category_large" in target and "diner_category_large" in candidate:
+            if target["diner_category_large"] == candidate["diner_category_large"]:
                 return 1.0
-        
+
         return 0.0
 
     def _calculate_embedding_similarity(
-        self, 
-        target_id: int, 
-        candidate_id: int
+        self, target_id: int, candidate_id: int
     ) -> float:
         """
         Calculate embedding-based similarity.
         """
         if self.item_embeddings is None:
             return 0.0
-        
+
         if target_id not in self.item_mapping or candidate_id not in self.item_mapping:
             return 0.0
-        
+
         target_idx = self.item_mapping[target_id]
         candidate_idx = self.item_mapping[candidate_id]
-        
+
         target_emb = self.item_embeddings[target_idx]
         candidate_emb = self.item_embeddings[candidate_idx]
-        
-        similarity = cosine_similarity(target_emb.reshape(1, -1), candidate_emb.reshape(1, -1))[0, 0]
-        
-        return float(similarity)
 
+        similarity = cosine_similarity(
+            target_emb.reshape(1, -1), candidate_emb.reshape(1, -1)
+        )[0, 0]
+
+        return float(similarity)
 
     def find_similar_items(
         self,
@@ -152,10 +145,10 @@ class ItemBasedCollaborativeFiltering:
         """
         target_idx = self._get_item_idx(target_item_id)
         if target_idx is None:
-            return []  
+            return []
 
         if self.item_user_matrix.shape[1] == 0:
-            return []  
+            return []
 
         if method not in {"cosine_matrix", "jaccard"}:
             method = "cosine_matrix"
@@ -182,7 +175,9 @@ class ItemBasedCollaborativeFiltering:
             item_id = self.idx_to_item.get(idx)
             if item_id is None:
                 continue
-            results.append({"item_id": int(item_id), "similarity_score": float(sims[idx])})
+            results.append(
+                {"item_id": int(item_id), "similarity_score": float(sims[idx])}
+            )
         return results
 
     def recommend_for_user(
@@ -243,7 +238,6 @@ class ItemBasedCollaborativeFiltering:
             recs.append({"item_id": int(item_id), "predicted_score": float(preds[idx])})
         return recs
 
-
     def find_similar_items_hybrid(
         self,
         target_item_id: int,
@@ -255,7 +249,7 @@ class ItemBasedCollaborativeFiltering:
     ) -> List[Dict[str, Union[int, float]]]:
         """
         Hybrid similarity: Simple combination of CF + Content + Embedding.
-        
+
         Args:
             target_item_id: Target restaurant ID
             top_k: Number of similar restaurants to return
@@ -263,7 +257,7 @@ class ItemBasedCollaborativeFiltering:
             content_weight: Weight for content similarity (default 0.2)
             embedding_weight: Weight for embedding similarity (default 0.2)
             method: CF method ('cosine_matrix' or 'jaccard')
-            
+
         Returns:
             List of similar restaurants sorted by hybrid score
         """
@@ -271,44 +265,50 @@ class ItemBasedCollaborativeFiltering:
         cf_results = self.find_similar_items(
             target_item_id=target_item_id,
             top_k=top_k * 3,  # Get more candidates
-            method=method
+            method=method,
         )
-        
+
         # 2. Calculate content and embedding similarities for each candidate
         hybrid_results = []
-        
+
         for cf_item in cf_results:
-            candidate_id = cf_item['item_id']
-            cf_score = cf_item['similarity_score']
-            
+            candidate_id = cf_item["item_id"]
+            cf_score = cf_item["similarity_score"]
+
             # Content similarity
-            content_score = self._calculate_content_similarity(
-                target_item_id, candidate_id
-            ) if content_weight > 0 else 0.0
-            
+            content_score = (
+                self._calculate_content_similarity(target_item_id, candidate_id)
+                if content_weight > 0
+                else 0.0
+            )
+
             # Embedding similarity
-            embedding_score = self._calculate_embedding_similarity(
-                target_item_id, candidate_id
-            ) if embedding_weight > 0 else 0.0
-            
+            embedding_score = (
+                self._calculate_embedding_similarity(target_item_id, candidate_id)
+                if embedding_weight > 0
+                else 0.0
+            )
+
             # Calculate hybrid score
             hybrid_score = (
-                cf_weight * cf_score +
-                content_weight * content_score +
-                embedding_weight * embedding_score
+                cf_weight * cf_score
+                + content_weight * content_score
+                + embedding_weight * embedding_score
             )
-            
-            hybrid_results.append({
-                'item_id': candidate_id,
-                'hybrid_score': hybrid_score,
-                'cf_score': cf_score,
-                'content_score': content_score,
-                'embedding_score': embedding_score,
-            })
-        
+
+            hybrid_results.append(
+                {
+                    "item_id": candidate_id,
+                    "hybrid_score": hybrid_score,
+                    "cf_score": cf_score,
+                    "content_score": content_score,
+                    "embedding_score": embedding_score,
+                }
+            )
+
         # 3. Re-sort by hybrid score
-        hybrid_results.sort(key=lambda x: x['hybrid_score'], reverse=True)
-        
+        hybrid_results.sort(key=lambda x: x["hybrid_score"], reverse=True)
+
         return hybrid_results[:top_k]
 
 
@@ -328,17 +328,17 @@ if __name__ == "__main__":
 
     data = pickle.load(open(args.data_object_path, "rb"))
     X_train_csr = sp.load_npz(args.X_train_csr_path)
-    
+
     # Load diner data (for hybrid mode)
     diner_df = None
     if args.hybrid:
         try:
             diner_df = pd.read_csv("data/diner.csv", low_memory=False)
             category_df = pd.read_csv("data/diner_category_raw.csv")
-            diner_df = pd.merge(diner_df, category_df, on='diner_idx', how='left')
+            diner_df = pd.merge(diner_df, category_df, on="diner_idx", how="left")
         except:
             print("Warning: Could not load diner data for hybrid mode")
-    
+
     model = Node2Vec(
         user_ids=torch.tensor(list(data["user_mapping"].values())),
         diner_ids=torch.tensor(list(data["diner_mapping"].values())),
@@ -363,7 +363,7 @@ if __name__ == "__main__":
 
     item_based_cf = ItemBasedCollaborativeFiltering(
         user_item_matrix=X_train_csr,
-        item_embeddings=model._embedding.weight.detach().numpy()[data["num_users"]:],
+        item_embeddings=model._embedding.weight.detach().numpy()[data["num_users"] :],
         user_mapping=data["user_mapping"],
         item_mapping=data["diner_mapping"],
         diner_df=diner_df,
@@ -379,30 +379,34 @@ if __name__ == "__main__":
             content_weight=0.2,
             embedding_weight=0.2,
         )
-        
+
         for item in similar_items:
             print(f"\nItem ID: {item['item_id']}")
             print(f"  Hybrid Score: {item['hybrid_score']:.4f}")
-            print(f"  - CF: {item['cf_score']:.4f}, Content: {item['content_score']:.4f}, Embedding: {item['embedding_score']:.4f}")
+            print(
+                f"  - CF: {item['cf_score']:.4f}, Content: {item['content_score']:.4f}, Embedding: {item['embedding_score']:.4f}"
+            )
     else:
         similar_items = item_based_cf.find_similar_items(
             target_item_id=args.target_item_id,
             top_k=args.top_k,
             method="cosine_matrix",
         )
-        
+
         print(f"Items similar to {args.target_item_id}:")
         for item in similar_items:
-            print(f"  Item ID: {item['item_id']}, Similarity: {item['similarity_score']:.4f}")
+            print(
+                f"  Item ID: {item['item_id']}, Similarity: {item['similarity_score']:.4f}"
+            )
 
     # Generate recommendations for a user if provided
     if args.user_id:
         recommendations = item_based_cf.recommend_for_user(
-            user_id=args.user_id,
-            top_k=args.top_k,
-            method="cosine_matrix"
+            user_id=args.user_id, top_k=args.top_k, method="cosine_matrix"
         )
 
         print(f"\nRecommendations for user {args.user_id}:")
         for rec in recommendations:
-            print(f"  Item ID: {rec['item_id']}, Predicted Score: {rec['predicted_score']:.4f}")
+            print(
+                f"  Item ID: {rec['item_id']}, Predicted Score: {rec['predicted_score']:.4f}"
+            )
