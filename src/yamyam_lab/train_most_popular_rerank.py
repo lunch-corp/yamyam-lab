@@ -18,7 +18,7 @@ from yamyam_lab.tools.parse_args import (
 )
 from yamyam_lab.tools.rerank import extract_region_label
 
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")

@@ -79,7 +79,7 @@ class DinerFeatureStore(BaseFeatureStore):
             Dictionary containing menu cleaning configuration.
         """
         config_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "config", "data", "menu_name.yaml"
+            os.path.dirname(__file__), "../../..", "config", "data", "menu_name.yaml"
         )
 
         try:

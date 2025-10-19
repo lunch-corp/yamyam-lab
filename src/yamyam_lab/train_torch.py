@@ -17,7 +17,7 @@ from yamyam_lab.tools.config import load_yaml
 from yamyam_lab.tools.logger import common_logging, setup_logger
 from yamyam_lab.tools.plot import plot_metric_at_k
 
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
 PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
 RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
@@ -92,7 +92,7 @@ def main(args: ArgumentParser.parse_args):
         )
 
         # import model module
-        model_path = f"model.mf.{args.model}"
+        model_path = f"yamyam_lab.model.mf.{args.model}"
         model_module = importlib.import_module(model_path).Model
         model = model_module(
             user_ids=torch.tensor(list(data["user_mapping"].values())).to(args.device),
