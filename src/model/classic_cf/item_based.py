@@ -246,6 +246,7 @@ class ItemBasedCollaborativeFiltering:
         content_weight: float = 0.2,
         embedding_weight: float = 0.2,
         method: str = "cosine_matrix",
+        normalize_weights: bool = True,
     ) -> List[Dict[str, Union[int, float]]]:
         """
         Hybrid similarity: Simple combination of CF + Content + Embedding.
@@ -257,10 +258,19 @@ class ItemBasedCollaborativeFiltering:
             content_weight: Weight for content similarity (default 0.2)
             embedding_weight: Weight for embedding similarity (default 0.2)
             method: CF method ('cosine_matrix' or 'jaccard')
+            normalize_weights: If True, normalize weights to sum to 1.0 (default True)
 
         Returns:
             List of similar restaurants sorted by hybrid score
         """
+        # Normalize weights
+        if normalize_weights:
+            total = cf_weight + content_weight + embedding_weight
+            if total > 0:
+                cf_weight /= total
+                content_weight /= total
+                embedding_weight /= total
+
         # 1. Get CF-based similarities using existing method
         cf_results = self.find_similar_items(
             target_item_id=target_item_id,
@@ -324,6 +334,15 @@ if __name__ == "__main__":
     parser.add_argument("--top_k", type=int, default=10)
     parser.add_argument("--user_id", type=int, help="User ID for recommendations")
     parser.add_argument("--hybrid", action="store_true", help="Use hybrid similarity")
+    
+    # Hyperparameters for hybrid mode
+    parser.add_argument("--cf_weight", type=float, default=0.6, 
+                        help="Weight for CF similarity in hybrid mode (default: 0.6)")
+    parser.add_argument("--content_weight", type=float, default=0.2,
+                        help="Weight for content similarity in hybrid mode (default: 0.2)")
+    parser.add_argument("--embedding_weight", type=float, default=0.2,
+                        help="Weight for embedding similarity in hybrid mode (default: 0.2)")
+
     args = parser.parse_args()
 
     data = pickle.load(open(args.data_object_path, "rb"))
@@ -331,6 +350,8 @@ if __name__ == "__main__":
 
     # Load diner data (for hybrid mode)
     diner_df = None
+    item_embeddings = None
+
     if args.hybrid:
         try:
             diner_df = pd.read_csv("data/diner.csv", low_memory=False)
@@ -339,31 +360,32 @@ if __name__ == "__main__":
         except:
             print("Warning: Could not load diner data for hybrid mode")
 
-    model = Node2Vec(
-        user_ids=torch.tensor(list(data["user_mapping"].values())),
-        diner_ids=torch.tensor(list(data["diner_mapping"].values())),
-        embedding_dim=32,
-        inference=True,
-        top_k_values=[1],
-        graph=nx.Graph(),
-        walks_per_node=1,
-        num_negative_samples=1,
-        num_nodes=len(data["user_mapping"]) + len(data["diner_mapping"]),
-        model_name="node2vec",
-        device="cpu",
-        recommend_batch_size=2000,
-        num_workers=4,
-        walk_length=1,
-    )
+        model = Node2Vec(
+            user_ids=torch.tensor(list(data["user_mapping"].values())),
+            diner_ids=torch.tensor(list(data["diner_mapping"].values())),
+            embedding_dim=32,
+            inference=True,
+            top_k_values=[1],
+            graph=nx.Graph(),
+            walks_per_node=1,
+            num_negative_samples=1,
+            num_nodes=len(data["user_mapping"]) + len(data["diner_mapping"]),
+            model_name="node2vec",
+            device="cpu",
+            recommend_batch_size=2000,
+            num_workers=4,
+            walk_length=1,
+        )
 
-    model.load_state_dict(
-        torch.load(args.pre_trained_graph_model_path, weights_only=True)
-    )
-    model.eval()
+        model.load_state_dict(
+            torch.load(args.pre_trained_graph_model_path, weights_only=True)
+        )
+        model.eval()
+        item_embeddings = model._embedding.weight.detach().numpy()[data["num_users"]:]
 
     item_based_cf = ItemBasedCollaborativeFiltering(
         user_item_matrix=X_train_csr,
-        item_embeddings=model._embedding.weight.detach().numpy()[data["num_users"] :],
+        item_embeddings=item_embeddings,
         user_mapping=data["user_mapping"],
         item_mapping=data["diner_mapping"],
         diner_df=diner_df,
@@ -375,9 +397,10 @@ if __name__ == "__main__":
         similar_items = item_based_cf.find_similar_items_hybrid(
             target_item_id=args.target_item_id,
             top_k=args.top_k,
-            cf_weight=0.6,
-            content_weight=0.2,
-            embedding_weight=0.2,
+            cf_weight=args.cf_weight,
+            content_weight=args.content_weight,
+            embedding_weight=args.embedding_weight,
+            normalize_weights=True,
         )
 
         for item in similar_items:
