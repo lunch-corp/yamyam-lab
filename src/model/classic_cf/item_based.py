@@ -334,14 +334,26 @@ if __name__ == "__main__":
     parser.add_argument("--top_k", type=int, default=10)
     parser.add_argument("--user_id", type=int, help="User ID for recommendations")
     parser.add_argument("--hybrid", action="store_true", help="Use hybrid similarity")
-    
+
     # Hyperparameters for hybrid mode
-    parser.add_argument("--cf_weight", type=float, default=0.6, 
-                        help="Weight for CF similarity in hybrid mode (default: 0.6)")
-    parser.add_argument("--content_weight", type=float, default=0.2,
-                        help="Weight for content similarity in hybrid mode (default: 0.2)")
-    parser.add_argument("--embedding_weight", type=float, default=0.2,
-                        help="Weight for embedding similarity in hybrid mode (default: 0.2)")
+    parser.add_argument(
+        "--cf_weight",
+        type=float,
+        default=0.6,
+        help="Weight for CF similarity in hybrid mode (default: 0.6)",
+    )
+    parser.add_argument(
+        "--content_weight",
+        type=float,
+        default=0.2,
+        help="Weight for content similarity in hybrid mode (default: 0.2)",
+    )
+    parser.add_argument(
+        "--embedding_weight",
+        type=float,
+        default=0.2,
+        help="Weight for embedding similarity in hybrid mode (default: 0.2)",
+    )
 
     args = parser.parse_args()
 
@@ -381,7 +393,7 @@ if __name__ == "__main__":
             torch.load(args.pre_trained_graph_model_path, weights_only=True)
         )
         model.eval()
-        item_embeddings = model._embedding.weight.detach().numpy()[data["num_users"]:]
+        item_embeddings = model._embedding.weight.detach().numpy()[data["num_users"] :]
 
     item_based_cf = ItemBasedCollaborativeFiltering(
         user_item_matrix=X_train_csr,
