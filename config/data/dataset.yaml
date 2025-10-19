@@ -16,8 +16,8 @@ diner_engineered_feature_names:
   diner_review_tags: {}
   diner_menu_price: {}
 
-num_neg_samples: 200
-sampling_type: popularity
+num_neg_samples: 100
+sampling_type: random
 is_timeseries_by_users: false
 is_timeseries_by_time_point: true
 train_time_point: "2024-09-01"

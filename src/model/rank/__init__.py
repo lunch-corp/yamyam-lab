@@ -1,4 +1,4 @@
 from .base import BaseModel
-from .boosting import CatBoostTrainer, LightGBMTrainer, XGBoostTrainer
+from .boosting import LightGBMTrainer
 
-__all__ = ["BaseModel", "CatBoostTrainer", "LightGBMTrainer", "XGBoostTrainer"]
+__all__ = ["BaseModel", "LightGBMTrainer"]

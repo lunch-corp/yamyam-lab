@@ -20,6 +20,7 @@ defaults:
   - data: dataset
   - preprocess: preprocess
   - models/ranker: lightgbm
+  - log: logging
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 

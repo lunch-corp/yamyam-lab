@@ -35,3 +35,6 @@ trained_models/
 
 .DS_Store
 .env
+
+mlruns/*
+!mlruns/.gitkeep

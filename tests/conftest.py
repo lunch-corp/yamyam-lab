@@ -205,6 +205,11 @@ def setup_ranker_config(request):
             "end_time_point": "2025-02-01",
             "candidate_type": "node2vec",
         },
+        "log": {
+            "experiment_name": "ranker_experiments",
+            "run_name": "lightgbm_ranker_v1",
+            "enable_mlflow": False,
+        },
         "models": {
             "ranker": {
                 "_target_": "src.model.rank.boosting.LightGBMTrainer",

@@ -229,7 +229,6 @@ class CategoryProcessor:
             ),
             axis=1,
         )
-        print("hi")
 
     def _shift_categories_down(
         self, target_rows: pd.Series, target_category: str = "diner_category_large"
