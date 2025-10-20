@@ -1,179 +1,112 @@
 import os
-import pickle
+import traceback
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
-import scipy.sparse as sp
-from scipy.sparse import csr_matrix
-import pytest
 
-from src.model.classic_cf.item_based import ItemBasedCollaborativeFiltering
+from data.config import DataConfig
+from data.csr import CsrDatasetLoader
+from evaluation.metric_calculator.similarity_metric_calculator import (
+    ItemBasedMetricCalculator,
+)
+from model.classic_cf.item_based import ItemBasedCollaborativeFiltering
+from tools.config import load_yaml
+from tools.logger import common_logging, setup_logger
+from tools.parse_args import save_command_to_file
 
-DATA_DIR = os.environ.get("DATA_DIR", "data")
-DINER_PATH = os.path.join(DATA_DIR, "diner.csv")
-DINER_CAT_PATH = os.path.join(DATA_DIR, "diner_category_raw.csv")
-REVIEW_PATH = os.path.join(DATA_DIR, "review.csv")
-
-
-@pytest.fixture(scope="session")
-def raw_frames():
-    assert os.path.exists(DINER_PATH), f"Not found: {DINER_PATH}"
-    assert os.path.exists(DINER_CAT_PATH), f"Not found: {DINER_CAT_PATH}"
-    assert os.path.exists(REVIEW_PATH), f"Not found: {REVIEW_PATH}"
-
-    diner_df = pd.read_csv(DINER_PATH, low_memory=False)
-    diner_cat_df = pd.read_csv(DINER_CAT_PATH, low_memory=False)
-    review_df = pd.read_csv(REVIEW_PATH, low_memory=False)
-
-    # 최소 컬럼 존재성 확인
-    for col in ["diner_idx"]:
-        assert col in diner_df.columns, f"missing column in diner.csv: {col}"
-    for col in ["diner_idx"]:
-        assert col in diner_cat_df.columns, f"missing column in diner_category_raw.csv: {col}"
-    for col in ["reviewer_id", "diner_idx", "reviewer_review_score"]:
-        assert col in review_df.columns, f"missing column in review.csv: {col}"
-
-    return diner_df, diner_cat_df, review_df
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
+CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
+PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
+RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 
-@pytest.fixture(scope="session")
-def prepared_data(raw_frames):
-    diner_df, diner_cat_df, review_df = raw_frames
+def main() -> None:
+    dt = datetime.now().strftime("%Y%m%d%H%M%S")
+    test_flag = "untest"
+    result_path = RESULT_PATH.format(test=test_flag, model="item_based", dt=dt)
+    os.makedirs(result_path, exist_ok=True)
 
-    # 가볍게 샘플링: 테스트 시간 단축을 위해 상위 N 사용자/아이템만 사용(실데이터지만 가볍게)
-    # 그래도 "실제 데이터"에서 뽑기 때문에 파이프라인 변화 감지에 유효합니다.
-    # 상위 사용자/아이템 선별
-    top_users = (
-        review_df["reviewer_id"].value_counts().head(2000).index.astype(int).tolist()
-    )
-    top_diners = (
-        review_df["diner_idx"].value_counts().head(5000).index.astype(int).tolist()
-    )
-    df = review_df[
-        review_df["reviewer_id"].isin(top_users) & review_df["diner_idx"].isin(top_diners)
-    ].copy()
+    config = load_yaml(CONFIG_PATH.format(model="als"))
+    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
 
-    # 결측/이상치 방어
-    df = df.dropna(subset=["reviewer_id", "diner_idx", "reviewer_review_score"])
-    # 평점 범위 클리핑 (혹시 모를 이상치)
-    if df["reviewer_review_score"].dtype.kind in "if":
-        df["reviewer_review_score"] = df["reviewer_review_score"].clip(lower=0)
+    save_command_to_file(result_path)
 
-    # 매핑 생성 (train_graph.py가 사용하는 'unique mapping id' 컨벤션과 일치)
-    unique_users = np.sort(df["reviewer_id"].unique())
-    unique_diners = np.sort(df["diner_idx"].unique())
-    user_mapping = {int(uid): i for i, uid in enumerate(unique_users)}
-    diner_mapping = {int(did): j for j, did in enumerate(unique_diners)}
+    top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
+    top_k_values_for_candidate = config.training.evaluation.top_k_values_for_candidate
+    top_k_values = top_k_values_for_pred + top_k_values_for_candidate
+    file_name = config.post_training.file_name
+    fe = config.preprocess.feature_engineering
 
-    # CSR 행렬 생성 (users x items)
-    rows = df["reviewer_id"].map(user_mapping).to_numpy()
-    cols = df["diner_idx"].map(diner_mapping).to_numpy()
-    vals = df["reviewer_review_score"].astype(float).to_numpy()
+    logger = setup_logger(os.path.join(result_path, file_name.log))
 
-    n_users = len(user_mapping)
-    n_items = len(diner_mapping)
-    X = csr_matrix((vals, (rows, cols)), shape=(n_users, n_items))
+    try:
+        logger.info("model: item_based")
+        logger.info(f"results will be saved in {result_path}")
 
-    # 컨텐츠 DF 준비 (hybrid에서 카테고리 사용)
-    diner_meta = pd.merge(
-        diner_df, diner_cat_df, on="diner_idx", how="left", suffixes=("", "_cat")
-    )
-    # 모델 내부에서 set_index("diner_idx")를 하므로 최소 필요한 컬럼 존재
-    assert "diner_idx" in diner_meta.columns
-    # 범주 컬럼이 없을 수도 있으니, 없으면 기본값 채워넣기
-    if "diner_category_large" not in diner_meta.columns:
-        diner_meta["diner_category_large"] = "unknown"
+        # ------------------ 데이터 로딩 ------------------
+        data_config = DataConfig(
+            X_columns=["diner_idx", "reviewer_id"],
+            y_columns=["reviewer_review_score"],
+            user_engineered_feature_names=fe.user_engineered_feature_names,
+            diner_engineered_feature_names=fe.diner_engineered_feature_names,
+            is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
+            train_time_point=config.preprocess.data.train_time_point,
+            val_time_point=config.preprocess.data.val_time_point,
+            test_time_point=config.preprocess.data.test_time_point,
+            end_time_point=config.preprocess.data.end_time_point,
+            test=False,
+        )
+        data_loader = CsrDatasetLoader(data_config=data_config)
+        data = data_loader.prepare_csr_dataset(
+            is_csr=False, filter_config=preprocess_config.filter
+        )
 
-    # 모델 입력 준비
-    return {
-        "X": X,
-        "user_mapping": user_mapping,
-        "diner_mapping": diner_mapping,
-        "diner_meta": diner_meta[["diner_idx", "diner_category_large"]].drop_duplicates(),
-        "df": df,
-    }
+        common_logging(config, data, logger)
 
+        # ------------------ Item-based CF 모델 초기화 ------------------
+        logger.info("Initializing Item-based Collaborative Filtering model...")
 
-@pytest.fixture(scope="session")
-def model_cf(prepared_data):
-    X = prepared_data["X"]
-    um = prepared_data["user_mapping"]
-    im = prepared_data["diner_mapping"]
-    diner_meta = prepared_data["diner_meta"]
+        num_items = data["X_train"].shape[0]
+        dummy_embeddings = np.eye(num_items)
 
-    # 임베딩 없음 (기본 CF 전용)
-    model = ItemBasedCollaborativeFiltering(
-        user_item_matrix=X,
-        item_embeddings=None,
-        user_mapping=um,
-        item_mapping=im,
-        diner_df=diner_meta,
-    )
-    return model
+        item_based_model = ItemBasedCollaborativeFiltering(
+            user_item_matrix=data["X_train"],  # DataFrame 형태
+            item_embeddings=dummy_embeddings,
+            user_mapping=data["user_mapping"],
+            item_mapping=data["diner_mapping"],
+            diner_df=None,
+        )
 
+        # ------------------ test_dict 생성 (단일 train/test) ------------------
+        data["test_dict"] = {
+            "train": data["X_train_df"],  # DataFrame
+            "test": pd.concat(
+                [data["X_test_warm_users"], data["X_test_cold_users"]],
+                ignore_index=True,
+            ),
+        }
 
-def _popular_item_id_from_df(prepared_data):
-    # target item을 데이터 기반으로 가장 인기 많은 아이템으로 선택 (테스트 안정성↑)
-    counts = prepared_data["df"]["diner_idx"].value_counts()
-    return int(counts.index[0])
+        # ------------------ 평가 ------------------
+        logger.info("Evaluating Item-based CF model...")
+        metric_calculator = ItemBasedMetricCalculator(
+            model=item_based_model,
+            test_data=data["test_dict"],
+            top_k_values=top_k_values,
+            logger=logger,
+        )
 
+        metrics = metric_calculator.evaluate()
 
-def _active_user_id_from_df(prepared_data):
-    counts = prepared_data["df"]["reviewer_id"].value_counts()
-    return int(counts.index[0])
+        logger.info("Evaluation results:")
+        for metric_name, score in metrics.items():
+            logger.info(f"{metric_name}: {score:.4f}")
 
-
-def test_find_similar_items_cosine_real_data(model_cf, prepared_data):
-    target_item_id = _popular_item_id_from_df(prepared_data)
-    res = model_cf.find_similar_items(target_item_id=target_item_id, top_k=10, method="cosine_matrix")
-    assert isinstance(res, list) and len(res) > 0
-    # 자기 자신 제외
-    assert all(r["item_id"] != target_item_id for r in res)
-    # 정렬
-    sims = [r["similarity_score"] for r in res]
-    assert all(sims[i] >= sims[i+1] - 1e-12 for i in range(len(sims)-1))
+    except Exception as e:
+        logger.error("An error occurred during training")
+        logger.error(traceback.format_exc())
+        raise e
 
 
-def test_find_similar_items_jaccard_real_data(model_cf, prepared_data):
-    target_item_id = _popular_item_id_from_df(prepared_data)
-    res = model_cf.find_similar_items(target_item_id=target_item_id, top_k=5, method="jaccard")
-    assert isinstance(res, list) and len(res) > 0
-    sims = [r["similarity_score"] for r in res]
-    assert all(0.0 <= s <= 1.0 for s in sims)
-
-
-def test_recommend_for_user_excludes_seen(model_cf, prepared_data):
-    user_id = _active_user_id_from_df(prepared_data)
-    seen = set(
-        prepared_data["df"].loc[
-            prepared_data["df"]["reviewer_id"] == user_id, "diner_idx"
-        ].astype(int)
-    )
-    recs = model_cf.recommend_for_user(user_id=user_id, top_k=10, method="cosine_matrix")
-    assert isinstance(recs, list)
-    # 이미 본 아이템 제외
-    assert all(r["item_id"] not in seen for r in recs)
-
-
-def test_hybrid_with_content_only(model_cf, prepared_data):
-    # 임베딩 없이 content만 섞는 하이브리드 (embedding_weight=0)
-    target_item_id = _popular_item_id_from_df(prepared_data)
-    res = model_cf.find_similar_items_hybrid(
-        target_item_id=target_item_id,
-        top_k=10,
-        cf_weight=0.8,
-        content_weight=0.2,
-        embedding_weight=0.0,
-        method="cosine_matrix",
-        normalize_weights=True,
-    )
-    assert isinstance(res, list) and len(res) > 0
-    # 키 존재/스코어 범위
-    for r in res:
-        for k in ("item_id", "hybrid_score", "cf_score", "content_score", "embedding_score"):
-            assert k in r
-        assert 0.0 <= r["content_score"] <= 1.0
-        # 임베딩 0 가중치이므로 embedding_score는 계산되더라도 hybrid에 영향 X
-    # 정렬
-    hs = [r["hybrid_score"] for r in res]
-    assert all(hs[i] >= hs[i+1] - 1e-12 for i in range(len(hs)-1))
-    
+if __name__ == "__main__":
+    main()
