@@ -39,7 +39,7 @@ def setup_data_config(request):
         },
         "models": {
             "ranker": {
-                "_target_": "src.yamyam_lab.model.rank.boosting.LightGBMTrainer",
+                "_target_": "yamyam_lab.model.rank.boosting.LightGBMTrainer",
                 "model_path": f"result/{model}/",
                 "results": "ranker",
                 "features": [

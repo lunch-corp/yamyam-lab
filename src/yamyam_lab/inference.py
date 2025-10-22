@@ -9,7 +9,7 @@ from yamyam_lab.data.ranker import load_test_dataset
 from yamyam_lab.tools.utils import get_kakao_lat_lng, haversine
 
 
-@hydra.main(config_path="../config/", config_name="predict", version_base="1.3.1")
+@hydra.main(config_path="../../config/", config_name="predict", version_base="1.3.1")
 def _main(cfg: DictConfig):
     test = load_test_dataset(cfg)
     location = get_kakao_lat_lng(cfg.user_address)
