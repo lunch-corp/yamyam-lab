@@ -5,15 +5,15 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from data.config import DataConfig
-from data.csr import CsrDatasetLoader
-from evaluation.metric_calculator.similarity_metric_calculator import (
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.csr import CsrDatasetLoader
+from yamyam_lab.evaluation.metric_calculator.similarity_metric_calculator import (
     ItemBasedMetricCalculator,
 )
-from model.classic_cf.item_based import ItemBasedCollaborativeFiltering
-from tools.config import load_yaml
-from tools.logger import common_logging, setup_logger
-from tools.parse_args import save_command_to_file
+from yamyam_lab.model.classic_cf.item_based import ItemBasedCollaborativeFiltering
+from yamyam_lab.tools.config import load_yaml
+from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.parse_args import save_command_to_file
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
