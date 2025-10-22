@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "yamyam-lab"
-version = "0.1.0"
+version = "1.0.0"
 description = ""
 authors = ["yamyam-members"]
 readme = "README.md"
@@ -125,7 +125,3 @@ format.line-ending = "auto"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.setuptools.packages.find]
-include = ["src*"]
-exclude = ["apps*", "candidates*", "config*", "data*", "example*", "notebook*", "tests*"]
