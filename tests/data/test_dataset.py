@@ -12,10 +12,10 @@ except ModuleNotFoundError:
 import pandas as pd
 import pytest
 
-from data.base import BaseDatasetLoader
-from data.config import DataConfig
-from data.ranker import load_test_dataset
-from tools.utils import get_kakao_lat_lng
+from yamyam_lab.data.base import BaseDatasetLoader
+from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.ranker import load_test_dataset
+from yamyam_lab.tools.utils import get_kakao_lat_lng
 
 
 def test_loader_dataset():

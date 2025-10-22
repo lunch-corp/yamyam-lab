@@ -1,4 +1,4 @@
-_target_: src.model.rank.boosting.XGBoostTrainer
+_target_: src.yamyam_lab.model.rank.boosting.XGBoostTrainer
 
 model_path: result/xgboost/
 results: xgb_ranker

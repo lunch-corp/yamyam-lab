@@ -1,11 +1,6 @@
-import os
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src"))
-
 import networkx as nx
 
-from tools.generate_walks import (
+from yamyam_lab.tools.generate_walks import (
     precompute_probabilities_metapath,
 )
 
