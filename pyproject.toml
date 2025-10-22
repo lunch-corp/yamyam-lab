@@ -125,7 +125,3 @@ format.line-ending = "auto"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.setuptools.packages.find]
-include = ["src*"]
-exclude = ["apps*", "candidates*", "config*", "data*", "example*", "notebook*", "tests*"]
