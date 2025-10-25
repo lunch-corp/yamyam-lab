@@ -95,19 +95,18 @@ class ItemBasedMetricCalculator(BaseMetricCalculator):
                     top_k=max_k,
                     method=self.method,
                 )
-            
+
             # Extract item_ids from recommendations
             if len(recs) > 0:
                 rec_items = [rec["item_id"] for rec in recs]
             else:
                 # If no recommendations, return empty array (will be filled later)
                 rec_items = []
-            
+
             # Pad with -1 if necessary to ensure all have same length
             while len(rec_items) < max_k:
                 rec_items.append(-1)
-            
+
             recommendations.append(rec_items[:max_k])
 
         return np.array(recommendations)  # shape: (len(user_ids), max_k)
-

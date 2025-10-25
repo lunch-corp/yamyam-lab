@@ -97,10 +97,12 @@ def main(args: ArgumentParser.parse_args) -> None:
                 diner_df = pd.read_csv("data/diner.csv", low_memory=False)
                 category_df = pd.read_csv("data/diner_category_raw.csv")
                 diner_df = pd.merge(diner_df, category_df, on="diner_idx", how="left")
-                logger.info("Successfully loaded diner data for content-based similarity")
+                logger.info(
+                    "Successfully loaded diner data for content-based similarity"
+                )
             except Exception as e:
                 logger.warning(f"Could not load diner data: {e}")
-            
+
             # Load embeddings
             if args.pre_trained_model_path:
                 try:
@@ -113,7 +115,8 @@ def main(args: ArgumentParser.parse_args) -> None:
                         graph=nx.Graph(),
                         walks_per_node=1,
                         num_negative_samples=1,
-                        num_nodes=len(data["user_mapping"]) + len(data["diner_mapping"]),
+                        num_nodes=len(data["user_mapping"])
+                        + len(data["diner_mapping"]),
                         model_name="node2vec",
                         device="cpu",
                         recommend_batch_size=2000,
@@ -124,8 +127,12 @@ def main(args: ArgumentParser.parse_args) -> None:
                         torch.load(args.pre_trained_model_path, weights_only=True)
                     )
                     model_node2vec.eval()
-                    item_embeddings = model_node2vec._embedding.weight.detach().numpy()[data["num_users"]:]
-                    logger.info(f"Successfully loaded item embeddings with dimension {args.embedding_dim}")
+                    item_embeddings = model_node2vec._embedding.weight.detach().numpy()[
+                        data["num_users"] :
+                    ]
+                    logger.info(
+                        f"Successfully loaded item embeddings with dimension {args.embedding_dim}"
+                    )
                 except Exception as e:
                     logger.warning(f"Could not load embeddings: {e}")
 
@@ -201,14 +208,14 @@ def main(args: ArgumentParser.parse_args) -> None:
             # generate candidates and zip related files
             zip_path = ZIP_PATH.format(test=test_flag, model="item_based_cf", dt=dt)
             os.makedirs(zip_path, exist_ok=True)
-            
+
             logger.info("Generating candidates for each user...")
             candidates_list = []
-            
+
             # Get all user IDs
             user_ids = list(data["user_mapping"].keys())
             top_k = config.post_training.candidate_generation.top_k
-            
+
             for user_id in user_ids:
                 recommendations = model.recommend_for_user(
                     user_id=user_id,
@@ -216,15 +223,18 @@ def main(args: ArgumentParser.parse_args) -> None:
                     method=args.method,
                 )
                 for rec in recommendations:
-                    candidates_list.append({
-                        "reviewer_id": user_id,
-                        "diner_idx": rec["item_id"],
-                        "score": rec["predicted_score"],
-                    })
-            
+                    candidates_list.append(
+                        {
+                            "reviewer_id": user_id,
+                            "diner_idx": rec["item_id"],
+                            "score": rec["predicted_score"],
+                        }
+                    )
+
             import pandas as pd
+
             candidates_df = pd.DataFrame(candidates_list)
-            
+
             # save files to zip
             pickle.dump(
                 data["user_mapping"],
@@ -268,4 +278,3 @@ def main(args: ArgumentParser.parse_args) -> None:
 if __name__ == "__main__":
     args = parse_args_item_based_cf()
     main(args)
-
