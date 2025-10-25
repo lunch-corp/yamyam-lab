@@ -1,0 +1,37 @@
+preprocess:
+  data:
+    is_timeseries_by_time_point: true
+    train_time_point: "2024-09-01"
+    val_time_point: "2024-12-01"
+    test_time_point: "2025-01-01"
+    end_time_point: "2025-02-01"
+  feature_engineering:
+    diner_engineered_feature_names: {}
+    user_engineered_feature_names: {}
+training:
+  evaluation:
+    recommend_batch_size: 1000
+    top_k_values_for_pred:
+      - 3
+      - 7
+      - 10
+      - 20
+    top_k_values_for_candidate:
+      - 100
+      - 300
+      - 500
+      - 1000
+      - 2000
+post_training:
+  file_name:
+    log: log.log
+    weight: weight.pt
+    training_loss: training_loss.pkl
+    metric: metric.pkl
+    data_object: data_object.pkl
+    user_mapping: user_mapping.pkl
+    diner_mapping: diner_mapping.pkl
+    candidate: candidate.parquet
+  candidate_generation:
+    top_k: 100
+

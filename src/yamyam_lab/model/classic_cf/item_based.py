@@ -151,7 +151,9 @@ class ItemBasedCollaborativeFiltering:
             return []
 
         if method not in {"cosine_matrix", "jaccard"}:
-            method = "cosine_matrix"
+            raise ValueError(
+                f"Invalid method: {method}. Supported methods are: cosine_matrix, jaccard."
+            )
 
         # Compute similarity vector
         sims = (
@@ -237,6 +239,108 @@ class ItemBasedCollaborativeFiltering:
                 continue
             recs.append({"item_id": int(item_id), "predicted_score": float(preds[idx])})
         return recs
+
+    def recommend_for_user_hybrid(
+        self,
+        user_id: int,
+        top_k: int = 10,
+        cf_weight: float = 0.6,
+        content_weight: float = 0.2,
+        embedding_weight: float = 0.2,
+        method: str = "cosine_matrix",
+        normalize_weights: bool = True,
+    ) -> List[Dict[str, Union[int, float]]]:
+        """
+        Hybrid recommendations: Get CF-based candidates, then re-rank with hybrid scores.
+
+        Args:
+            user_id: The ID of the user to recommend for.
+            top_k: Number of items to recommend.
+            cf_weight: Weight for CF similarity (default 0.6)
+            content_weight: Weight for content similarity (default 0.2)
+            embedding_weight: Weight for embedding similarity (default 0.2)
+            method: "cosine_matrix" or "jaccard".
+            normalize_weights: If True, normalize weights to sum to 1.0 (default True)
+
+        Returns:
+            List of recommended items with hybrid scores
+        """
+        # Normalize weights
+        if normalize_weights:
+            total = cf_weight + content_weight + embedding_weight
+            if total > 0:
+                cf_weight /= total
+                content_weight /= total
+                embedding_weight /= total
+
+        # 1. Get more CF-based candidates
+        cf_recs = self.recommend_for_user(
+            user_id=user_id,
+            top_k=top_k * 3,  # Get more candidates for re-ranking
+            method=method,
+        )
+
+        if len(cf_recs) == 0:
+            return []
+
+        # 2. Get user's interacted items to calculate content/embedding similarities
+        user_idx = self._get_user_idx(user_id)
+        if user_idx is None:
+            return cf_recs[:top_k]
+
+        user_row = self.user_item_matrix.getrow(user_idx)
+        interacted_idx = user_row.indices
+        interacted_item_ids = [self.idx_to_item.get(int(idx)) for idx in interacted_idx]
+        interacted_item_ids = [iid for iid in interacted_item_ids if iid is not None]
+
+        if len(interacted_item_ids) == 0:
+            return cf_recs[:top_k]
+
+        # 3. Calculate hybrid scores for each candidate
+        hybrid_results = []
+        for cf_rec in cf_recs:
+            candidate_id = cf_rec["item_id"]
+            cf_score = cf_rec["predicted_score"]
+
+            # Aggregate content and embedding scores across user's history
+            content_scores = []
+            embedding_scores = []
+
+            for hist_item_id in interacted_item_ids:
+                if content_weight > 0:
+                    content_scores.append(
+                        self._calculate_content_similarity(hist_item_id, candidate_id)
+                    )
+                if embedding_weight > 0:
+                    embedding_scores.append(
+                        self._calculate_embedding_similarity(hist_item_id, candidate_id)
+                    )
+
+            # Average the scores
+            avg_content_score = np.mean(content_scores) if content_scores else 0.0
+            avg_embedding_score = np.mean(embedding_scores) if embedding_scores else 0.0
+
+            # Calculate hybrid score
+            hybrid_score = (
+                cf_weight * cf_score
+                + content_weight * avg_content_score
+                + embedding_weight * avg_embedding_score
+            )
+
+            hybrid_results.append(
+                {
+                    "item_id": candidate_id,
+                    "predicted_score": hybrid_score,
+                    "cf_score": cf_score,
+                    "content_score": avg_content_score,
+                    "embedding_score": avg_embedding_score,
+                }
+            )
+
+        # 4. Re-sort by hybrid score
+        hybrid_results.sort(key=lambda x: x["predicted_score"], reverse=True)
+
+        return hybrid_results[:top_k]
 
     def find_similar_items_hybrid(
         self,

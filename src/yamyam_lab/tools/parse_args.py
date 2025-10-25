@@ -123,6 +123,59 @@ def parse_args_mostpopular_rerank():
     return parser.parse_args()
 
 
+def parse_args_item_based_cf():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="cosine_matrix",
+        choices=["cosine_matrix", "jaccard"],
+        help="Similarity method for item-based CF",
+    )
+    parser.add_argument("--test", action="store_true")
+
+    # Hybrid mode parameters
+    parser.add_argument(
+        "--use_hybrid",
+        action="store_true",
+        help="Use hybrid similarity (CF + Content + Embedding)",
+    )
+    parser.add_argument(
+        "--cf_weight",
+        type=float,
+        default=0.6,
+        help="Weight for CF similarity in hybrid mode (default: 0.6)",
+    )
+    parser.add_argument(
+        "--content_weight",
+        type=float,
+        default=0.2,
+        help="Weight for content similarity in hybrid mode (default: 0.2)",
+    )
+    parser.add_argument(
+        "--embedding_weight",
+        type=float,
+        default=0.2,
+        help="Weight for embedding similarity in hybrid mode (default: 0.2)",
+    )
+    parser.add_argument(
+        "--pre_trained_model_path",
+        type=str,
+        help="Path to pre-trained node2vec model for hybrid mode",
+    )
+    parser.add_argument(
+        "--embedding_dim",
+        type=int,
+        default=32,
+        help="Embedding dimension for pre-trained model (default: 32)",
+    )
+
+    # candidate generation parameter for two-stage reco
+    parser.add_argument("--save_candidate", action="store_true", required=False)
+    parser.add_argument("--reusable_token_path", type=str, required=False)
+    return parser.parse_args()
+
+
 def save_command_to_file(save_path):
     os.makedirs(save_path, exist_ok=True)
 
