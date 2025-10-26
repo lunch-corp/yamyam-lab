@@ -66,7 +66,14 @@ class ALSTrainer(BaseTrainer):
         self.model.fit(self.data["X_train"])
 
     def evaluate_validation(self) -> None:
-        """Evaluate on validation set."""
+        """
+        Evaluate on validation set.
+
+        Calculate metric for **validation data** with warm / cold / all users separately.
+        Note that, we should calculate this metric for each iteration while training als,
+        but we could not find any methods to integrate it into implicit library,
+        so, we report validation metric after finishing training als.
+        """
         metric_dict = (
             self.metric_calculator.generate_recommendations_and_calculate_metric(
                 X_train=self.data["X_train_df"],

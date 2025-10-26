@@ -152,7 +152,8 @@ class GraphTrainer(BaseTrainer):
                         f"current batch index: {batch_idx} out of {batch_len}"
                     )
 
-            # For GraphSAGE/LightGCN, run propagation
+            # when training graphsage or lightgcn for every epoch,
+            # propagation should be run to store embeddings for each node
             if self.args.model in ["graphsage", "lightgcn"]:
                 for batch_nodes in DataLoader(
                     torch.tensor([node for node in self.data["train_graph"].nodes()]),
