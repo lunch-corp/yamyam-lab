@@ -186,7 +186,8 @@ class GraphTrainer(BaseTrainer):
                 best_model_weights = copy.deepcopy(self.model.state_dict())
                 patience = self.args.patience
 
-                self._save_model_at_epoch(epoch)
+                # Save training results when validation improves
+                self._save_train_results_at_current_epoch(save_all_results=True)
                 self.logger.info(
                     f"Best validation ndcg@3: {best_val_ndcg} at epoch {best_val_ndcg_epoch}"
                 )
@@ -201,11 +202,13 @@ class GraphTrainer(BaseTrainer):
                     )
                     break
 
-        # Load best model
+        # Load and save only the best model weights
         if best_model_weights:
             self.model.load_state_dict(best_model_weights)
             self.logger.info("Load weight with best validation ndcg@3")
-            self._save_model_at_epoch(epoch)
+            # Only save weights, not training results
+            self._save_train_results_at_current_epoch(save_all_results=False)
+            self.logger.info("Save final model with best validation ndcg@3")
 
     def _evaluate_epoch(self, epoch: int) -> None:
         """Evaluate at current epoch."""
@@ -234,22 +237,33 @@ class GraphTrainer(BaseTrainer):
             metric_at_k_total_epochs=self.model.metric_at_k_total_epochs,
         )
 
-    def _save_model_at_epoch(self, epoch: int) -> None:
-        """Save model at current epoch."""
+    def _save_train_results_at_current_epoch(
+        self, save_all_results: bool = True
+    ) -> None:
+        """Save model at current epoch.
+
+        Args:
+            save_all_results: If True, save weights, losses, and metrics.
+                             If False, save only weights.
+        """
         file_name = self.config.post_training.file_name
 
         torch.save(
             self.model.state_dict(),
             str(os.path.join(self.result_path, file_name.weight)),
         )
-        pickle.dump(
-            self.model.tr_loss,
-            open(os.path.join(self.result_path, file_name.training_loss), "wb"),
-        )
-        pickle.dump(
-            self.model.metric_at_k_total_epochs,
-            open(os.path.join(self.result_path, file_name.metric), "wb"),
-        )
+
+        # Only save training results if specified
+        # During patience epochs, we don't save these
+        if save_all_results:
+            pickle.dump(
+                self.model.tr_loss,
+                open(os.path.join(self.result_path, file_name.training_loss), "wb"),
+            )
+            pickle.dump(
+                self.model.metric_at_k_total_epochs,
+                open(os.path.join(self.result_path, file_name.metric), "wb"),
+            )
 
     def evaluate_validation(self) -> None:
         """Already handled in train_loop."""
