@@ -34,10 +34,17 @@ class TrainerFactory:
             Appropriate trainer instance
 
         Raises:
-            ValueError: If model type is not recognized
+            ValueError: If model type is not provided or not recognized
         """
-        model = getattr(args, "model", "als")
+        # Explicit check for model attribute
+        if not hasattr(args, "model") or args.model is None:
+            raise ValueError(
+                "Model type is required but not provided in args. "
+                f"Supported models: {list(cls.TRAINER_REGISTRY.keys())}. "
+                "Please specify --model argument."
+            )
 
+        model = args.model
         trainer_class = cls.TRAINER_REGISTRY.get(model)
 
         if trainer_class is None:
