@@ -1,31 +1,18 @@
 import os
 import traceback
-from datetime import datetime
 
 from yamyam_lab.data.config import DataConfig
 from yamyam_lab.data.csr import CsrDatasetLoader
 from yamyam_lab.evaluation.metric_calculator import MostPopularMetricCalculator
-from yamyam_lab.tools.config import load_yaml
-from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.config import generate_result_path, load_configs
+from yamyam_lab.tools.logger import logging_data_statistics, setup_logger
 from yamyam_lab.tools.parse_args import save_command_to_file
-
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
-CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
-PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
-RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 
 def main() -> None:
-    # set result path
-    dt = datetime.now().strftime("%Y%m%d%H%M%S")
-    test_flag = "untest"
-    result_path = RESULT_PATH.format(test=test_flag, model="most_popular", dt=dt)
-    os.makedirs(result_path, exist_ok=True)
-    # load config
-    config = load_yaml(
-        CONFIG_PATH.format(model="als")
-    )  # Note: use als config, because all configs are overlapped.
-    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
+    # load configs
+    config, preprocess_config = load_configs("als", None)  # reuse als config
+    result_path = generate_result_path("most_popular", "untest", None)
     # save command used in argparse
     save_command_to_file(result_path)
 
@@ -62,7 +49,7 @@ def main() -> None:
             filter_config=preprocess_config.filter,
         )
 
-        common_logging(
+        logging_data_statistics(
             config=config,
             data=data,
             logger=logger,

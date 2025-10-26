@@ -4,7 +4,6 @@ import os
 import pickle
 import traceback
 from argparse import ArgumentParser
-from datetime import datetime
 
 import torch
 import torch.multiprocessing as mp
@@ -13,30 +12,20 @@ from torch.utils.data import DataLoader
 from yamyam_lab.data.config import DataConfig
 from yamyam_lab.data.graph import GraphDatasetLoader
 from yamyam_lab.evaluation.metric_calculator import EmbeddingMetricCalculator
-from yamyam_lab.tools.config import load_yaml
-from yamyam_lab.tools.google_drive import GoogleDriveManager
-from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.config import generate_result_path, load_configs
+from yamyam_lab.tools.logger import (
+    logging_data_statistics,
+    logging_experiment_config,
+    setup_logger,
+)
 from yamyam_lab.tools.parse_args import parse_args_graph, save_command_to_file
 from yamyam_lab.tools.plot import plot_metric_at_k
-from yamyam_lab.tools.zip import zip_files_in_directory
-
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
-CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/graph/{model}.yaml")
-PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
-
-RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
-ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
 
 def main(args: ArgumentParser.parse_args) -> None:
-    # set result path
-    dt = datetime.now().strftime("%Y%m%d%H%M%S")
-    test_flag = "test" if args.test else "untest"
-    result_path = RESULT_PATH.format(test=test_flag, model=args.model, dt=dt)
-    os.makedirs(result_path, exist_ok=True)
-    # load config
-    config = load_yaml(CONFIG_PATH.format(model=args.model))
-    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
+    # load configs
+    config, preprocess_config = load_configs(args.model, args.config_root_path)
+    result_path = generate_result_path(args.model, args.test, args.result_path)
     # save command used in argparse
     save_command_to_file(result_path)
 
@@ -52,35 +41,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     logger = setup_logger(os.path.join(result_path, file_name.log))
 
     try:
-        logger.info(f"embedding model: {args.model}")
-        logger.info(f"device: {args.device}")
-        logger.info(f"batch size: {args.batch_size}")
-        logger.info(f"learning rate: {args.lr}")
-        logger.info(f"epochs: {args.epochs}")
-        logger.info(f"embedding dimension: {args.embedding_dim}")
-        logger.info(f"walks per node: {args.walks_per_node}")
-        logger.info(f"walk length: {args.walk_length}")
-        logger.info(f"num neg samples: {args.num_negative_samples}")
-        logger.info(f"weighted edge: {args.weighted_edge}")
-        if args.model == "node2vec":
-            logger.info(f"p: {args.p}")
-            logger.info(f"q: {args.q}")
-        elif args.model == "metapath2vec":
-            logger.info(f"defined meta_path: {args.meta_path}")
-            logger.info(
-                f"category column for node meta: {args.category_column_for_meta}"
-            )
-        elif args.model == "graphsage":
-            logger.info(f"number of sage layers: {args.num_sage_layers}")
-            logger.info(f"aggregator functions: {args.aggregator_funcs}")
-
-        elif args.model == "lightgcn":
-            logger.info(f"number of layers: {args.num_lightgcn_layers}")
-            logger.info(f"drop ratio: {args.drop_ratio}")
-
-        logger.info(f"result path: {result_path}")
-        logger.info(f"test: {args.test}")
-        logger.info(f"training results will be saved in {result_path}")
+        logging_experiment_config(logger, args, result_path)
 
         data_loader = GraphDatasetLoader(
             data_config=DataConfig(
@@ -106,7 +67,7 @@ def main(args: ArgumentParser.parse_args) -> None:
         )
         train_graph, val_graph = data["train_graph"], data["val_graph"]  # noqa
 
-        common_logging(
+        logging_data_statistics(
             config=config,
             data=data,
             logger=logger,
@@ -327,47 +288,6 @@ def main(args: ArgumentParser.parse_args) -> None:
             top_k_values_for_pred=top_k_values_for_pred,
             top_k_values_for_candidate=top_k_values_for_candidate,
         )
-
-        if args.save_candidate:
-            # generate candidates and zip related files
-            zip_path = ZIP_PATH.format(test=test_flag, model=args.model, dt=dt)
-            os.makedirs(zip_path, exist_ok=True)
-            candidates_df = model.generate_candidates_for_each_user(
-                top_k_value=config.post_training.candidate_generation.top_k
-            )
-            # save files to zip
-            pickle.dump(
-                data["user_mapping"],
-                open(os.path.join(zip_path, file_name.user_mapping), "wb"),
-            )
-            pickle.dump(
-                data["diner_mapping"],
-                open(os.path.join(zip_path, file_name.diner_mapping), "wb"),
-            )
-            candidates_df.to_parquet(
-                os.path.join(zip_path, file_name.candidate), index=False
-            )
-            # zip file
-            zip_files_in_directory(
-                dir_path=zip_path,
-                zip_file_name=f"{dt}.zip",
-                allowed_type=[".pkl", ".parquet"],
-                logger=logger,
-            )
-            # upload zip file to google drive
-            manager = GoogleDriveManager(
-                reusable_token_path=args.reusable_token_path,
-                reuse_auth_info=True,
-            )
-            file_id = manager.upload_result(
-                model_name=args.model,
-                file_path=os.path.join(zip_path, f"{dt}.zip"),
-                download_file_type="candidates",
-            )
-            logger.info(
-                f"Successfully uploaded candidate results to google drive."
-                f"File id: {file_id}"
-            )
 
     except:
         logger.error(traceback.format_exc())
