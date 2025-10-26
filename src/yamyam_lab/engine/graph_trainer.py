@@ -168,11 +168,13 @@ class GraphTrainer(BaseTrainer):
             self.model.tr_loss.append(total_loss)
             self.logger.info(f"epoch {epoch}: train loss {total_loss:.4f}")
 
-            # Validation evaluation
-            self._evaluate_epoch(epoch)
-
-            # Early stopping logic
-            val_ndcg = self.model.metric_at_k_total_epochs[3]["ndcg"][-1]
+            # Early stopping logic - check validation NDCG
+            val_ndcg = (
+                self.model.metric_at_k_total_epochs[3]["ndcg"][-1]
+                if len(self.model.metric_at_k_total_epochs.get(3, {}).get("ndcg", []))
+                > 0
+                else 0
+            )
 
             if val_ndcg == 0:
                 self.logger.info(
@@ -186,14 +188,16 @@ class GraphTrainer(BaseTrainer):
                 best_model_weights = copy.deepcopy(self.model.state_dict())
                 patience = self.args.patience
 
-                self._save_model_at_epoch(epoch)
+                # Only evaluate and save when validation improves
+                self._evaluate_epoch(epoch)
+                self._save_train_results_at_current_epoch()
                 self.logger.info(
                     f"Best validation ndcg@3: {best_val_ndcg} at epoch {best_val_ndcg_epoch}"
                 )
             else:
                 patience -= 1
                 self.logger.info(
-                    f"Validation ndcg@3 did not decrease. Patience {patience} left."
+                    f"Validation ndcg@3 did not improve. Patience {patience} left."
                 )
                 if patience == 0:
                     self.logger.info(
@@ -201,11 +205,18 @@ class GraphTrainer(BaseTrainer):
                     )
                     break
 
-        # Load best model
+        # Load best model weights only (do not save train results again)
         if best_model_weights:
             self.model.load_state_dict(best_model_weights)
             self.logger.info("Load weight with best validation ndcg@3")
-            self._save_model_at_epoch(epoch)
+
+            # Only save the model weights, not training results
+            file_name = self.config.post_training.file_name
+            torch.save(
+                self.model.state_dict(),
+                str(os.path.join(self.result_path, file_name.weight)),
+            )
+            self.logger.info("Save final model with best validation ndcg@3")
 
     def _evaluate_epoch(self, epoch: int) -> None:
         """Evaluate at current epoch."""
@@ -234,8 +245,8 @@ class GraphTrainer(BaseTrainer):
             metric_at_k_total_epochs=self.model.metric_at_k_total_epochs,
         )
 
-    def _save_model_at_epoch(self, epoch: int) -> None:
-        """Save model at current epoch."""
+    def _save_train_results_at_current_epoch(self) -> None:
+        """Save training results (weights, losses, metrics) at current best epoch."""
         file_name = self.config.post_training.file_name
 
         torch.save(
