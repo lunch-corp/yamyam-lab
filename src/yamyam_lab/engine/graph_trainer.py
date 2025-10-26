@@ -6,6 +6,7 @@ import os
 import pickle
 
 import torch
+import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
 from yamyam_lab.data.config import DataConfig
@@ -21,8 +22,6 @@ class GraphTrainer(BaseTrainer):
     def load_data(self) -> None:
         """Load graph dataset."""
         # Set multiprocessing start method to spawn
-        import torch.multiprocessing as mp
-
         mp.set_start_method("spawn", force=True)
 
         fe = self.config.preprocess.feature_engineering
@@ -55,6 +54,9 @@ class GraphTrainer(BaseTrainer):
         pickle.dump(
             self.data, open(os.path.join(self.result_path, file_name.data_object), "wb")
         )
+
+        # Log data statistics after loading
+        self.log_data_statistics()
 
     def build_model(self) -> None:
         """Build graph-based model."""

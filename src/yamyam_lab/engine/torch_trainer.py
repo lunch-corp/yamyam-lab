@@ -44,6 +44,9 @@ class TorchTrainer(BaseTrainer):
             self.data, open(os.path.join(self.result_path, file_name.data_object), "wb")
         )
 
+        # Log data statistics after loading
+        self.log_data_statistics()
+
     def build_model(self) -> None:
         """Build PyTorch model."""
         top_k_values = self.get_top_k_values()

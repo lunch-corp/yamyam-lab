@@ -8,6 +8,7 @@ from argparse import Namespace
 from yamyam_lab.tools.config import generate_result_path, load_configs
 from yamyam_lab.tools.logger import (
     logging_data_statistics,
+    logging_experiment_config,
     setup_logger,
 )
 
@@ -35,28 +36,25 @@ class BaseTrainer(ABC):
             # Step 2: Setup logger
             self.setup_logger()
 
-            # Step 3: Load data
+            # Step 3: Load data and log statistics
             self.load_data()
 
-            # Step 4: Log data statistics
-            self.log_data_statistics()
-
-            # Step 5: Build model
+            # Step 4: Build model
             self.build_model()
 
-            # Step 6: Build metric calculator
+            # Step 5: Build metric calculator
             self.build_metric_calculator()
 
-            # Step 7: Training loop
+            # Step 6: Training loop
             self.train_loop()
 
-            # Step 8: Validation evaluation
+            # Step 7: Validation evaluation
             self.evaluate_validation()
 
-            # Step 9: Test evaluation
+            # Step 8: Test evaluation
             self.evaluate_test()
 
-            # Step 10: Post-processing
+            # Step 9: Post-processing
             self.post_process()
 
         except Exception:
@@ -86,17 +84,23 @@ class BaseTrainer(ABC):
         self.logger = setup_logger(os.path.join(self.result_path, file_name.log))
 
         # Log experiment config after logger is set up
-        from yamyam_lab.tools.logger import logging_experiment_config
-
         logging_experiment_config(self.logger, self.args, self.result_path)
 
     @abstractmethod
     def load_data(self) -> None:
-        """Load and prepare dataset. Must be implemented by subclasses."""
+        """Load and prepare dataset. Must be implemented by subclasses.
+
+        After loading data, this method should call log_data_statistics()
+        to log the loaded data statistics.
+        """
         raise NotImplementedError
 
     def log_data_statistics(self) -> None:
-        """Log data statistics."""
+        """Log data statistics.
+
+        This method is automatically called by load_data() in the template workflow.
+        Can be overridden by subclasses if custom logging is needed.
+        """
         logging_data_statistics(
             config=self.config,
             data=self.data,

@@ -11,7 +11,7 @@ class ALSTrainer(BaseTrainer):
     """Trainer for ALS model."""
 
     def load_data(self) -> None:
-        """Load CSR dataset."""
+        """Load CSR dataset and log statistics."""
         fe = self.config.preprocess.feature_engineering
 
         data_loader = CsrDatasetLoader(
@@ -32,6 +32,9 @@ class ALSTrainer(BaseTrainer):
             is_csr=True,
             filter_config=self.preprocess_config.filter,
         )
+
+        # Log data statistics after loading
+        self.log_data_statistics()
 
     def build_model(self) -> None:
         """Build ALS model."""
