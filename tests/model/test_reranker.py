@@ -1,6 +1,6 @@
 import pytest
 
-from yamyam_lab.train_ranker import main
+from yamyam_lab.rerank import main
 
 
 @pytest.mark.parametrize(
