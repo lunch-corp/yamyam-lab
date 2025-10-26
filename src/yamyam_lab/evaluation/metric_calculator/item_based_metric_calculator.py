@@ -1,10 +1,9 @@
 import logging
 from typing import Any, List
 
-from numpy.typing import NDArray
-
 from evaluation.metric_calculator.base_metric_calculator import BaseMetricCalculator
 from model.classic_cf.item_based import ItemBasedCollaborativeFiltering
+from numpy.typing import NDArray
 
 
 class ItemBasedMetricCalculator(BaseMetricCalculator):

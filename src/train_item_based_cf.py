@@ -89,7 +89,6 @@ def main(args: ArgumentParser.parse_args) -> None:
             import networkx as nx
             import pandas as pd
             import torch
-
             from model.graph.node2vec import Model as Node2Vec
 
             # Load diner data
