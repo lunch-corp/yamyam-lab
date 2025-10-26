@@ -1,5 +1,4 @@
 import argparse
-import os
 
 import pytest
 from omegaconf import OmegaConf
@@ -138,9 +137,8 @@ def setup_config(request):
     args.num_negative_samples = 20
     args.p = 1
     args.q = 1
-    args.result_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), f"../result/{args.model}"
-    )
+    args.result_path = None
+    args.config_root_path = None
     args.weighted_edge = True
     args.use_metadata = use_metadata
     args.meta_path = [
@@ -161,6 +159,7 @@ def setup_config(request):
 @pytest.fixture(scope="function")
 def setup_als_config():
     args = argparse.ArgumentParser()
+    args.model = "als"
     args.alpha = 1
     args.factors = 100
     args.regularization = 0.01
