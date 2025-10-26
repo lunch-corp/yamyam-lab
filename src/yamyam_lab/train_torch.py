@@ -4,7 +4,6 @@ import os
 import pickle
 import traceback
 from argparse import ArgumentParser
-from datetime import datetime
 
 import torch
 from torch import optim
@@ -13,24 +12,20 @@ from yamyam_lab.data.config import DataConfig
 from yamyam_lab.data.mf import MFDatasetLoader
 from yamyam_lab.evaluation.metric_calculator import SVDBiasMetricCalculator
 from yamyam_lab.loss.custom import svd_loss
-from yamyam_lab.tools.config import load_yaml
-from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.config import generate_result_path, load_configs
+from yamyam_lab.tools.logger import (
+    logging_data_statistics,
+    logging_experiment_config,
+    setup_logger,
+)
+from yamyam_lab.tools.parse_args import parse_args
 from yamyam_lab.tools.plot import plot_metric_at_k
-
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
-CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
-PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
-RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
 
 
 def main(args: ArgumentParser.parse_args):
-    # set result path
-    dt = datetime.now().strftime("%Y%m%d%H%M%S")
-    test_flag = "test" if args.test else "untest"
-    result_path = RESULT_PATH.format(test=test_flag, model=args.model, dt=dt)
-    os.makedirs(result_path, exist_ok=True)
-    config = load_yaml(CONFIG_PATH.format(model=args.model))
-    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
+    # load configs
+    config, preprocess_config = load_configs(args.model, args.config_root_path)
+    result_path = generate_result_path(args.model, args.test, args.result_path)
 
     # predefine config
     top_k_values_for_pred = config.training.evaluation.top_k_values_for_pred
@@ -40,19 +35,7 @@ def main(args: ArgumentParser.parse_args):
     logger = setup_logger(os.path.join(result_path, file_name.log))
 
     try:
-        logger.info(f"model: {args.model}")
-        logger.info(f"device: {args.device}")
-        logger.info(f"batch size: {args.batch_size}")
-        logger.info(f"learning rate: {args.lr}")
-        logger.info(f"regularization: {args.regularization}")
-        logger.info(f"epochs: {args.epochs}")
-        logger.info(
-            f"number of factors for user / item embedding: {args.embedding_dim}"
-        )
-        logger.info(f"test ratio: {args.test_ratio}")
-        logger.info(f"patience for watching validation loss: {args.patience}")
-        logger.info(f"test: {args.test}")
-        logger.info(f"training results will be saved in {result_path}")
+        logging_experiment_config(logger, args, result_path)
 
         # generate dataloader for pytorch training pipeline
         data_loader = MFDatasetLoader(
@@ -72,7 +55,7 @@ def main(args: ArgumentParser.parse_args):
             filter_config=preprocess_config.filter,
         )
 
-        common_logging(
+        logging_data_statistics(
             config=config,
             data=data,
             logger=logger,
@@ -305,7 +288,5 @@ def main(args: ArgumentParser.parse_args):
 
 
 if __name__ == "__main__":
-    from tools.parse_args import parse_args
-
     args = parse_args()
     main(args)

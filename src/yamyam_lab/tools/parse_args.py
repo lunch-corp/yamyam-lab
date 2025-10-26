@@ -49,6 +49,8 @@ def parse_args_graph():
     parser.add_argument("--use_metadata", action="store_true")
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--test", action="store_true")
+    parser.add_argument("--result_path", type=str, default=None)
+    parser.add_argument("--config_root_path", type=str, default=None)
 
     # node2vec parameter
     parser.add_argument("--walk_length", type=int, default=20)
@@ -95,6 +97,7 @@ def parse_args_eval():
 
 def parse_args_als():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, default="als")
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--factors", type=int, default=100)
     parser.add_argument("--regularization", type=float, default=0.01)

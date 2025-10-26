@@ -1,3 +1,4 @@
+import argparse
 import logging
 from typing import Any, Dict
 
@@ -26,7 +27,62 @@ def setup_logger(log_file):
     return logger
 
 
-def common_logging(
+def logging_experiment_config(
+    logger: logging.Logger,
+    args: argparse.ArgumentParser,
+    result_path: str,
+) -> None:
+    if args.model in ["node2vec", "metapath2vec", "graphsage", "lightgcn"]:
+        logger.info(f"embedding model: {args.model}")
+        logger.info(f"device: {args.device}")
+        logger.info(f"batch size: {args.batch_size}")
+        logger.info(f"learning rate: {args.lr}")
+        logger.info(f"epochs: {args.epochs}")
+        logger.info(f"embedding dimension: {args.embedding_dim}")
+        logger.info(f"walks per node: {args.walks_per_node}")
+        logger.info(f"walk length: {args.walk_length}")
+        logger.info(f"num neg samples: {args.num_negative_samples}")
+        logger.info(f"weighted edge: {args.weighted_edge}")
+        if args.model == "node2vec":
+            logger.info(f"p: {args.p}")
+            logger.info(f"q: {args.q}")
+        elif args.model == "metapath2vec":
+            logger.info(f"defined meta_path: {args.meta_path}")
+            logger.info(
+                f"category column for node meta: {args.category_column_for_meta}"
+            )
+        elif args.model == "graphsage":
+            logger.info(f"number of sage layers: {args.num_sage_layers}")
+            logger.info(f"aggregator functions: {args.aggregator_funcs}")
+
+        elif args.model == "lightgcn":
+            logger.info(f"number of layers: {args.num_lightgcn_layers}")
+            logger.info(f"drop ratio: {args.drop_ratio}")
+    elif args.model == "als":
+        logger.info(f"alpha: {args.alpha}")
+        logger.info(f"factors: {args.factors}")
+        logger.info(f"regularization: {args.regularization}")
+        logger.info(f"iterations: {args.iterations}")
+        logger.info(f"use_gpu: {args.use_gpu}")
+        logger.info(f"calculate_training_loss: {args.calculate_training_loss}")
+    elif args.model == "svd_bias":
+        logger.info(f"model: {args.model}")
+        logger.info(f"device: {args.device}")
+        logger.info(f"batch size: {args.batch_size}")
+        logger.info(f"learning rate: {args.lr}")
+        logger.info(f"regularization: {args.regularization}")
+        logger.info(f"epochs: {args.epochs}")
+        logger.info(
+            f"number of factors for user / item embedding: {args.embedding_dim}"
+        )
+        logger.info(f"test ratio: {args.test_ratio}")
+
+    logger.info(f"result path: {result_path}")
+    logger.info(f"test: {args.test}")
+    logger.info(f"training results will be saved in {result_path}")
+
+
+def logging_data_statistics(
     config: Dict[str, Any], data: BaseDatasetLoader, logger: logging.Logger = logging
 ):
     """

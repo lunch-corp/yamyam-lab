@@ -1,35 +1,24 @@
 import os
-import pickle
 import traceback
 from argparse import ArgumentParser
-from datetime import datetime
 
 from yamyam_lab.data.config import DataConfig
 from yamyam_lab.data.csr import CsrDatasetLoader
 from yamyam_lab.evaluation.metric_calculator import ALSMetricCalculator
 from yamyam_lab.model import ALS
-from yamyam_lab.tools.config import load_yaml
-from yamyam_lab.tools.google_drive import GoogleDriveManager
-from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.config import generate_result_path, load_configs
+from yamyam_lab.tools.logger import (
+    logging_data_statistics,
+    logging_experiment_config,
+    setup_logger,
+)
 from yamyam_lab.tools.parse_args import parse_args_als, save_command_to_file
-from yamyam_lab.tools.zip import zip_files_in_directory
-
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
-CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
-PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
-RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
-ZIP_PATH = os.path.join(ROOT_PATH, "./zip/{test}/{model}/{dt}")
 
 
 def main(args: ArgumentParser.parse_args) -> None:
-    # set result path
-    dt = datetime.now().strftime("%Y%m%d%H%M%S")
-    test_flag = "test" if args.test else "untest"
-    result_path = RESULT_PATH.format(test=test_flag, model="als", dt=dt)
-    os.makedirs(result_path, exist_ok=True)
-    # load config
-    config = load_yaml(CONFIG_PATH.format(model="als"))
-    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
+    # load configs
+    config, preprocess_config = load_configs(args.model, None)
+    result_path = generate_result_path(args.model, args.test, None)
     # save command used in argparse
     save_command_to_file(result_path)
 
@@ -43,14 +32,7 @@ def main(args: ArgumentParser.parse_args) -> None:
     logger = setup_logger(os.path.join(result_path, file_name.log))
 
     try:
-        logger.info(f"alpha: {args.alpha}")
-        logger.info(f"factors: {args.factors}")
-        logger.info(f"regularization: {args.regularization}")
-        logger.info(f"iterations: {args.iterations}")
-        logger.info(f"use_gpu: {args.use_gpu}")
-        logger.info(f"calculate_training_loss: {args.calculate_training_loss}")
-        logger.info(f"test: {args.test}")
-        logger.info(f"training results will be saved in {result_path}")
+        logging_experiment_config(logger, args, result_path)
 
         data_loader = CsrDatasetLoader(
             data_config=DataConfig(
@@ -71,7 +53,7 @@ def main(args: ArgumentParser.parse_args) -> None:
             filter_config=preprocess_config.filter,
         )
 
-        common_logging(
+        logging_data_statistics(
             config=config,
             data=data,
             logger=logger,
@@ -146,50 +128,6 @@ def main(args: ArgumentParser.parse_args) -> None:
         metric_calculator.report_metric_with_warm_cold_all_users(
             metric_dict=metric_dict, data_type="test"
         )
-
-        if args.save_candidate:
-            # generate candidates and zip related files
-            zip_path = ZIP_PATH.format(
-                test=test_flag, model="als", dt=dt
-            )  # hard coding
-            os.makedirs(zip_path, exist_ok=True)
-            candidates_df = model.generate_candidates_for_each_user(
-                top_k_value=config.post_training.candidate_generation.top_k,
-                train_csr=data["X_train"],
-            )
-            # save files to zip
-            pickle.dump(
-                data["user_mapping"],
-                open(os.path.join(zip_path, file_name.user_mapping), "wb"),
-            )
-            pickle.dump(
-                data["diner_mapping"],
-                open(os.path.join(zip_path, file_name.diner_mapping), "wb"),
-            )
-            candidates_df.to_parquet(
-                os.path.join(zip_path, file_name.candidate), index=False
-            )
-            # zip file
-            zip_files_in_directory(
-                dir_path=zip_path,
-                zip_file_name=f"{dt}.zip",
-                allowed_type=[".pkl", ".parquet"],
-                logger=logger,
-            )
-            # upload zip file to google drive
-            manager = GoogleDriveManager(
-                reusable_token_path=args.reusable_token_path,
-                reuse_auth_info=True,
-            )
-            file_id = manager.upload_result(
-                model_name="als",  # hard coding
-                file_path=os.path.join(zip_path, f"{dt}.zip"),
-                download_file_type="candidates",
-            )
-            logger.info(
-                f"Successfully uploaded candidate results to google drive."
-                f"File id: {file_id}"
-            )
 
     except:
         logger.error(traceback.format_exc())
