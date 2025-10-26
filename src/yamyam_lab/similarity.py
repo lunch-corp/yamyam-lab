@@ -4,12 +4,12 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from yamyam_lab.evaluation.metric_calculator.similarity_metric_calculator import (
-    ItemBasedMetricCalculator,
-)
 
 from yamyam_lab.data.config import DataConfig
 from yamyam_lab.data.csr import CsrDatasetLoader
+from yamyam_lab.evaluation.metric_calculator.similarity_metric_calculator import (
+    ItemBasedMetricCalculator,
+)
 from yamyam_lab.model.classic_cf.item_based import ItemBasedCollaborativeFiltering
 from yamyam_lab.tools.config import load_yaml
 from yamyam_lab.tools.logger import common_logging, setup_logger
