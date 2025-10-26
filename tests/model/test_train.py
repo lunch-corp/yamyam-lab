@@ -37,11 +37,7 @@ class TestTorchModelTraining:
     """Integration test for PyTorch-based model training using unified pipeline."""
 
     @pytest.mark.parametrize(
-        "setup_config",
-        [
-            ("svd_bias", False),
-        ],
-        indirect=["setup_config"],
+        "setup_config", [("svd_bias", False)], indirect=["setup_config"]
     )
     def test_torch_models_train(self, setup_config):
         """Test that PyTorch models can complete full training."""
