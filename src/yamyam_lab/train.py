@@ -40,10 +40,8 @@ if __name__ == "__main__":
         elif model in ["svd_bias"]:
             args = parse_args()
         else:
-            # Default to ALS parser for unknown models
-            args = parse_args_als()
+            raise ValueError(f"Invalid model: {model}")
     else:
-        # Default to ALS
-        args = parse_args_als()
+        raise ValueError("Model argument is required")
 
     main(args)
