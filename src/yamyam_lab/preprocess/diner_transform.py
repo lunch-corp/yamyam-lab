@@ -18,7 +18,7 @@ class CategoryProcessor:
 
     Attributes:
         df (pd.DataFrame): 처리할 데이터프레임 복사본.
-        mappings (Dict[str, Any]): YAML 파일에서 로드한 카테고리 매핑 정보.
+        config_root_path (str): Root path for config file.
 
     Examples:
         >>> processor = CategoryProcessor(df)
@@ -26,7 +26,7 @@ class CategoryProcessor:
         >>> processed_df = processor.category_preprocessed_diners
     """
 
-    def __init__(self, df: pd.DataFrame) -> None:
+    def __init__(self, df: pd.DataFrame, config_root_path: str) -> None:
         """
         카테고리 프로세서를 초기화합니다.
 
@@ -34,6 +34,7 @@ class CategoryProcessor:
             df (pd.DataFrame): 전처리할 데이터프레임.
         """
         self.df: pd.DataFrame = df.copy()
+        self.config_root_path = Path(config_root_path)
         self.mappings: Dict[str, Any] = self._load_category_mappings()
         self.category_depth: List[List[str]] = [
             ["detail", "small"],
@@ -52,9 +53,7 @@ class CategoryProcessor:
             FileNotFoundError: 설정 파일이 존재하지 않는 경우.
             yaml.YAMLError: YAML 파일 파싱 오류 발생 시.
         """
-        config_path: Path = (
-            Path(__file__).parents[3] / "config" / "data" / "category_mappings.yaml"
-        )
+        config_path: Path = self.config_root_path / "data" / "category_mappings.yaml"
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 mappings = yaml.safe_load(f)

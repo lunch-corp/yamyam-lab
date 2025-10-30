@@ -43,6 +43,7 @@ def preprocess_common(
     min_reviews: int,
     filter_config: Dict[str, Any] = None,
     is_timeseries_by_time_point: bool = False,
+    config_root_path: str = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Common preprocessing identically applied to ranking and candidate generation.
@@ -54,6 +55,7 @@ def preprocess_common(
         min_reviews (int): Minimum number of reviews for each reviewers.
         filter_config (Dict[str. Any]): Filter config used when filtering reviews.
         is_timeseries_by_time_point (bool): Flag if split dataset to train / val / test using datetime.
+        config_root_path (str): Root path for config
 
     Returns (Tuple[pd.DataFrame, pd.DataFrame]):
         Preprocessed review dataset and diner dataset.
@@ -94,7 +96,10 @@ def preprocess_common(
         )
         diner = diner[columns_exclude_category_columns]
 
-    processor = CategoryProcessor(diner_with_raw_category)
+    processor = CategoryProcessor(
+        df=diner_with_raw_category,
+        config_root_path=config_root_path,
+    )
     processor.process_all()
     diner_with_processd_category = processor.category_preprocessed_diners
 
