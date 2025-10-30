@@ -21,7 +21,10 @@ def test_category_preprocess():
     data_paths = ensure_data_files()
     diner_with_raw_category = pd.read_csv(data_paths["category"])
 
-    processor = CategoryProcessor(diner_with_raw_category)
+    processor = CategoryProcessor(
+        df=diner_with_raw_category,
+        config_root_path=os.path.join(os.path.dirname(__file__), "../../config"),
+    )
     processor.process_all()
     diner_with_processd_category = processor.category_preprocessed_diners
     integrated_diner_category_middle = []
