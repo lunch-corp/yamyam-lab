@@ -526,6 +526,7 @@ class BaseDatasetLoader(ABC):
             min_reviews=self.min_reviews,
             is_timeseries_by_time_point=self.is_timeseries_by_time_point,
             filter_config=filter_config,
+            config_root_path=self.data_config.config_root_path,
         )
 
         # Map reviewer and diner data
@@ -585,6 +586,7 @@ class BaseDatasetLoader(ABC):
             all_diner_ids=list(mapped_res["diner_mapping"].values()),
             user_engineered_feature_names=self.user_engineered_feature_names,
             diner_engineered_feature_names=self.diner_engineered_feature_names,
+            config_root_path=self.data_config.config_root_path,
         )
 
         return {

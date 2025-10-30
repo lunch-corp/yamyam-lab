@@ -31,6 +31,7 @@ class TorchTrainer(BaseTrainer):
                 test_time_point=self.config.preprocess.data.test_time_point,
                 end_time_point=self.config.preprocess.data.end_time_point,
                 test=getattr(self.args, "test", False),
+                config_root_path=self.args.config_root_path,
             ),
         )
         self.data = data_loader.prepare_mf_dataset(

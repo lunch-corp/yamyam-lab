@@ -40,6 +40,7 @@ class GraphTrainer(BaseTrainer):
                 end_time_point=self.config.preprocess.data.end_time_point,
                 use_unique_mapping_id=True,
                 test=getattr(self.args, "test", False),
+                config_root_path=self.args.config_root_path,
             ),
         )
         self.data = data_loader.prepare_graph_dataset(
