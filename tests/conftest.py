@@ -168,6 +168,7 @@ def setup_als_config():
     args.calculate_training_loss = True
     args.test = True
     args.save_candidate = False
+    args.config_root_path = None
     return args
 
 
