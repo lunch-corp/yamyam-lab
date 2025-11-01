@@ -90,7 +90,7 @@ class GraphTrainer(BaseTrainer):
             model_name=self.args.model,
             device=self.args.device,
             recommend_batch_size=self.config.training.evaluation.recommend_batch_size,
-            num_workers=4,
+            num_workers=self.args.num_workers,
             meta_path=getattr(self.args, "meta_path", None),
             num_sage_layers=getattr(self.args, "num_sage_layers", None),
             aggregator_funcs=getattr(self.args, "aggregator_funcs", None),
