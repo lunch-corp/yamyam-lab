@@ -112,7 +112,9 @@ class BaseEmbedding(nn.Module):
             collate_fn=self.sample,
             num_workers=self.num_workers,  # can be tuned depending on server spec
             pin_memory=True,  # to reduce data transfer btw cpu and gpu
-            prefetch_factor=2,  # can be tuned depending on server spec
+            prefetch_factor=2
+            if self.num_workers > 0
+            else None,  # can be tuned depending on server spec
             **kwargs,
         )
 

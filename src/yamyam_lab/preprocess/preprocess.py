@@ -278,7 +278,7 @@ def prepare_torch_dataloader(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        prefetch_factor=2,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
     val_dataloader = DataLoader(
         dataset=val_dataset,
@@ -286,7 +286,7 @@ def prepare_torch_dataloader(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        prefetch_factor=2,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
     return train_dataloader, val_dataloader
 
