@@ -30,6 +30,7 @@ class MostPopularRankDataLoader(BaseDatasetLoader):
         period: Literal["1M", "3M", "6M", "all"] = "all",
         reference_date: Optional[Union[str, datetime]] = None,
         topk: int = 10,
+        min_review_count: int = 5,
     ):
         """
         Initialize MostPopularRankDataLoader.
@@ -56,6 +57,7 @@ class MostPopularRankDataLoader(BaseDatasetLoader):
         self.period = period
         self.reference_date = self._parse_reference_date(reference_date)
         self.topk = topk
+        self.min_review_count = min_review_count
 
         # Convert period to days
         self.period_days = self._convert_period_to_days(period)
@@ -124,6 +126,9 @@ class MostPopularRankDataLoader(BaseDatasetLoader):
         if self.topk <= 0:
             raise ValueError("topk must be greater than 0")
 
+        if self.min_review_count < 0:
+            raise ValueError("min_review_count must be non-negative")
+
     def _filter_by_category(
         self: Self, diner: pd.DataFrame, diner_with_raw_category: pd.DataFrame
     ) -> pd.DataFrame:
@@ -174,7 +179,7 @@ class MostPopularRankDataLoader(BaseDatasetLoader):
             return review
 
         # Convert to datetime if not already
-        review = review.copy()
+        # review = review.copy()
         review["reviewer_review_date"] = pd.to_datetime(review["reviewer_review_date"])
 
         # Use reference_date if provided, otherwise use the most recent date in data
@@ -200,7 +205,6 @@ class MostPopularRankDataLoader(BaseDatasetLoader):
         Returns:
             Diner dataframe with distance column
         """
-        diner = diner.copy()
 
         # Filter valid coordinates
         valid_coords = diner["diner_lat"].notna() & diner["diner_lon"].notna()
@@ -245,6 +249,10 @@ class MostPopularRankDataLoader(BaseDatasetLoader):
             )
             .reset_index()
         )
+
+        rating_stats = rating_stats[
+            rating_stats["review_count"] >= self.min_review_count
+        ]
 
         # Merge with diner data
         diner_ranked = pd.merge(diner, rating_stats, on="diner_idx", how="inner")
