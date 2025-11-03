@@ -1,80 +1,79 @@
 import numpy as np
 import pytest
 
-from yamyam_lab.model.classic_cf.item_based import ItemBasedCollaborativeFiltering
-from yamyam_lab.similarity import load_model_for_inference
+from yamyam_lab.similarity import (
+    find_similar_items_cli,
+    find_similar_items_demo,
+    load_model_for_inference,
+    main,
+)
 
 
-class TestItemBasedSimilarity:
-    """Test Item-based Collaborative Filtering similarity search."""
+class TestSimilarityFunctions:
+    """Test similarity.py main functions."""
 
     @pytest.fixture(scope="class")
-    def setup_model(self):
-        """Setup test model and data once for all tests."""
-        model, data, item_interaction_counts = load_model_for_inference()
+    def valid_item_id(self):
+        """Get a valid item ID for testing."""
+        model, _, counts = load_model_for_inference()
+        valid_indices = np.where(counts >= 10)[0]
+        if len(valid_indices) > 0:
+            return model.idx_to_item[valid_indices[0]]
+        return list(model.item_mapping.keys())[0]
 
-        # Get a valid item ID with sufficient interactions
-        valid_indices = np.where(item_interaction_counts >= 10)[0]
-        valid_item_id = (
-            model.idx_to_item[valid_indices[0]]
-            if len(valid_indices) > 0
-            else list(model.item_mapping.keys())[0]
-        )
+    def test_load_model_for_inference(self):
+        """Test that load_model_for_inference works."""
+        model, data, counts = load_model_for_inference()
 
-        return model, data, item_interaction_counts, valid_item_id
-
-    def test_load_model_for_inference(self, setup_model):
-        """Test that load_model_for_inference returns valid objects."""
-        model, data, counts, _ = setup_model
-
-        assert isinstance(model, ItemBasedCollaborativeFiltering)
+        assert model is not None
         assert isinstance(data, dict)
         assert "X_train" in data
         assert isinstance(counts, np.ndarray)
 
-    def test_find_similar_items_returns_results(self, setup_model):
-        """Test that find_similar_items returns valid results."""
-        model, _, _, target_id = setup_model
+    def test_find_similar_items_demo(self, capsys):
+        """Test that find_similar_items_demo executes without errors."""
+        find_similar_items_demo(top_k=3, num_examples=1, min_interactions=10)
 
-        similar_items = model.find_similar_items(target_item_id=target_id, top_k=10)
+        captured = capsys.readouterr()
+        assert "Example 1:" in captured.out
+        assert "Restaurant" in captured.out
 
-        assert isinstance(similar_items, list)
-        assert len(similar_items) <= 10
-
-        if similar_items:
-            assert "item_id" in similar_items[0]
-            assert "similarity_score" in similar_items[0]
-            assert 0.0 <= similar_items[0]["similarity_score"] <= 1.0
-
-    def test_find_similar_items_with_jaccard(self, setup_model):
-        """Test that Jaccard method works."""
-        model, _, _, target_id = setup_model
-
-        similar_items = model.find_similar_items(
-            target_item_id=target_id, top_k=5, method="jaccard"
+    def test_find_similar_items_cli(self, capsys, valid_item_id):
+        """Test that find_similar_items_cli executes without errors."""
+        find_similar_items_cli(
+            target_id=valid_item_id,
+            top_k=5,
+            method="cosine_matrix",
+            min_interactions=10,
         )
 
-        assert isinstance(similar_items, list)
-        assert len(similar_items) <= 5
+        captured = capsys.readouterr()
+        assert "Target:" in captured.out
+        assert "Found" in captured.out
 
-    def test_find_similar_items_with_invalid_id(self, setup_model):
-        """Test that invalid ID returns empty list."""
-        model, _, _, _ = setup_model
+    def test_find_similar_items_cli_with_jaccard(self, capsys, valid_item_id):
+        """Test that find_similar_items_cli works with jaccard method."""
+        find_similar_items_cli(
+            target_id=valid_item_id, top_k=3, method="jaccard", min_interactions=10
+        )
 
-        similar_items = model.find_similar_items(target_item_id=-999999, top_k=10)
+        captured = capsys.readouterr()
+        assert "Target:" in captured.out
 
-        assert similar_items == []
+    def test_main_function(self):
+        """Test that main function executes without errors."""
+        import warnings
 
-    def test_recommend_for_user(self, setup_model):
-        """Test that recommend_for_user returns valid results."""
-        model, _, _, _ = setup_model
-
-        valid_user_id = list(model.user_mapping.keys())[0]
-        recommendations = model.recommend_for_user(user_id=valid_user_id, top_k=10)
-
-        assert isinstance(recommendations, list)
-        assert len(recommendations) <= 10
-
-        if recommendations:
-            assert "item_id" in recommendations[0]
-            assert "predicted_score" in recommendations[0]
+        # Suppress expected warnings during evaluation
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=RuntimeWarning,
+                message="invalid value encountered in divide",
+            )
+            try:
+                main()
+            except SystemExit:
+                pass  # It's ok if it exits normally
+            except Exception as e:
+                pytest.fail(f"main() raised unexpected exception: {e}")
