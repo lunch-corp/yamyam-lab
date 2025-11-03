@@ -61,18 +61,33 @@ def load_model_for_inference():
 
 
 def find_similar_items_cli(
-    target_id: int, top_k: int = 10, method: str = "cosine_matrix"
+    target_id: int,
+    top_k: int = 10,
+    method: str = "cosine_matrix",
+    min_interactions: int = 10,
 ):
-    """Find and display similar restaurants for a specific restaurant ID."""
+    """
+    Find and display similar restaurants for a specific restaurant ID.
+
+    Args:
+        target_id: Target restaurant ID
+        top_k: Number of similar restaurants to return (default: 10)
+        method: Similarity calculation method - "cosine_matrix" or "jaccard"
+        min_interactions: Minimum reviews for candidate restaurants (default: 10)
+    """
     model, data, item_interaction_counts = load_model_for_inference()
 
     if target_id not in model.item_mapping:
         print(f"Error: Restaurant ID {target_id} not found in training data")
         return
 
+    target_idx = model.item_mapping[target_id]
+    target_reviews = int(item_interaction_counts[target_idx])
+
+    # Get more candidates than needed
     similar_items = model.find_similar_items(
         target_item_id=target_id,
-        top_k=top_k,
+        top_k=top_k * 5,
         method=method,
     )
 
@@ -80,6 +95,7 @@ def find_similar_items_cli(
         print("No similar restaurants found")
         return
 
+    # Filter out items with very low similarity
     non_zero_items = [
         item for item in similar_items if item["similarity_score"] > 0.0001
     ]
@@ -89,13 +105,24 @@ def find_similar_items_cli(
         print("Try using a more popular restaurant or --method jaccard")
         return
 
-    target_idx = model.item_mapping[target_id]
-    target_reviews = int(item_interaction_counts[target_idx])
-    
-    print(f"\nTarget: Restaurant {target_id} ({target_reviews} reviews)")
-    print(f"Found {len(non_zero_items)} similar restaurants:\n")
+    # Prioritize items with >= min_interactions, but fall back if needed
+    high_quality_items = [
+        item
+        for item in non_zero_items
+        if item_interaction_counts[model.item_mapping[item["item_id"]]]
+        >= min_interactions
+    ]
 
-    for i, item in enumerate(non_zero_items, 1):
+    # Use high quality items if available, otherwise use all non-zero items
+    display_items = high_quality_items if high_quality_items else non_zero_items
+
+    # Ensure we have at least top_k items (or as many as available)
+    display_items = display_items[:top_k]
+
+    print(f"\nTarget: Restaurant {target_id} ({target_reviews} reviews)")
+    print(f"Found {len(display_items)} similar restaurants:\n")
+
+    for i, item in enumerate(display_items, 1):
         similar_idx = model.item_mapping[item["item_id"]]
         similar_reviews = int(item_interaction_counts[similar_idx])
         print(
@@ -155,13 +182,15 @@ def find_similar_items_demo(
 
         # Prioritize items with >= min_interactions, but fall back if needed
         high_quality_items = [
-            item for item in non_zero_items
-            if item_interaction_counts[model.item_mapping[item["item_id"]]] >= min_interactions
+            item
+            for item in non_zero_items
+            if item_interaction_counts[model.item_mapping[item["item_id"]]]
+            >= min_interactions
         ]
 
         # Use high quality items if available, otherwise use all non-zero items
         display_items = high_quality_items if high_quality_items else non_zero_items
-        
+
         # Ensure we have at least top_k items (or as many as available)
         display_items = display_items[:top_k]
 
@@ -266,7 +295,7 @@ if __name__ == "__main__":
     )
     demo_parser.add_argument("--top_k", type=int, default=10)
     demo_parser.add_argument("--num_examples", type=int, default=3)
-    demo_parser.add_argument("--min_interactions", type=int, default=20)
+    demo_parser.add_argument("--min_interactions", type=int, default=10)
 
     find_parser = subparsers.add_parser(
         "find", help="Find similar restaurants for a specific restaurant ID"
@@ -274,7 +303,16 @@ if __name__ == "__main__":
     find_parser.add_argument("--target_id", type=int, required=True)
     find_parser.add_argument("--top_k", type=int, default=10)
     find_parser.add_argument(
-        "--method", type=str, choices=["cosine_matrix", "jaccard"], default="cosine_matrix"
+        "--method",
+        type=str,
+        choices=["cosine_matrix", "jaccard"],
+        default="cosine_matrix",
+    )
+    find_parser.add_argument(
+        "--min_interactions",
+        type=int,
+        default=10,
+        help="Minimum reviews for candidate restaurants (default: 10)",
     )
 
     args = parser.parse_args()
@@ -292,6 +330,7 @@ if __name__ == "__main__":
             target_id=args.target_id,
             top_k=args.top_k,
             method=args.method,
+            min_interactions=args.min_interactions,
         )
     else:
         main()
