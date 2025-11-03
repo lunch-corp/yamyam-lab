@@ -11,23 +11,20 @@ class ItemBasedCollaborativeFiltering:
     def __init__(
         self,
         user_item_matrix: csr_matrix,
-        item_embeddings: np.ndarray,
         user_mapping: Dict[int, int],
         item_mapping: Dict[int, int],
         diner_df: pd.DataFrame = None,
     ) -> None:
         """
-        Initialize the ItemBasedCollaborativeFiltering with trained embeddings and user-item matrix.
+        Initialize the ItemBasedCollaborativeFiltering.
 
         Args:
             user_item_matrix: CSR matrix of shape (n_users, n_items) with ratings/scores
-            item_embeddings: Array of item embeddings from trained model (deprecated, use None)
             user_mapping: Dictionary mapping user_id to matrix row index
             item_mapping: Dictionary mapping restaurant_id to matrix column index
             diner_df: DataFrame containing diner information (optional, for hybrid)
         """
         self.user_item_matrix = user_item_matrix
-        self.item_embeddings = item_embeddings
         self.user_mapping = user_mapping
         self.item_mapping = item_mapping
         self.diner_df = diner_df

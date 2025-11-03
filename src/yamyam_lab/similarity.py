@@ -26,12 +26,7 @@ RESULT_PATH = os.path.join(ROOT_PATH, ".././result/{test}/{model}/{dt}")
 
 
 def load_model_for_inference():
-    """
-    Load model for inference (data loading + model initialization).
-
-    Returns:
-        tuple: (model, data, item_interaction_counts)
-    """
+    """Load model for inference (data loading + model initialization)."""
     config = load_yaml(CONFIG_PATH.format(model="als"))
     preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
     fe = config.preprocess.feature_engineering
@@ -55,7 +50,6 @@ def load_model_for_inference():
 
     model = ItemBasedCollaborativeFiltering(
         user_item_matrix=data["X_train"],
-        item_embeddings=None,
         user_mapping=data["user_mapping"],
         item_mapping=data["diner_mapping"],
         diner_df=None,
@@ -69,34 +63,12 @@ def load_model_for_inference():
 def find_similar_items_cli(
     target_id: int, top_k: int = 10, method: str = "cosine_matrix"
 ):
-    """
-    Find and display similar restaurants for a specific restaurant ID via CLI.
-
-    Args:
-        target_id: Target restaurant ID
-        top_k: Number of similar restaurants to return (default: 10)
-        method: Similarity calculation method - "cosine_matrix" or "jaccard"
-    """
-    print("=" * 70)
-    print(f"Finding Similar Restaurants for ID: {target_id}")
-    print("=" * 70)
-
-    print("\n[1/2] Loading model...")
+    """Find and display similar restaurants for a specific restaurant ID."""
     model, data, item_interaction_counts = load_model_for_inference()
-    print(
-        f"  ✓ Loaded {data['X_train'].shape[0]:,} users × {data['X_train'].shape[1]:,} items"
-    )
 
     if target_id not in model.item_mapping:
-        print(f"\n❌ Error: Restaurant ID {target_id} not found in training data!")
+        print(f"Error: Restaurant ID {target_id} not found in training data")
         return
-
-    target_idx = model.item_mapping[target_id]
-    target_reviews = int(item_interaction_counts[target_idx])
-    print(f"  ✓ Target Restaurant: ID {target_id} ({target_reviews} reviews)")
-
-    print(f"\n[2/2] Finding top {top_k} similar restaurants (method: {method})...")
-    print("-" * 70)
 
     similar_items = model.find_similar_items(
         target_item_id=target_id,
@@ -105,7 +77,7 @@ def find_similar_items_cli(
     )
 
     if not similar_items:
-        print("  ⚠️  No similar restaurants found")
+        print("No similar restaurants found")
         return
 
     non_zero_items = [
@@ -113,111 +85,95 @@ def find_similar_items_cli(
     ]
 
     if not non_zero_items:
-        print("  ⚠️  No restaurants with meaningful similarity (all scores ≈ 0)")
-        print("      Try using a more popular restaurant or --method jaccard")
+        print("No restaurants with meaningful similarity found")
+        print("Try using a more popular restaurant or --method jaccard")
         return
 
-    print(
-        f"\n📊 Similar Restaurants (Top {len(non_zero_items)} with similarity > 0):\n"
-    )
+    target_idx = model.item_mapping[target_id]
+    target_reviews = int(item_interaction_counts[target_idx])
+    
+    print(f"\nTarget: Restaurant {target_id} ({target_reviews} reviews)")
+    print(f"Found {len(non_zero_items)} similar restaurants:\n")
 
     for i, item in enumerate(non_zero_items, 1):
         similar_idx = model.item_mapping[item["item_id"]]
         similar_reviews = int(item_interaction_counts[similar_idx])
-        print(f"  {i:2d}. Restaurant ID: {item['item_id']:10d}")
         print(
-            f"      Similarity: {item['similarity_score']:.6f}  |  Reviews: {similar_reviews:,}"
+            f"{i:2d}. ID {item['item_id']:10d} | "
+            f"Similarity: {item['similarity_score']:.4f} | "
+            f"Reviews: {similar_reviews:,}"
         )
-
-    print("\n" + "=" * 70)
-    similar_ids = [item["item_id"] for item in non_zero_items]
-    print(f"📋 Similar Restaurant IDs: {similar_ids}")
-    print("=" * 70)
 
 
 def find_similar_items_demo(
-    top_k: int = 10, num_examples: int = 3, min_interactions: int = 20
+    top_k: int = 10, num_examples: int = 3, min_interactions: int = 10
 ):
-    """
-    Demo function that randomly selects restaurants and finds similar items.
-
-    Args:
-        top_k: Number of similar items to show per restaurant (default: 10)
-        num_examples: Number of random restaurants to test (default: 3)
-        min_interactions: Minimum number of reviews for filtering (default: 20)
-    """
-    print("=" * 70)
-    print("Item-Based Collaborative Filtering - Similar Items Demo")
-    print("=" * 70)
-
-    print("\n[1/2] Loading model and filtering restaurants...")
+    """Demo: randomly select restaurants and find similar items."""
     model, data, item_interaction_counts = load_model_for_inference()
-    print(
-        f"  ✓ Loaded {data['X_train'].shape[0]:,} users × {data['X_train'].shape[1]:,} items"
-    )
 
     valid_indices = np.where(item_interaction_counts >= min_interactions)[0]
-
     if len(valid_indices) == 0:
-        print(f"⚠️  No items with at least {min_interactions} interactions found!")
+        print(f"No items with at least {min_interactions} interactions found")
         return
 
     valid_item_ids = [
         model.idx_to_item[idx] for idx in valid_indices if idx in model.idx_to_item
     ]
-    print(
-        f"  ℹ️  Filtering: {len(valid_item_ids):,} items with ≥{min_interactions} reviews"
-    )
+
+    print(f"Filtered {len(valid_item_ids):,} items with >={min_interactions} reviews")
+    print(f"Testing {num_examples} random restaurants\n")
 
     random_item_ids = random.sample(
         valid_item_ids, min(num_examples, len(valid_item_ids))
     )
 
-    print(
-        f"\n[2/2] Finding similar restaurants for {num_examples} random restaurants..."
-    )
-    print("=" * 70)
-
     for idx, target_id in enumerate(random_item_ids, 1):
         target_idx = model.item_mapping[target_id]
         target_reviews = int(item_interaction_counts[target_idx])
 
-        print(
-            f"\n🍽️  Example {idx}: Restaurant ID {target_id} ({target_reviews} reviews)"
-        )
-        print("-" * 70)
+        print(f"Example {idx}: Restaurant {target_id} ({target_reviews} reviews)")
 
+        # Get more candidates than needed
         similar_items = model.find_similar_items(
             target_item_id=target_id,
-            top_k=top_k,
+            top_k=top_k * 5,
             method="cosine_matrix",
         )
 
         if not similar_items:
-            print("  ⚠️  No similar restaurants found")
+            print("  No similar restaurants found\n")
             continue
 
+        # Filter out items with very low similarity
         non_zero_items = [
             item for item in similar_items if item["similarity_score"] > 0.0001
         ]
 
         if not non_zero_items:
-            print("  ⚠️  No restaurants with meaningful similarity")
+            print("  No meaningful similarity found\n")
             continue
 
-        print(f"  Similar restaurants (Top {len(non_zero_items)} with similarity > 0):")
-        for i, item in enumerate(non_zero_items, 1):
+        # Prioritize items with >= min_interactions, but fall back if needed
+        high_quality_items = [
+            item for item in non_zero_items
+            if item_interaction_counts[model.item_mapping[item["item_id"]]] >= min_interactions
+        ]
+
+        # Use high quality items if available, otherwise use all non-zero items
+        display_items = high_quality_items if high_quality_items else non_zero_items
+        
+        # Ensure we have at least top_k items (or as many as available)
+        display_items = display_items[:top_k]
+
+        for i, item in enumerate(display_items, 1):
             similar_idx = model.item_mapping[item["item_id"]]
             similar_reviews = int(item_interaction_counts[similar_idx])
             print(
-                f"    {i:2d}. Restaurant ID: {item['item_id']:10d}  |  "
-                f"Similarity: {item['similarity_score']:.4f}  |  "
-                f"Reviews: {similar_reviews:4d}"
+                f"  {i}. ID {item['item_id']:10d} | "
+                f"Sim: {item['similarity_score']:.4f} | "
+                f"Reviews: {similar_reviews}"
             )
-
-    print("\n" + "=" * 70)
-    print("✅ Demo completed!")
-    print("=" * 70)
+        print()
 
 
 def main() -> None:
@@ -266,7 +222,6 @@ def main() -> None:
         logger.info("Initializing Item-based Collaborative Filtering model...")
         item_based_model = ItemBasedCollaborativeFiltering(
             user_item_matrix=data["X_train"],
-            item_embeddings=None,
             user_mapping=data["user_mapping"],
             item_mapping=data["diner_mapping"],
             diner_df=None,
@@ -302,57 +257,24 @@ def main() -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Item-based Collaborative Filtering")
-
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
-    # Train command
     train_parser = subparsers.add_parser("train", help="Train and evaluate model")
 
-    # Demo command
     demo_parser = subparsers.add_parser(
         "demo", help="Find similar items for random restaurants"
     )
-    demo_parser.add_argument(
-        "--top_k",
-        type=int,
-        default=10,
-        help="Number of similar items to show per restaurant (default: 10)",
-    )
-    demo_parser.add_argument(
-        "--num_examples",
-        type=int,
-        default=3,
-        help="Number of random restaurants to test (default: 3)",
-    )
-    demo_parser.add_argument(
-        "--min_interactions",
-        type=int,
-        default=20,
-        help="Minimum number of reviews for a restaurant to be selected (default: 20)",
-    )
+    demo_parser.add_argument("--top_k", type=int, default=10)
+    demo_parser.add_argument("--num_examples", type=int, default=3)
+    demo_parser.add_argument("--min_interactions", type=int, default=20)
 
-    # Find command
     find_parser = subparsers.add_parser(
         "find", help="Find similar restaurants for a specific restaurant ID"
     )
+    find_parser.add_argument("--target_id", type=int, required=True)
+    find_parser.add_argument("--top_k", type=int, default=10)
     find_parser.add_argument(
-        "--target_id",
-        type=int,
-        required=True,
-        help="Target restaurant ID to find similar restaurants for",
-    )
-    find_parser.add_argument(
-        "--top_k",
-        type=int,
-        default=10,
-        help="Number of similar restaurants to return (default: 10)",
-    )
-    find_parser.add_argument(
-        "--method",
-        type=str,
-        choices=["cosine_matrix", "jaccard"],
-        default="cosine_matrix",
-        help="Similarity calculation method (default: cosine_matrix)",
+        "--method", type=str, choices=["cosine_matrix", "jaccard"], default="cosine_matrix"
     )
 
     args = parser.parse_args()
