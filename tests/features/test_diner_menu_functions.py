@@ -95,6 +95,7 @@ class TestDinerMenuFunctions:
                     diner=sample_diner_data,
                     all_diner_ids=[1, 2, 3],
                     feature_param_pair={},
+                    config_root_path=None,
                 )
                 return feature_store
 

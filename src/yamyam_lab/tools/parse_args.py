@@ -51,6 +51,7 @@ def parse_args_graph():
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--result_path", type=str, default=None)
     parser.add_argument("--config_root_path", type=str, default=None)
+    parser.add_argument("--num_workers", type=int, default=1)
 
     # node2vec parameter
     parser.add_argument("--walk_length", type=int, default=20)

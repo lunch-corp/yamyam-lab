@@ -43,6 +43,7 @@ def logging_experiment_config(
         logger.info(f"walk length: {args.walk_length}")
         logger.info(f"num neg samples: {args.num_negative_samples}")
         logger.info(f"weighted edge: {args.weighted_edge}")
+        logger.info(f"number of workers: {args.num_workers}")
         if args.model == "node2vec":
             logger.info(f"p: {args.p}")
             logger.info(f"q: {args.q}")

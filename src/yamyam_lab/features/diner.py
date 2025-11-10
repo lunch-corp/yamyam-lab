@@ -27,6 +27,7 @@ class DinerFeatureStore(BaseFeatureStore):
         diner: pd.DataFrame,
         all_diner_ids: List[int],
         feature_param_pair: Dict[str, Dict[str, Any]],
+        config_root_path: str,
     ) -> None:
         """
         Feature engineering on diner data.
@@ -39,6 +40,7 @@ class DinerFeatureStore(BaseFeatureStore):
             all_diner_ids: Diner IDs from all review data (train, val, test).
             feature_param_pair: Dictionary mapping feature names to their parameters.
                 Keys are feature names, values are parameter dictionaries.
+            config_root_path: Root path for config.
 
         Raises:
             ValueError: If a feature name in feature_param_pair is not implemented.
@@ -49,6 +51,7 @@ class DinerFeatureStore(BaseFeatureStore):
             feature_param_pair=feature_param_pair,
         )
         self.all_diner_ids = all_diner_ids
+        self.config_root_path = config_root_path
 
         self.feature_methods = {
             "all_review_cnt": self.calculate_all_review_cnt,
@@ -78,9 +81,7 @@ class DinerFeatureStore(BaseFeatureStore):
         Returns:
             Dictionary containing menu cleaning configuration.
         """
-        config_path = os.path.join(
-            os.path.dirname(__file__), "../../..", "config", "data", "menu_name.yaml"
-        )
+        config_path = os.path.join(self.config_root_path, "data/menu_name.yaml")
 
         try:
             with open(config_path, "r", encoding="utf-8") as file:

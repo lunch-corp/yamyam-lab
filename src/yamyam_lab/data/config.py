@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Self
 
@@ -26,13 +27,17 @@ class DataConfig:
     use_unique_mapping_id: bool = False
     test: bool = False
     candidate_type: str = "node2vec"
-    additional_reviews_path: str = "config/data/additional_reviews.yaml"
+    config_root_path: str = None
 
     def __post_init__(self: Self):
         self.user_engineered_feature_names = self.user_engineered_feature_names or {}
         self.diner_engineered_feature_names = self.diner_engineered_feature_names or {}
         self.X_columns = self.X_columns or ["diner_idx", "reviewer_id"]
         self.y_columns = self.y_columns or ["reviewer_review_score"]
+        self.config_root_path = self.config_root_path or "config/"
+        self.additional_reviews_path = os.path.join(
+            self.config_root_path, "data/additional_reviews.yaml"
+        )
 
     @classmethod
     def from_yaml(cls, path: str) -> "DataConfig":

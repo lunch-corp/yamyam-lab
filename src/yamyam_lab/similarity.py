@@ -1,4 +1,6 @@
+import argparse
 import os
+import random
 import traceback
 from datetime import datetime
 
@@ -12,16 +14,199 @@ from yamyam_lab.evaluation.metric_calculator.similarity_metric_calculator import
 )
 from yamyam_lab.model.classic_cf.item_based import ItemBasedCollaborativeFiltering
 from yamyam_lab.tools.config import load_yaml
-from yamyam_lab.tools.logger import common_logging, setup_logger
+from yamyam_lab.tools.logger import logging_data_statistics, setup_logger
 from yamyam_lab.tools.parse_args import save_command_to_file
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "..")
-CONFIG_PATH = os.path.join(ROOT_PATH, "./config/models/mf/{model}.yaml")
-PREPROCESS_CONFIG_PATH = os.path.join(ROOT_PATH, "./config/preprocess/preprocess.yaml")
-RESULT_PATH = os.path.join(ROOT_PATH, "./result/{test}/{model}/{dt}")
+CONFIG_PATH = os.path.join(ROOT_PATH, ".././config/models/mf/{model}.yaml")
+PREPROCESS_CONFIG_PATH = os.path.join(
+    ROOT_PATH, ".././config/preprocess/preprocess.yaml"
+)
+RESULT_PATH = os.path.join(ROOT_PATH, ".././result/{test}/{model}/{dt}")
+
+
+def load_model_for_inference():
+    """Load model for inference (data loading + model initialization)."""
+    config = load_yaml(CONFIG_PATH.format(model="als"))
+    preprocess_config = load_yaml(PREPROCESS_CONFIG_PATH)
+    fe = config.preprocess.feature_engineering
+
+    data_config = DataConfig(
+        X_columns=["diner_idx", "reviewer_id"],
+        y_columns=["reviewer_review_score"],
+        user_engineered_feature_names=fe.user_engineered_feature_names,
+        diner_engineered_feature_names=fe.diner_engineered_feature_names,
+        is_timeseries_by_time_point=config.preprocess.data.is_timeseries_by_time_point,
+        train_time_point=config.preprocess.data.train_time_point,
+        val_time_point=config.preprocess.data.val_time_point,
+        test_time_point=config.preprocess.data.test_time_point,
+        end_time_point=config.preprocess.data.end_time_point,
+        test=False,
+    )
+    data_loader = CsrDatasetLoader(data_config=data_config)
+    data = data_loader.prepare_csr_dataset(
+        is_csr=True, filter_config=preprocess_config.filter
+    )
+
+    model = ItemBasedCollaborativeFiltering(
+        user_item_matrix=data["X_train"],
+        user_mapping=data["user_mapping"],
+        item_mapping=data["diner_mapping"],
+        diner_df=None,
+    )
+
+    item_interaction_counts = np.array(model.item_user_matrix.sum(axis=1)).flatten()
+
+    return model, data, item_interaction_counts
+
+
+def find_similar_items_cli(
+    target_id: int,
+    top_k: int = 10,
+    method: str = "cosine_matrix",
+    min_interactions: int = 10,
+):
+    """
+    Find and display similar restaurants for a specific restaurant ID.
+
+    Args:
+        target_id: Target restaurant ID
+        top_k: Number of similar restaurants to return (default: 10)
+        method: Similarity calculation method - "cosine_matrix" or "jaccard"
+        min_interactions: Minimum reviews for candidate restaurants (default: 10)
+    """
+    model, data, item_interaction_counts = load_model_for_inference()
+
+    if target_id not in model.item_mapping:
+        print(f"Error: Restaurant ID {target_id} not found in training data")
+        return
+
+    target_idx = model.item_mapping[target_id]
+    target_reviews = int(item_interaction_counts[target_idx])
+
+    # Get more candidates than needed
+    similar_items = model.find_similar_items(
+        target_item_id=target_id,
+        top_k=top_k * 5,
+        method=method,
+    )
+
+    if not similar_items:
+        print("No similar restaurants found")
+        return
+
+    # Filter out items with very low similarity
+    non_zero_items = [
+        item for item in similar_items if item["similarity_score"] > 0.0001
+    ]
+
+    if not non_zero_items:
+        print("No restaurants with meaningful similarity found")
+        print("Try using a more popular restaurant or --method jaccard")
+        return
+
+    # Prioritize items with >= min_interactions, but fall back if needed
+    high_quality_items = [
+        item
+        for item in non_zero_items
+        if item_interaction_counts[model.item_mapping[item["item_id"]]]
+        >= min_interactions
+    ]
+
+    # Use high quality items if available, otherwise use all non-zero items
+    display_items = high_quality_items if high_quality_items else non_zero_items
+
+    # Ensure we have at least top_k items (or as many as available)
+    display_items = display_items[:top_k]
+
+    print(f"\nTarget: Restaurant {target_id} ({target_reviews} reviews)")
+    print(f"Found {len(display_items)} similar restaurants:\n")
+
+    for i, item in enumerate(display_items, 1):
+        similar_idx = model.item_mapping[item["item_id"]]
+        similar_reviews = int(item_interaction_counts[similar_idx])
+        print(
+            f"{i:2d}. ID {item['item_id']:10d} | "
+            f"Similarity: {item['similarity_score']:.4f} | "
+            f"Reviews: {similar_reviews:,}"
+        )
+
+
+def find_similar_items_demo(
+    top_k: int = 10, num_examples: int = 3, min_interactions: int = 10
+):
+    """Demo: randomly select restaurants and find similar items."""
+    model, data, item_interaction_counts = load_model_for_inference()
+
+    valid_indices = np.where(item_interaction_counts >= min_interactions)[0]
+    if len(valid_indices) == 0:
+        print(f"No items with at least {min_interactions} interactions found")
+        return
+
+    valid_item_ids = [
+        model.idx_to_item[idx] for idx in valid_indices if idx in model.idx_to_item
+    ]
+
+    print(f"Filtered {len(valid_item_ids):,} items with >={min_interactions} reviews")
+    print(f"Testing {num_examples} random restaurants\n")
+
+    random_item_ids = random.sample(
+        valid_item_ids, min(num_examples, len(valid_item_ids))
+    )
+
+    for idx, target_id in enumerate(random_item_ids, 1):
+        target_idx = model.item_mapping[target_id]
+        target_reviews = int(item_interaction_counts[target_idx])
+
+        print(f"Example {idx}: Restaurant {target_id} ({target_reviews} reviews)")
+
+        # Get more candidates than needed
+        similar_items = model.find_similar_items(
+            target_item_id=target_id,
+            top_k=top_k * 5,
+            method="cosine_matrix",
+        )
+
+        if not similar_items:
+            print("  No similar restaurants found\n")
+            continue
+
+        # Filter out items with very low similarity
+        non_zero_items = [
+            item for item in similar_items if item["similarity_score"] > 0.0001
+        ]
+
+        if not non_zero_items:
+            print("  No meaningful similarity found\n")
+            continue
+
+        # Prioritize items with >= min_interactions, but fall back if needed
+        high_quality_items = [
+            item
+            for item in non_zero_items
+            if item_interaction_counts[model.item_mapping[item["item_id"]]]
+            >= min_interactions
+        ]
+
+        # Use high quality items if available, otherwise use all non-zero items
+        display_items = high_quality_items if high_quality_items else non_zero_items
+
+        # Ensure we have at least top_k items (or as many as available)
+        display_items = display_items[:top_k]
+
+        for i, item in enumerate(display_items, 1):
+            similar_idx = model.item_mapping[item["item_id"]]
+            similar_reviews = int(item_interaction_counts[similar_idx])
+            print(
+                f"  {i}. ID {item['item_id']:10d} | "
+                f"Sim: {item['similarity_score']:.4f} | "
+                f"Reviews: {similar_reviews}"
+            )
+        print()
 
 
 def main() -> None:
+    """Train and evaluate Item-based Collaborative Filtering model."""
     dt = datetime.now().strftime("%Y%m%d%H%M%S")
     test_flag = "untest"
     result_path = RESULT_PATH.format(test=test_flag, model="item_based", dt=dt)
@@ -44,7 +229,6 @@ def main() -> None:
         logger.info("model: item_based")
         logger.info(f"results will be saved in {result_path}")
 
-        # ------------------ 데이터 로딩 ------------------
         data_config = DataConfig(
             X_columns=["diner_idx", "reviewer_id"],
             y_columns=["reviewer_review_score"],
@@ -59,35 +243,27 @@ def main() -> None:
         )
         data_loader = CsrDatasetLoader(data_config=data_config)
         data = data_loader.prepare_csr_dataset(
-            is_csr=False, filter_config=preprocess_config.filter
+            is_csr=True, filter_config=preprocess_config.filter
         )
 
-        common_logging(config, data, logger)
+        logging_data_statistics(config, data, logger)
 
-        # ------------------ Item-based CF 모델 초기화 ------------------
         logger.info("Initializing Item-based Collaborative Filtering model...")
-
-        num_items = data["X_train"].shape[0]
-        dummy_embeddings = np.eye(num_items)
-
         item_based_model = ItemBasedCollaborativeFiltering(
-            user_item_matrix=data["X_train"],  # DataFrame 형태
-            item_embeddings=dummy_embeddings,
+            user_item_matrix=data["X_train"],
             user_mapping=data["user_mapping"],
             item_mapping=data["diner_mapping"],
             diner_df=None,
         )
 
-        # ------------------ test_dict 생성 (단일 train/test) ------------------
         data["test_dict"] = {
-            "train": data["X_train_df"],  # DataFrame
+            "train": data["X_train_df"],
             "test": pd.concat(
                 [data["X_test_warm_users"], data["X_test_cold_users"]],
                 ignore_index=True,
             ),
         }
 
-        # ------------------ 평가 ------------------
         logger.info("Evaluating Item-based CF model...")
         metric_calculator = ItemBasedMetricCalculator(
             model=item_based_model,
@@ -109,4 +285,52 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Item-based Collaborative Filtering")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    train_parser = subparsers.add_parser("train", help="Train and evaluate model")
+
+    demo_parser = subparsers.add_parser(
+        "demo", help="Find similar items for random restaurants"
+    )
+    demo_parser.add_argument("--top_k", type=int, default=10)
+    demo_parser.add_argument("--num_examples", type=int, default=3)
+    demo_parser.add_argument("--min_interactions", type=int, default=10)
+
+    find_parser = subparsers.add_parser(
+        "find", help="Find similar restaurants for a specific restaurant ID"
+    )
+    find_parser.add_argument("--target_id", type=int, required=True)
+    find_parser.add_argument("--top_k", type=int, default=10)
+    find_parser.add_argument(
+        "--method",
+        type=str,
+        choices=["cosine_matrix", "jaccard"],
+        default="cosine_matrix",
+    )
+    find_parser.add_argument(
+        "--min_interactions",
+        type=int,
+        default=10,
+        help="Minimum reviews for candidate restaurants (default: 10)",
+    )
+
+    args = parser.parse_args()
+
+    if args.command == "train":
+        main()
+    elif args.command == "demo":
+        find_similar_items_demo(
+            top_k=args.top_k,
+            num_examples=args.num_examples,
+            min_interactions=args.min_interactions,
+        )
+    elif args.command == "find":
+        find_similar_items_cli(
+            target_id=args.target_id,
+            top_k=args.top_k,
+            method=args.method,
+            min_interactions=args.min_interactions,
+        )
+    else:
+        main()

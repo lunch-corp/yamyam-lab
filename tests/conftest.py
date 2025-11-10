@@ -139,6 +139,7 @@ def setup_config(request):
     args.q = 1
     args.result_path = None
     args.config_root_path = None
+    args.num_workers = 1
     args.weighted_edge = True
     args.use_metadata = use_metadata
     args.meta_path = [
@@ -168,6 +169,7 @@ def setup_als_config():
     args.calculate_training_loss = True
     args.test = True
     args.save_candidate = False
+    args.config_root_path = None
     return args
 
 

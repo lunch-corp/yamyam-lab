@@ -16,6 +16,7 @@ def build_feature(
     all_diner_ids: List[int],
     user_engineered_feature_names: Dict[str, Dict[str, Any]],
     diner_engineered_feature_names: Dict[str, Dict[str, Any]],
+    config_root_path: str,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Build features for user and diner.
@@ -27,6 +28,7 @@ def build_feature(
         all_diner_ids (List[int]): All diner ids.
         user_engineered_feature_names (Dict[str, Dict[str, Any]]): User engineered feature names.
         diner_engineered_feature_names (Dict[str, Dict[str, Any]]): Diner engineered feature names.
+        config_root_path (str): Root path for config.
 
     Returns:
         tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: User feature, diner feature, diner meta feature.
@@ -47,6 +49,7 @@ def build_feature(
         diner=diner,
         all_diner_ids=all_diner_ids,
         feature_param_pair=diner_engineered_feature_names,
+        config_root_path=config_root_path,
     )
     diner_fs.make_features()
     diner_feature = diner_fs.engineered_features

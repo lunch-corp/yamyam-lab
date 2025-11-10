@@ -1,37 +1,30 @@
 from typing import Dict, List, Union
 
-import networkx as nx
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-import torch
 from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import cosine_similarity
-
-from yamyam_lab.model.graph.node2vec import Model as Node2Vec
 
 
 class ItemBasedCollaborativeFiltering:
     def __init__(
         self,
         user_item_matrix: csr_matrix,
-        item_embeddings: np.ndarray,
         user_mapping: Dict[int, int],
         item_mapping: Dict[int, int],
         diner_df: pd.DataFrame = None,
     ) -> None:
         """
-        Initialize the ItemBasedCollaborativeFiltering with trained embeddings and user-item matrix.
+        Initialize the ItemBasedCollaborativeFiltering.
 
         Args:
             user_item_matrix: CSR matrix of shape (n_users, n_items) with ratings/scores
-            item_embeddings: Array of item embeddings from trained model
             user_mapping: Dictionary mapping user_id to matrix row index
             item_mapping: Dictionary mapping restaurant_id to matrix column index
             diner_df: DataFrame containing diner information (optional, for hybrid)
         """
         self.user_item_matrix = user_item_matrix
-        self.item_embeddings = item_embeddings
         self.user_mapping = user_mapping
         self.item_mapping = item_mapping
         self.diner_df = diner_df
@@ -105,30 +98,6 @@ class ItemBasedCollaborativeFiltering:
 
         return 0.0
 
-    def _calculate_embedding_similarity(
-        self, target_id: int, candidate_id: int
-    ) -> float:
-        """
-        Calculate embedding-based similarity.
-        """
-        if self.item_embeddings is None:
-            return 0.0
-
-        if target_id not in self.item_mapping or candidate_id not in self.item_mapping:
-            return 0.0
-
-        target_idx = self.item_mapping[target_id]
-        candidate_idx = self.item_mapping[candidate_id]
-
-        target_emb = self.item_embeddings[target_idx]
-        candidate_emb = self.item_embeddings[candidate_idx]
-
-        similarity = cosine_similarity(
-            target_emb.reshape(1, -1), candidate_emb.reshape(1, -1)
-        )[0, 0]
-
-        return float(similarity)
-
     def find_similar_items(
         self,
         target_item_id: int,
@@ -142,6 +111,9 @@ class ItemBasedCollaborativeFiltering:
             target_item_id: The item ID to find neighbors for.
             top_k: Number of similar items to return.
             method: "cosine_matrix" or "jaccard".
+
+        Returns:
+            List of dicts with 'item_id' and 'similarity_score' keys
         """
         target_idx = self._get_item_idx(target_item_id)
         if target_idx is None:
@@ -193,6 +165,9 @@ class ItemBasedCollaborativeFiltering:
             user_id: The ID of the user to recommend for.
             top_k: Number of items to recommend.
             method: "cosine_matrix" or "jaccard".
+
+        Returns:
+            List of dicts with 'item_id' and 'predicted_score' keys
         """
         user_idx = self._get_user_idx(user_id)
         if user_idx is None:
@@ -242,21 +217,19 @@ class ItemBasedCollaborativeFiltering:
         self,
         target_item_id: int,
         top_k: int = 10,
-        cf_weight: float = 0.6,
+        cf_weight: float = 0.8,
         content_weight: float = 0.2,
-        embedding_weight: float = 0.2,
         method: str = "cosine_matrix",
         normalize_weights: bool = True,
     ) -> List[Dict[str, Union[int, float]]]:
         """
-        Hybrid similarity: Simple combination of CF + Content + Embedding.
+        Hybrid similarity: Combination of CF + Content.
 
         Args:
             target_item_id: Target restaurant ID
             top_k: Number of similar restaurants to return
-            cf_weight: Weight for CF similarity (default 0.6)
+            cf_weight: Weight for CF similarity (default 0.8)
             content_weight: Weight for content similarity (default 0.2)
-            embedding_weight: Weight for embedding similarity (default 0.2)
             method: CF method ('cosine_matrix' or 'jaccard')
             normalize_weights: If True, normalize weights to sum to 1.0 (default True)
 
@@ -265,11 +238,10 @@ class ItemBasedCollaborativeFiltering:
         """
         # Normalize weights
         if normalize_weights:
-            total = cf_weight + content_weight + embedding_weight
+            total = cf_weight + content_weight
             if total > 0:
                 cf_weight /= total
                 content_weight /= total
-                embedding_weight /= total
 
         # 1. Get CF-based similarities using existing method
         cf_results = self.find_similar_items(
@@ -278,7 +250,7 @@ class ItemBasedCollaborativeFiltering:
             method=method,
         )
 
-        # 2. Calculate content and embedding similarities for each candidate
+        # 2. Calculate content similarities for each candidate
         hybrid_results = []
 
         for cf_item in cf_results:
@@ -292,19 +264,8 @@ class ItemBasedCollaborativeFiltering:
                 else 0.0
             )
 
-            # Embedding similarity
-            embedding_score = (
-                self._calculate_embedding_similarity(target_item_id, candidate_id)
-                if embedding_weight > 0
-                else 0.0
-            )
-
             # Calculate hybrid score
-            hybrid_score = (
-                cf_weight * cf_score
-                + content_weight * content_score
-                + embedding_weight * embedding_score
-            )
+            hybrid_score = cf_weight * cf_score + content_weight * content_score
 
             hybrid_results.append(
                 {
@@ -312,7 +273,6 @@ class ItemBasedCollaborativeFiltering:
                     "hybrid_score": hybrid_score,
                     "cf_score": cf_score,
                     "content_score": content_score,
-                    "embedding_score": embedding_score,
                 }
             )
 
@@ -320,128 +280,3 @@ class ItemBasedCollaborativeFiltering:
         hybrid_results.sort(key=lambda x: x["hybrid_score"], reverse=True)
 
         return hybrid_results[:top_k]
-
-
-if __name__ == "__main__":
-    import argparse
-    import pickle
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--pre_trained_graph_model_path", type=str, required=True)
-    parser.add_argument("--data_object_path", type=str, required=True)
-    parser.add_argument("--X_train_csr_path", type=str, required=True)
-    parser.add_argument("--target_item_id", type=int, required=True)
-    parser.add_argument("--top_k", type=int, default=10)
-    parser.add_argument("--user_id", type=int, help="User ID for recommendations")
-    parser.add_argument("--hybrid", action="store_true", help="Use hybrid similarity")
-
-    # Hyperparameters for hybrid mode
-    parser.add_argument(
-        "--cf_weight",
-        type=float,
-        default=0.6,
-        help="Weight for CF similarity in hybrid mode (default: 0.6)",
-    )
-    parser.add_argument(
-        "--content_weight",
-        type=float,
-        default=0.2,
-        help="Weight for content similarity in hybrid mode (default: 0.2)",
-    )
-    parser.add_argument(
-        "--embedding_weight",
-        type=float,
-        default=0.2,
-        help="Weight for embedding similarity in hybrid mode (default: 0.2)",
-    )
-
-    args = parser.parse_args()
-
-    data = pickle.load(open(args.data_object_path, "rb"))
-    X_train_csr = sp.load_npz(args.X_train_csr_path)
-
-    # Load diner data (for hybrid mode)
-    diner_df = None
-    item_embeddings = None
-
-    if args.hybrid:
-        try:
-            diner_df = pd.read_csv("data/diner.csv", low_memory=False)
-            category_df = pd.read_csv("data/diner_category_raw.csv")
-            diner_df = pd.merge(diner_df, category_df, on="diner_idx", how="left")
-        except:
-            print("Warning: Could not load diner data for hybrid mode")
-
-        model = Node2Vec(
-            user_ids=torch.tensor(list(data["user_mapping"].values())),
-            diner_ids=torch.tensor(list(data["diner_mapping"].values())),
-            embedding_dim=32,
-            inference=True,
-            top_k_values=[1],
-            graph=nx.Graph(),
-            walks_per_node=1,
-            num_negative_samples=1,
-            num_nodes=len(data["user_mapping"]) + len(data["diner_mapping"]),
-            model_name="node2vec",
-            device="cpu",
-            recommend_batch_size=2000,
-            num_workers=4,
-            walk_length=1,
-        )
-
-        model.load_state_dict(
-            torch.load(args.pre_trained_graph_model_path, weights_only=True)
-        )
-        model.eval()
-        item_embeddings = model._embedding.weight.detach().numpy()[data["num_users"] :]
-
-    item_based_cf = ItemBasedCollaborativeFiltering(
-        user_item_matrix=X_train_csr,
-        item_embeddings=item_embeddings,
-        user_mapping=data["user_mapping"],
-        item_mapping=data["diner_mapping"],
-        diner_df=diner_df,
-    )
-
-    # Find similar items
-    if args.hybrid:
-        print("Using Hybrid Similarity (CF + Content + Embedding)")
-        similar_items = item_based_cf.find_similar_items_hybrid(
-            target_item_id=args.target_item_id,
-            top_k=args.top_k,
-            cf_weight=args.cf_weight,
-            content_weight=args.content_weight,
-            embedding_weight=args.embedding_weight,
-            normalize_weights=True,
-        )
-
-        for item in similar_items:
-            print(f"\nItem ID: {item['item_id']}")
-            print(f"  Hybrid Score: {item['hybrid_score']:.4f}")
-            print(
-                f"  - CF: {item['cf_score']:.4f}, Content: {item['content_score']:.4f}, Embedding: {item['embedding_score']:.4f}"
-            )
-    else:
-        similar_items = item_based_cf.find_similar_items(
-            target_item_id=args.target_item_id,
-            top_k=args.top_k,
-            method="cosine_matrix",
-        )
-
-        print(f"Items similar to {args.target_item_id}:")
-        for item in similar_items:
-            print(
-                f"  Item ID: {item['item_id']}, Similarity: {item['similarity_score']:.4f}"
-            )
-
-    # Generate recommendations for a user if provided
-    if args.user_id:
-        recommendations = item_based_cf.recommend_for_user(
-            user_id=args.user_id, top_k=args.top_k, method="cosine_matrix"
-        )
-
-        print(f"\nRecommendations for user {args.user_id}:")
-        for rec in recommendations:
-            print(
-                f"  Item ID: {rec['item_id']}, Predicted Score: {rec['predicted_score']:.4f}"
-            )
