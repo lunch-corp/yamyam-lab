@@ -72,7 +72,7 @@ jobs:
           key: venv-${{ hashFiles('poetry.lock') }}
 
       - name: Install the project dependencies
-        run: poetry install
+        run: poetry install --with dev --extras "item_cf"
 
       - name: Run pytest
         run: |
