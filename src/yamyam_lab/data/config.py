@@ -1,8 +1,15 @@
 import os
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Dict, List, Self
 
+import pandas as pd
 import yaml
+
+
+class DataSource(StrEnum):
+    LOCAL = "local"
+    GOOGLE_DRIVE = "google_drive"
 
 
 @dataclass
@@ -28,6 +35,12 @@ class DataConfig:
     test: bool = False
     candidate_type: str = "node2vec"
     config_root_path: str = None
+    data_source: DataSource = DataSource.GOOGLE_DRIVE
+    # below parameters are used when data are directly passed in fastapi server
+    review: pd.DataFrame = None
+    reviewer: pd.DataFrame = None
+    diner: pd.DataFrame = None
+    category: pd.DataFrame = None
 
     def __post_init__(self: Self):
         self.user_engineered_feature_names = self.user_engineered_feature_names or {}
@@ -38,6 +51,9 @@ class DataConfig:
         self.additional_reviews_path = os.path.join(
             self.config_root_path, "data/additional_reviews.yaml"
         )
+
+        if isinstance(self.data_source, str):
+            self.data_source = DataSource(self.data_source)
 
     @classmethod
     def from_yaml(cls, path: str) -> "DataConfig":
