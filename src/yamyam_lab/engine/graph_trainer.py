@@ -13,6 +13,7 @@ from yamyam_lab.data.config import DataConfig
 from yamyam_lab.data.graph import GraphDatasetLoader
 from yamyam_lab.engine.base_trainer import BaseTrainer
 from yamyam_lab.evaluation.metric_calculator import EmbeddingMetricCalculator
+from yamyam_lab.model.config.graph_model_config import GraphModelConfig
 from yamyam_lab.tools.plot import plot_metric_at_k
 
 
@@ -67,11 +68,9 @@ class GraphTrainer(BaseTrainer):
 
         top_k_values = self.get_top_k_values()
 
-        # Import embedding module
-        model_path = f"yamyam_lab.model.graph.{self.args.model}"
-        model_module = importlib.import_module(model_path).Model
-
-        self.model = model_module(
+        # Define graph model config
+        self.graph_model_config = GraphModelConfig(
+            # common parameters
             user_ids=torch.tensor(list(self.data["user_mapping"].values())).to(
                 self.args.device
             ),
@@ -84,22 +83,34 @@ class GraphTrainer(BaseTrainer):
             walks_per_node=self.args.walks_per_node,
             num_nodes=num_nodes,
             num_negative_samples=self.args.num_negative_samples,
-            q=self.args.q,
-            p=self.args.p,
             top_k_values=top_k_values,
             model_name=self.args.model,
             device=self.args.device,
             recommend_batch_size=self.config.training.evaluation.recommend_batch_size,
             num_workers=self.args.num_workers,
+            inference=False,  # set False when training model
+            # node2vec parameters
+            q=self.args.q,
+            p=self.args.p,
+            # metapath2vec parameters
             meta_path=getattr(self.args, "meta_path", None),
+            # graphsage parameters
             num_sage_layers=getattr(self.args, "num_sage_layers", None),
-            aggregator_funcs=getattr(self.args, "aggregator_funcs", None),
-            num_neighbor_samples=getattr(self.args, "num_neighbor_samples", None),
             user_raw_features=self.data["user_feature"].to(self.args.device),
             diner_raw_features=self.data["diner_feature"].to(self.args.device),
+            aggregator_funcs=getattr(self.args, "aggregator_funcs", None),
+            num_neighbor_samples=getattr(self.args, "num_neighbor_samples", None),
+            # lightgcn parameters
             num_layers=getattr(self.args, "num_lightgcn_layers", None),
             drop_ratio=getattr(self.args, "drop_ratio", None),
-        ).to(self.args.device)
+        )
+
+        # Import embedding module
+        model_path = f"yamyam_lab.model.graph.{self.args.model}"
+        model_module = importlib.import_module(model_path).Model
+
+        # Instantiate model with config object
+        self.model = model_module(config=self.graph_model_config).to(self.args.device)
 
     def build_metric_calculator(self) -> None:
         """Build embedding metric calculator."""
@@ -250,7 +261,10 @@ class GraphTrainer(BaseTrainer):
         file_name = self.config.post_training.file_name
 
         torch.save(
-            self.model.state_dict(),
+            {
+                "model_state_dict": self.model.state_dict(),
+                "config": self.graph_model_config,
+            },
             str(os.path.join(self.result_path, file_name.weight)),
         )
 
