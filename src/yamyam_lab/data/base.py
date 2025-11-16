@@ -9,7 +9,7 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
-from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.config import DataConfig, DataSource
 from yamyam_lab.features import build_feature
 from yamyam_lab.preprocess.preprocess import preprocess_common, reviewer_diner_mapping
 from yamyam_lab.tools.config import load_yaml
@@ -72,11 +72,12 @@ class BaseDatasetLoader(ABC):
         self.diner_ids_from_additional_reviews = (
             self.get_diner_ids_from_additional_reviews()
         )
+        self.data_source = self.data_config.data_source
 
-        self.data_paths = check_data_and_return_paths()
         self.candidate_paths = Path(f"candidates/{self.data_config.candidate_type}")
 
         self._validate_input_params()
+        self._validate_data_source_param()
 
     def _validate_input_params(self: Self) -> None:
         match (self.is_timeseries_by_users, self.is_timeseries_by_time_point):
@@ -153,6 +154,22 @@ class BaseDatasetLoader(ABC):
                             "time point for val data should not be greater or equal than time point for test data"
                         )
 
+    def _validate_data_source_param(self: Self) -> None:
+        """
+        Validate data_source parameter.
+        """
+        if self.data_source == DataSource.LOCAL:
+            required_fields = (
+                self.data_config.review,
+                self.data_config.reviewer,
+                self.data_config.diner,
+                self.data_config.category,
+            )
+            if not all(field is not None for field in required_fields):
+                raise ValueError(
+                    "When data_source is set to LOCAL, review, reviewer, diner, and category dataframes must be provided in data_config."
+                )
+
     def _validate_additional_reviews(
         self: Self, reviewer_mapping: Dict, diner_mapping: Dict
     ) -> None:
@@ -180,12 +197,24 @@ class BaseDatasetLoader(ABC):
         Returns (Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]):
             review, diner, diner_with_raw_category
         """
-        review = pd.read_csv(self.data_paths["review"])
-        reviewer = pd.read_csv(self.data_paths["reviewer"])
-        review = pd.merge(review, reviewer, on="reviewer_id", how="left")
+        if self.data_source == DataSource.GOOGLE_DRIVE:
+            self.data_paths = check_data_and_return_paths()
+            review = pd.read_csv(self.data_paths["review"])
+            reviewer = pd.read_csv(self.data_paths["reviewer"])
+            review = pd.merge(review, reviewer, on="reviewer_id", how="left")
 
-        diner = pd.read_csv(self.data_paths["diner"], low_memory=False)
-        diner_with_raw_category = pd.read_csv(self.data_paths["category"])
+            diner = pd.read_csv(self.data_paths["diner"], low_memory=False)
+            diner_with_raw_category = pd.read_csv(self.data_paths["category"])
+        # this logic is used only in fastapi server where data are directly passed
+        elif self.data_source == DataSource.LOCAL:
+            review = self.data_config.review
+            reviewer = self.data_config.reviewer
+            review = pd.merge(review, reviewer, on="reviewer_id", how="left")
+
+            diner = self.data_config.diner
+            diner_with_raw_category = self.data_config.category
+        else:
+            raise ValueError(f"Unsupported data_source: {self.data_source}")
 
         if self.test:
             yongsan_diners = diner[
