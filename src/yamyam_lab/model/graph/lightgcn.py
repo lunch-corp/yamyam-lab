@@ -1,6 +1,5 @@
 from typing import List, Tuple, Union
 
-import networkx as nx
 import numpy as np
 import scipy.sparse as sp
 import torch
@@ -8,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from yamyam_lab.model.config.graph_model_config import GraphModelConfig
 from yamyam_lab.model.graph.base_embedding import BaseEmbedding
 from yamyam_lab.tools.sampling import np_edge_dropout
 
@@ -19,62 +19,18 @@ class Model(BaseEmbedding):
 
     def __init__(
         self,
-        # parameters for base_embedding
-        user_ids: Tensor,
-        diner_ids: Tensor,
-        top_k_values: List[int],
-        graph: nx.Graph,
-        embedding_dim: int,
-        walks_per_node: int,
-        num_negative_samples: int,
-        num_nodes: int,
-        model_name: str,
-        device: str,
-        recommend_batch_size: int,
-        num_workers: int,
-        # parameters for lightgcn
-        num_layers: int = 3,
-        drop_ratio: float = 0.0,
-        inference: bool = False,
-        **kwargs,
+        config: GraphModelConfig,
     ):
         """
         LightGCN model compatible with train_graph.py format.
 
         Args:
-            user_ids (Tensor): User ids in data.
-            diner_ids (Tensor): Diner ids in data.
-            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
-            graph (nx.Graph): Networkx graph object generated from train data.
-            embedding_dim (int): Dimension of user / diner embedding vector.
-            walks_per_node (int): Number of generated walks for each node (not used in LightGCN).
-            num_negative_samples (int): Number of negative samples for each node.
-            num_nodes (int): Total number of nodes.
-            model_name (str): Model name.
-            device (str): Device on which train is run. (cpu or cuda)
-            recommend_batch_size (int): Batch size when calculating validation metric.
-            num_layers (int): Number of LightGCN layers.
-            drop_ratio (float): Edge dropout ratio.
-            inference (bool): Indicator whether inference mode or not.
-            **kwargs: Additional keyword arguments.
+            config (GraphModelConfig): Configuration object containing all parameters.
         """
-        super().__init__(
-            user_ids=user_ids,
-            diner_ids=diner_ids,
-            top_k_values=top_k_values,
-            graph=graph,
-            embedding_dim=embedding_dim,
-            walks_per_node=walks_per_node,
-            num_negative_samples=num_negative_samples,
-            num_nodes=num_nodes,
-            model_name=model_name,
-            device=device,
-            recommend_batch_size=recommend_batch_size,
-            num_workers=num_workers,
-        )
+        super().__init__(config=config)
 
-        self.num_layers = num_layers
-        self.drop_ratio = drop_ratio
+        self.num_layers = config.num_layers
+        self.drop_ratio = config.drop_ratio
 
         # Create node ID mappings for LightGCN
         self._create_node_mappings()
