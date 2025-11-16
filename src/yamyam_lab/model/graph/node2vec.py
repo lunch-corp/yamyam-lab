@@ -1,10 +1,10 @@
 from typing import List, Tuple, Union
 
-import networkx as nx
 import torch
 from torch import Tensor
 
 from yamyam_lab.loss.custom import basic_contrastive_loss
+from yamyam_lab.model.config.graph_model_config import GraphModelConfig
 from yamyam_lab.model.graph.base_embedding import BaseEmbedding
 from yamyam_lab.tools.generate_walks import precompute_probabilities
 
@@ -12,25 +12,7 @@ from yamyam_lab.tools.generate_walks import precompute_probabilities
 class Model(BaseEmbedding):
     def __init__(
         self,
-        # parameters for base_embedding
-        user_ids: Tensor,
-        diner_ids: Tensor,
-        top_k_values: List[int],
-        graph: nx.Graph,
-        embedding_dim: int,
-        walks_per_node: int,
-        num_negative_samples: int,
-        num_nodes: int,
-        model_name: str,
-        device: str,
-        recommend_batch_size: int,
-        num_workers: int,
-        # parameters for node2vec
-        walk_length: int,
-        p: float = 1.0,
-        q: float = 1.0,
-        inference: bool = False,
-        **kwargs,
+        config: GraphModelConfig = None,
     ):
         """
         This is a customized version of pytorch geometric implementation of node2vec.
@@ -40,47 +22,20 @@ class Model(BaseEmbedding):
             - data structure: Uses networkx.Graph.
 
         Args:
-            user_ids (Tensor): User ids in data.
-            diner_ids (Tensor): Diner ids in data.
-            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
-            graph (nx.Graph): Networkx graph object generated from train data.
-            embedding_dim (int): Dimension of user / diner embedding vector.
-            walks_per_node (int): Number of generated walks for each node.
-            num_negative_samples (int): Number of negative samples for each node.
-            num_nodes (int): Total number of nodes.
-            model_name (str): Model name.
-            device (str): Device on which train is run. (cpu or cuda)
-            recommend_batch_size (int): Batch size when calculating validation metric.
-            walk_length (int):
-            p (float): Likelihood of immediately revisiting a node in the walk.
-            q (float): Control parameter to interpolate between breadth-first strategy and depth-first strategy.
-            inference (bool): Indicator whether inference mode or not.
-            **kwargs: Additional keyword arguments.
+            config (GraphModelConfig): Configuration object containing all parameters.
         """
-        super().__init__(
-            user_ids=user_ids,
-            diner_ids=diner_ids,
-            top_k_values=top_k_values,
-            graph=graph,
-            embedding_dim=embedding_dim,
-            walks_per_node=walks_per_node,
-            num_negative_samples=num_negative_samples,
-            num_nodes=num_nodes,
-            model_name=model_name,
-            device=device,
-            recommend_batch_size=recommend_batch_size,
-            num_workers=num_workers,
-        )
+        # Pass config to parent
+        super().__init__(config=config)
 
-        self.walk_length = walk_length
-        self.p = p
-        self.q = q
+        self.walk_length = config.walk_length
+        self.q = config.q
+        self.p = config.p
 
-        if inference is False:
+        if self.inference is False:
             self.d_graph = precompute_probabilities(
-                graph=graph,
-                p=p,
-                q=q,
+                graph=self.graph,
+                p=self.p,
+                q=self.q,
             )
 
     def pos_sample(self, batch: Tensor) -> Tensor:

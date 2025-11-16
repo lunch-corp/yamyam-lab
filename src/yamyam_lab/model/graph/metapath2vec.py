@@ -1,12 +1,12 @@
 from collections import defaultdict
 from typing import List, Tuple, Union
 
-import networkx as nx
 import numpy as np
 import torch
 from torch import Tensor
 
 from yamyam_lab.loss.custom import basic_contrastive_loss
+from yamyam_lab.model.config.graph_model_config import GraphModelConfig
 from yamyam_lab.model.graph.base_embedding import BaseEmbedding
 from yamyam_lab.tools.generate_walks import (
     generate_walks_metapath,
@@ -18,24 +18,7 @@ from yamyam_lab.tools.tensor import unpad_by_mask
 class Model(BaseEmbedding):
     def __init__(
         self,
-        # parameters for base_embedding
-        user_ids: Tensor,
-        diner_ids: Tensor,
-        top_k_values: List[int],
-        graph: nx.Graph,
-        embedding_dim: int,
-        walks_per_node: int,
-        num_negative_samples: int,
-        num_nodes: int,
-        model_name: str,
-        device: str,
-        recommend_batch_size: int,
-        num_workers: int,
-        # parameters for metapath2vec
-        meta_path: List[List[str]],
-        meta_field: str = "meta",
-        inference: bool = False,
-        **kwargs,
+        config: GraphModelConfig,
     ):
         """
         Train node embedding based on meta path defined by user.
@@ -49,60 +32,35 @@ class Model(BaseEmbedding):
                 whereas that of metapath2vec is defined with `meta_path` parameter.
 
         Args:
-            user_ids (Tensor): User ids in data.
-            diner_ids (Tensor): Diner ids in data.
-            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
-            graph (nx.Graph): Networkx graph object generated from train data.
-            embedding_dim (int): Dimension of user / diner embedding vector.
-            walks_per_node (int): Number of generated walks for each node.
-            num_negative_samples (int): Number of negative samples for each node.
-            num_nodes (int): Total number of nodes.
-            model_name (str): Model name.
-            device (str): Device on which train is run. (cpu or cuda)
-            recommend_batch_size (int): Batch size when calculating validation metric.
-            meta_path (List[List[str]]): List of meta path which controls types of walk sequence.
-            meta_field (str): Name of meta field in graph object.
-            inference (bool): Indicator whether inference mode or not.
-            **kwargs: Additional keyword arguments.
+            config (GraphModelConfig): Configuration object containing all parameters.
         """
-        super().__init__(
-            user_ids=user_ids,
-            diner_ids=diner_ids,
-            top_k_values=top_k_values,
-            graph=graph,
-            embedding_dim=embedding_dim,
-            walks_per_node=walks_per_node,
-            num_negative_samples=num_negative_samples,
-            num_nodes=num_nodes,
-            model_name=model_name,
-            device=device,
-            recommend_batch_size=recommend_batch_size,
-            num_workers=num_workers,
-        )
+        super().__init__(config=config)
 
-        self.meta_path = meta_path
-        self.meta_field = meta_field
+        self.meta_path = config.meta_path
+        self.meta_field = config.meta_field
         self.padding_value = -1
 
         given_meta = []
-        for path in meta_path:
+        for path in self.meta_path:
             given_meta.extend(path)
         given_meta = set(given_meta)
-        node_meta = set([graph.nodes[node][meta_field] for node in graph.nodes()])
+        node_meta = set(
+            [self.graph.nodes[node][self.meta_field] for node in self.graph.nodes()]
+        )
         for meta in given_meta:
             assert meta in node_meta
 
         self.meta2node_id = defaultdict(list)
-        for node in graph.nodes():
-            node_meta = graph.nodes[node][meta_field]
+        for node in self.graph.nodes():
+            node_meta = self.graph.nodes[node][self.meta_field]
             self.meta2node_id[node_meta].append(node)
         for meta, node_ids in self.meta2node_id.items():
             self.meta2node_id[meta] = np.array(node_ids)
 
-        if inference is False:
+        if self.inference is False:
             self.d_graph = precompute_probabilities_metapath(
-                graph=graph,
-                meta_field=meta_field,
+                graph=self.graph,
+                meta_field=self.meta_field,
             )
 
     @torch.jit.export

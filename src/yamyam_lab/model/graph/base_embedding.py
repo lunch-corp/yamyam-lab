@@ -1,7 +1,6 @@
 from abc import abstractmethod
 from typing import List, Tuple, Union
 
-import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
@@ -12,56 +11,41 @@ from torch.nn import Embedding
 from torch.utils.data import DataLoader
 
 from yamyam_lab.constant.metric.metric import Metric
+from yamyam_lab.model.config.graph_model_config import GraphModelConfig
 from yamyam_lab.tools.generate_walks import generate_walks
 
 
 class BaseEmbedding(nn.Module):
     def __init__(
         self,
-        user_ids: Tensor,
-        diner_ids: Tensor,
-        top_k_values: List[int],
-        graph: nx.Graph = None,
-        embedding_dim: int = 32,
-        walks_per_node: int = 3,
-        num_negative_samples: int = 3,
-        num_nodes: int = None,
-        model_name: str = None,
-        device: str = None,
-        recommend_batch_size: int = 2000,
-        num_workers: int = 4,
+        config: GraphModelConfig,
     ):
         """
-        Base module for node embedding model (node2vec, metapath2vec, graphsage)
+        Base module for node embedding model (node2vec, metapath2vec, graphsage, lightgcn)
 
         Args:
-            user_ids (Tensor): User ids in data.
-            diner_ids (Tensor): Diner ids in data.
-            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
-            graph (nx.Graph): Networkx graph object generated from train data.
-            embedding_dim (int): Dimension of user / diner embedding vector.
-            walks_per_node (int): Number of generated walks for each node.
-            num_negative_samples (int): Number of negative samples for each node.
-            num_nodes (int): Total number of nodes.
-            model_name (str): Model name.
-            device (str): Device on which train is run. (cpu or cuda)
-            recommend_batch_size (int): Batch size when calculating validation metric.
+            config (GraphModelConfig): Configuration object containing all parameters.
         """
         super().__init__()
-        self.user_ids = user_ids
-        self.diner_ids = diner_ids
-        self.graph = graph
-        self.embedding_dim = embedding_dim
-        self.walks_per_node = walks_per_node
-        self.num_negative_samples = num_negative_samples
-        self.num_nodes = num_nodes
-        self.model_name = model_name
-        self.device = device
-        self.recommend_batch_size = recommend_batch_size
-        self.num_workers = num_workers
+
+        self.user_ids = config.user_ids
+        self.diner_ids = config.diner_ids
+        self.graph = config.graph
+        self.embedding_dim = config.embedding_dim
+        self.walk_length = config.walk_length
+        self.walks_per_node = config.walks_per_node
+        self.num_nodes = config.num_nodes
+        self.num_negative_samples = config.num_negative_samples
+        self.top_k_values = config.top_k_values
+        self.model_name = config.model_name
+        self.device = config.device
+        self.recommend_batch_size = config.recommend_batch_size
+        self.num_workers = config.num_workers
+        self.inference = config.inference
+
         self.EPS = 1e-15
-        self.num_users = len(self.user_ids)
-        self.num_diners = len(self.diner_ids)
+        self.num_users = len(config.user_ids)
+        self.num_diners = len(config.diner_ids)
         self.tr_loss = []
 
         # store metric value at each epoch
@@ -72,7 +56,7 @@ class BaseEmbedding(nn.Module):
                 Metric.RECALL: [],
                 Metric.COUNT: 0,
             }
-            for k in top_k_values
+            for k in config.top_k_values
         }
 
         if self.model_name in ["node2vec", "metapath2vec"]:
