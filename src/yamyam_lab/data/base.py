@@ -76,10 +76,10 @@ class BaseDatasetLoader(ABC):
 
         self.candidate_paths = Path(f"candidates/{self.data_config.candidate_type}")
 
-        self._validate_input_params()
+        self._validate_data_datetime_params()
         self._validate_data_source_param()
 
-    def _validate_input_params(self: Self) -> None:
+    def _validate_data_datetime_params(self: Self) -> None:
         match (self.is_timeseries_by_users, self.is_timeseries_by_time_point):
             # Error case
             case (True, True):
