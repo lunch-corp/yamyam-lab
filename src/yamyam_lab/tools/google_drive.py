@@ -40,9 +40,10 @@ def get_env_var(var_name: str) -> str:
     return value
 
 
-def download_from_drive() -> Dict[str, str]:
+def download_from_drive_and_return_paths() -> Dict[str, str]:
     """
     Google Drive에서 데이터셋을 다운로드하고 압축을 해제합니다.
+    압축을 해제한 디렉토리를 반환합니다.
 
     Returns:
         Dict[str, str]: 파일명과 경로를 담은 딕셔너리
@@ -109,15 +110,17 @@ def download_from_drive() -> Dict[str, str]:
         raise
 
 
-def ensure_data_files() -> Dict[str, str]:
+def check_data_and_return_paths() -> Dict[str, str]:
     """
     필요한 모든 데이터 파일이 존재하는지 확인하고 없으면 다운로드합니다.
+    다운로드 후에는 다운로드 받은 파일의 경로를 반환합니다.
+    데이터가 이미 존재한다면, 그 경로를 반환합니다.
 
     Returns:
         Dict[str, str]: 파일명과 경로를 담은 딕셔너리
     """
     if not check_required_files():
-        return download_from_drive()
+        return download_from_drive_and_return_paths()
     else:
         print("기존 data가 존재합니다. 파일 경로를 반환합니다.")
         return get_file_paths(data_dir)

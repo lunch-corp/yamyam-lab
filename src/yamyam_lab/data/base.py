@@ -13,7 +13,7 @@ from yamyam_lab.data.config import DataConfig
 from yamyam_lab.features import build_feature
 from yamyam_lab.preprocess.preprocess import preprocess_common, reviewer_diner_mapping
 from yamyam_lab.tools.config import load_yaml
-from yamyam_lab.tools.google_drive import ensure_data_files
+from yamyam_lab.tools.google_drive import check_data_and_return_paths
 
 
 class BaseDatasetLoader(ABC):
@@ -73,7 +73,7 @@ class BaseDatasetLoader(ABC):
             self.get_diner_ids_from_additional_reviews()
         )
 
-        self.data_paths = ensure_data_files()
+        self.data_paths = check_data_and_return_paths()
         self.candidate_paths = Path(f"candidates/{self.data_config.candidate_type}")
 
         self._validate_input_params()

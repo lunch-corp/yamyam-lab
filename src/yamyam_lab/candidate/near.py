@@ -6,14 +6,14 @@ import pandas as pd
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
 
-from yamyam_lab.tools.google_drive import ensure_data_files
+from yamyam_lab.tools.google_drive import check_data_and_return_paths
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
 
 
 class NearCandidateGenerator:
     def __init__(self):
-        data_paths = ensure_data_files()
+        data_paths = check_data_and_return_paths()
         diners = pd.read_csv(data_paths["diner"], low_memory=False)
 
         diner_ids = diners["diner_idx"].unique()

@@ -8,7 +8,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../
 
 from yamyam_lab.preprocess.diner_transform import CategoryProcessor
 from yamyam_lab.tools.config import load_yaml
-from yamyam_lab.tools.google_drive import ensure_data_files
+from yamyam_lab.tools.google_drive import check_data_and_return_paths
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/data/category_mappings.yaml")
@@ -18,7 +18,7 @@ def test_category_preprocess():
     """
     Test if category preprocessing is correctly done or not.
     """
-    data_paths = ensure_data_files()
+    data_paths = check_data_and_return_paths()
     diner_with_raw_category = pd.read_csv(data_paths["category"])
 
     processor = CategoryProcessor(
