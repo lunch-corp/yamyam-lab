@@ -1,12 +1,12 @@
 from typing import List, Tuple, Union
 
-import networkx as nx
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
 from yamyam_lab.loss.custom import basic_contrastive_loss
+from yamyam_lab.model.config.graph_model_config import GraphModelConfig
 from yamyam_lab.model.graph.base_embedding import BaseEmbedding
 from yamyam_lab.tools.generate_walks import precompute_probabilities
 from yamyam_lab.tools.sampling import (
@@ -33,74 +33,23 @@ class SageLayer(nn.Module):
 class Model(BaseEmbedding):
     def __init__(
         self,
-        # parameters for base_embedding
-        user_ids: Tensor,
-        diner_ids: Tensor,
-        top_k_values: List[int],
-        graph: nx.Graph,
-        embedding_dim: int,
-        walks_per_node: int,
-        num_negative_samples: int,
-        num_nodes: int,
-        model_name: str,
-        device: str,
-        recommend_batch_size: int,
-        num_workers: int,
-        # parameters for graphsage
-        num_sage_layers: int,
-        user_raw_features: torch.Tensor,
-        diner_raw_features: torch.Tensor,
-        aggregator_funcs: List[str],
-        walk_length: int,
-        num_neighbor_samples: int,
-        inference: bool = False,
-        **kwargs,
+        config: GraphModelConfig,
     ):
         """
         Graphsage model which is inductive type.
 
         Args:
-            user_ids (Tensor): User ids in data.
-            diner_ids (Tensor): Diner ids in data.
-            top_k_values (List[int]): Top k values used when calculating metric for prediction and candidate generation.
-            graph (nx.Graph): Networkx graph object generated from train data.
-            embedding_dim (int): Dimension of user / diner embedding vector.
-            walks_per_node (int): Number of generated walks for each node.
-            num_negative_samples (int): Number of negative samples for each node.
-            num_nodes (int): Total number of nodes.
-            model_name (str): Model name.
-            device (str): Device on which train is run. (cpu or cuda)
-            recommend_batch_size (int): Batch size when calculating validation metric.
-            num_sage_layers (int): Number of sage layers.
-            user_raw_features (torch.Tensor): User raw features whose dimension should be matched with user_ids.
-            diner_raw_features (torch.Tensor): Diner raw features whose dimension should be matched with diner_ids.
-            agg_func (str): Aggregation function when combining neighbor embeddings from previous step.
-            walk_length (int): Length of walk.
-            inference (bool): Indicator whether inference mode or not.
-            **kwargs: Additional keyword arguments.
+            config (GraphModelConfig): Configuration object containing all parameters.
         """
-        super().__init__(
-            user_ids=user_ids,
-            diner_ids=diner_ids,
-            top_k_values=top_k_values,
-            graph=graph,
-            embedding_dim=embedding_dim,
-            walks_per_node=walks_per_node,
-            num_negative_samples=num_negative_samples,
-            num_nodes=num_nodes,
-            model_name=model_name,
-            device=device,
-            recommend_batch_size=recommend_batch_size,
-            num_workers=num_workers,
-        )
-        self.num_layers = num_sage_layers
-        self.user_raw_features = user_raw_features
-        self.diner_raw_features = diner_raw_features
-        self.walk_length = walk_length
-        self.num_neighbor_samples = num_neighbor_samples
+        super().__init__(config=config)
+        self.num_layers = config.num_sage_layers
+        self.user_raw_features = config.user_raw_features
+        self.diner_raw_features = config.diner_raw_features
+        self.walk_length = config.walk_length
+        self.num_neighbor_samples = config.num_neighbor_samples
 
         self.aggregators = []
-        for func in aggregator_funcs:
+        for func in config.aggregator_funcs:
             if func == "mean":
                 self.aggregators.append(self.mean_aggregator)
             elif func == "max":
@@ -108,11 +57,13 @@ class Model(BaseEmbedding):
             else:
                 ValueError(f"Unsupported aggregator: {func}")
 
-        _, user_feature_input_size = user_raw_features.shape
-        _, diner_feature_input_size = diner_raw_features.shape
+        _, user_feature_input_size = self.user_raw_features.shape
+        _, diner_feature_input_size = self.diner_raw_features.shape
 
-        self.user_feature_layer = nn.Linear(user_feature_input_size, embedding_dim)
-        self.diner_feature_layer = nn.Linear(diner_feature_input_size, embedding_dim)
+        self.user_feature_layer = nn.Linear(user_feature_input_size, self.embedding_dim)
+        self.diner_feature_layer = nn.Linear(
+            diner_feature_input_size, self.embedding_dim
+        )
         layer_dims = [self.embedding_dim] * (self.num_layers + 1)
 
         self.sage_layers = nn.ModuleList()
@@ -126,9 +77,9 @@ class Model(BaseEmbedding):
                 )
             )
 
-        if inference is False:
+        if self.inference is False:
             self.d_graph = precompute_probabilities(
-                graph=graph,
+                graph=self.graph,
                 p=1,  # unbiased random walk
                 q=1,  # unbiased random walk
             )
