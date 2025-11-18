@@ -4,14 +4,11 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 
-from yamyam_lab.model.graph.node2vec import Model as Node2Vec
-
 
 class UserBasedCollaborativeFiltering:
     def __init__(
         self,
         user_item_matrix: csr_matrix,
-        user_embeddings: np.ndarray,
         user_mapping: Dict[int, int],
         item_mapping: Dict[int, int],
     ) -> None:
@@ -25,9 +22,6 @@ class UserBasedCollaborativeFiltering:
             item_mapping: Dictionary mapping restaurant_id to matrix column index
         """
         self.user_item_matrix = user_item_matrix
-        # we do not use user embedding now and just find most similar user_id
-        # this user embeddings will be used later
-        self.user_embeddings = user_embeddings
         self.user_mapping = user_mapping
         self.item_mapping = item_mapping
 
@@ -176,63 +170,3 @@ class UserBasedCollaborativeFiltering:
 
         # Convert matrix index back to user_id
         return self.idx_to_user[best_idx]
-
-
-if __name__ == "__main__":
-    import argparse
-    import pickle
-
-    import networkx as nx
-    import scipy.sparse as sp
-    import torch
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--pre_trained_graph_model_path", type=str, required=True)
-    parser.add_argument("--data_object_path", type=str, required=True)
-    parser.add_argument("--X_train_csr_path", type=str, required=True)
-    parser.add_argument(
-        "--liked_item_ids_by_cold_users", type=int, nargs="+", required=True
-    )
-    parser.add_argument("--scores_of_liked_items", type=int, nargs="+", required=True)
-    args = parser.parse_args()
-
-    data = pickle.load(open(args.data_object_path, "rb"))
-    X_train_csr = sp.load_npz(args.X_train_csr_path)
-    model = Node2Vec(
-        user_ids=torch.tensor(list(data["user_mapping"].values())),
-        diner_ids=torch.tensor(list(data["diner_mapping"].values())),
-        embedding_dim=32,
-        inference=True,
-        top_k_values=[1],
-        graph=nx.Graph(),
-        walks_per_node=1,
-        num_negative_samples=1,
-        num_nodes=len(data["user_mapping"]) + len(data["diner_mapping"]),
-        model_name="node2vec",
-        device="cpu",
-        recommend_batch_size=2000,
-        num_workers=4,
-        # parameters for node2vec
-        walk_length=1,
-    )
-
-    model.load_state_dict(
-        torch.load(args.pre_trained_graph_model_path, weights_only=True)
-    )
-    model.eval()
-
-    user_based_cf = UserBasedCollaborativeFiltering(
-        user_item_matrix=X_train_csr,
-        user_embeddings=model._embedding.weight.detach().numpy()[: data["num_users"]],
-        user_mapping=data["user_mapping"],
-        item_mapping=data["diner_mapping"],
-    )
-
-    result = user_based_cf.find_similar_users(
-        liked_item_ids=args.liked_item_ids_by_cold_users,
-        scores_of_liked_items=args.scores_of_liked_items,
-        method="jaccard",
-        # method="cosine_matrix",
-    )
-
-    print(f"Most similar warm user: {result}")
