@@ -48,7 +48,7 @@ class UserBasedCollaborativeFiltering:
                 item_idx = self.item_mapping[item_id]
                 cold_vector[item_idx] = score  # Use the score as the value
 
-        return cold_vector
+        return csr_matrix(cold_vector.reshape(1, -1))
 
     def find_similar_users(
         self,
@@ -96,12 +96,9 @@ class UserBasedCollaborativeFiltering:
         cold_vector = self._create_cold_user_vector(
             liked_item_ids, scores_of_liked_items
         )
-        cold_vector_sparse = csr_matrix(cold_vector.reshape(1, -1))
 
         # Compute cosine similarity between cold user vector and all warm users
-        similarities_matrix = cosine_similarity(
-            cold_vector_sparse, self.user_item_matrix
-        )
+        similarities_matrix = cosine_similarity(cold_vector, self.user_item_matrix)
         similarities_array = similarities_matrix.flatten()
 
         # Get number of liked items for each user (number of non-zero entries)
