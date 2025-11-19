@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("--random_state", type=int, default=42)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--test", action="store_true")
+    parser.add_argument("--postfix", type=str, default=None)
     return parser.parse_args()
 
 
@@ -52,6 +53,7 @@ def parse_args_graph():
     parser.add_argument("--result_path", type=str, default=None)
     parser.add_argument("--config_root_path", type=str, default=None)
     parser.add_argument("--num_workers", type=int, default=1)
+    parser.add_argument("--postfix", type=str, default=None)
 
     # node2vec parameter
     parser.add_argument("--walk_length", type=int, default=20)
@@ -106,6 +108,7 @@ def parse_args_als():
     parser.add_argument("--use_gpu", action="store_true")
     parser.add_argument("--calculate_training_loss", action="store_true")
     parser.add_argument("--test", action="store_true")
+    parser.add_argument("--postfix", type=str, default=None)
 
     # candidate generation parameter for two-stage reco
     parser.add_argument("--save_candidate", action="store_true", required=False)

@@ -71,7 +71,9 @@ class BaseTrainer(ABC):
 
         result_root = getattr(self.args, "result_path", None)
         test = getattr(self.args, "test", False)
-        self.result_path = generate_result_path(model, test, result_root)
+        self.result_path = generate_result_path(
+            model, test, result_root, self.args.postfix
+        )
 
         # Save command to file
         from yamyam_lab.tools.parse_args import save_command_to_file

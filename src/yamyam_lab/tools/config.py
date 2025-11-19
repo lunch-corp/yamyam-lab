@@ -32,13 +32,18 @@ def load_configs(model: str, config_root_path: str = None) -> Tuple[EasyDict, Ea
     return model_config, preprocess_config
 
 
-def generate_result_path(model: str, test: bool, result_path: str = None) -> str:
+def generate_result_path(
+    model: str, test: bool, result_path: str = None, postfix: str = None
+) -> str:
     if result_path is not None:
         return result_path
 
     root_path = os.path.join(os.path.dirname(__file__), "../../..")
     dt = datetime.now().strftime("%Y%m%d%H%M%S")
     test_flag = "test" if test else "untest"
-    result_path = os.path.join(root_path, f"./result/{test_flag}/{model}/{dt}")
+    result_path = os.path.join(
+        root_path,
+        f"./result/{test_flag}/{model}/{dt}" + (f"_{postfix}" if postfix else ""),
+    )
     os.makedirs(result_path, exist_ok=True)
     return result_path

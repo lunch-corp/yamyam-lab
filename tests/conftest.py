@@ -154,6 +154,7 @@ def setup_config(request):
     args.drop_ratio = 0.1
     args.test = True
     args.save_candidate = False
+    args.postfix = "pytest"
     return args
 
 
@@ -170,6 +171,7 @@ def setup_als_config():
     args.test = True
     args.save_candidate = False
     args.config_root_path = None
+    args.postfix = "pytest"
     return args
 
 
