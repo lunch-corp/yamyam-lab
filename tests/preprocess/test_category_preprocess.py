@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 
@@ -5,12 +6,15 @@ import pandas as pd
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src"))
 
-
-from yamyam_lab.preprocess.diner_transform import CategoryProcessor
+from yamyam_lab.preprocess.diner_transform import (
+    CategoryProcessor,
+    MiddleCategorySimplifier,
+)
 from yamyam_lab.tools.config import load_yaml
 from yamyam_lab.tools.google_drive import check_data_and_return_paths
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
+CONFIG_DIR = os.path.join(ROOT_PATH, "config")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/data/category_mappings.yaml")
 
 
@@ -64,3 +68,83 @@ def test_category_preprocess():
         ].shape[0]
         > 0
     )
+
+
+def test_middle_category_simplification():
+    """
+    Test if middle category simplification is correctly done or not.
+    """
+
+    # 테스트 데이터
+    test_data = pd.DataFrame(
+        {
+            "diner_category_large": [
+                "한식",
+                "한식",
+                "양식",
+                "카페",
+                "치킨",
+                "한식",
+                "분식",
+            ],
+            "diner_category_middle": [
+                "덮밥90도씨",
+                "곰탕",
+                "햄버거",
+                "아임일리터",
+                "BBQ",
+                "국수",
+                "떡볶이",
+            ],
+        }
+    )
+
+    # 로거 설정 (테스트용)
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
+        logger.addHandler(handler)
+
+    # MiddleCategorySimplifier 초기화
+    simplifier = MiddleCategorySimplifier(
+        config_root_path=CONFIG_DIR,
+        data_path=ROOT_PATH,
+        logger=logger,
+    )
+
+    # 간소화 처리
+    result_df = simplifier.process(test_data.copy(), inplace=False)
+
+    # 검증
+    # 덮밥90도씨 -> 덮밥
+    assert result_df.iloc[0]["diner_category_middle"] == "덮밥"
+    assert result_df.iloc[0]["diner_category_large"] == "한식"
+
+    # 곰탕 -> 탕/국밥
+    assert result_df.iloc[1]["diner_category_middle"] == "탕/국밥"
+    assert result_df.iloc[1]["diner_category_large"] == "한식"
+
+    # 햄버거 -> 햄버거 (변화 없음)
+    assert result_df.iloc[2]["diner_category_middle"] == "햄버거"
+    assert result_df.iloc[2]["diner_category_large"] == "양식"
+
+    # 아임일리터 -> 커피
+    assert result_df.iloc[3]["diner_category_middle"] == "커피"
+    assert result_df.iloc[3]["diner_category_large"] == "카페"
+
+    # BBQ -> 치킨전문점
+    assert result_df.iloc[4]["diner_category_middle"] == "치킨전문점"
+    assert result_df.iloc[4]["diner_category_large"] == "치킨"
+
+    # 국수 -> 국수 (변화 없음)
+    assert result_df.iloc[5]["diner_category_middle"] == "국수"
+    assert result_df.iloc[5]["diner_category_large"] == "한식"
+
+    # 떡볶이 -> 떡볶이/순대/튀김
+    assert result_df.iloc[6]["diner_category_middle"] == "떡볶이/순대/튀김"
+    assert result_df.iloc[6]["diner_category_large"] == "분식"
+
+    # 원본 데이터는 변경되지 않았는지 확인 (inplace=False)
+    assert test_data.iloc[0]["diner_category_middle"] == "덮밥90도씨"

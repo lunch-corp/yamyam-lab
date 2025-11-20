@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import yaml
@@ -10,6 +10,145 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+class MiddleCategorySimplifier:
+    """
+    중분류 카테고리를 간소화하는 전처리기
+
+    원본 중분류를 간소화된 중분류로 변환합니다.
+    브랜드/체인점 중심 분류를 음식 종류 중심으로 정리합니다.
+
+    Args:
+        config_root_path (str): Config 파일의 root 경로
+        data_path (str): Data 파일의 root 경로
+    """
+
+    def __init__(
+        self,
+        config_root_path: Optional[str] = None,
+        data_path: Optional[str] = None,
+        logger: Optional[logging.Logger] = None,
+    ):
+        self.config_root_path = Path(config_root_path)
+        self.data_path = Path(data_path)
+        self.logger = logger
+
+        # 간소화 매핑 로드
+        self.simplify_mapping = self._load_simplify_mapping()
+
+    def _load_simplify_mapping(self) -> Dict[str, Dict[str, list]]:
+        """
+        간소화 매핑 규칙을 YAML 파일에서 로드합니다.
+
+        Returns:
+            Dict[str, Dict[str, list]]: 간소화 매핑 딕셔너리
+
+        Raises:
+            FileNotFoundError: YAML 파일이 없거나 simplify_mapping이 없는 경우
+        """
+        config_path = self.config_root_path / "data" / "category_mappings.yaml"
+
+        if not config_path.exists():
+            raise FileNotFoundError(f"Category mappings file not found: {config_path}")
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                mappings = yaml.safe_load(f)
+
+            if "simplify_mapping" not in mappings:
+                raise ValueError(
+                    f"'simplify_mapping' section not found in {config_path}"
+                )
+
+            self.logger.info(f"Loaded simplify_mapping from {config_path}")
+            return mappings["simplify_mapping"]
+
+        except Exception as e:
+            self.logger.error(
+                f"Failed to load simplify_mapping from {config_path}: {e}"
+            )
+            raise
+
+    def simplify_middle_category(
+        self, large_category: str, middle_category: str
+    ) -> str:
+        """
+        원본 중분류를 간소화된 중분류로 변환합니다.
+
+        Args:
+            large_category: 대분류
+            middle_category: 원본 중분류
+
+        Returns:
+            간소화된 중분류 (매핑되지 않으면 원본 반환)
+        """
+        if pd.isna(middle_category) or middle_category == "":
+            return middle_category
+
+        large_mapping = self.simplify_mapping.get(large_category, {})
+
+        # 정확히 일치하는 경우
+        for simplified, originals in large_mapping.items():
+            if middle_category in originals:
+                return simplified
+
+        # 부분 일치 확인 (키워드 포함)
+        for simplified, originals in large_mapping.items():
+            for original in originals:
+                if (
+                    original.lower() in str(middle_category).lower()
+                    or str(middle_category).lower() in original.lower()
+                ):
+                    return simplified
+
+        # 매핑되지 않으면 원본 반환
+        return middle_category
+
+    def process(
+        self,
+        category_df: Optional[pd.DataFrame] = None,
+        inplace: bool = True,
+    ) -> pd.DataFrame:
+        """
+        카테고리 데이터프레임의 중분류를 간소화합니다.
+        원본 diner_category_middle 컬럼을 간소화된 값으로 직접 변경합니다.
+
+        Args:
+            category_df: 카테고리 데이터프레임 (None이면 파일에서 로드)
+            inplace: 원본 컬럼을 직접 수정할지 여부 (기본값: True)
+
+        Returns:
+            간소화된 중분류가 적용된 데이터프레임
+        """
+        if category_df is None:
+            category_df = pd.read_csv(self.data_path / "diner_category_raw.csv")
+        else:
+            category_df = category_df.copy() if not inplace else category_df
+
+        original_values = category_df["diner_category_middle"].copy()
+
+        logger.info(f"Original category_df shape: {category_df.shape}")
+        logger.info(
+            f"Null middle categories: {category_df['diner_category_middle'].isna().sum()}"
+        )
+
+        # 간소화 적용 - 원본 컬럼을 직접 변경
+        category_df["diner_category_middle"] = category_df.apply(
+            lambda row: self.simplify_middle_category(
+                row["diner_category_large"], row["diner_category_middle"]
+            ),
+            axis=1,
+        )
+
+        # 변환 통계
+        changed_count = (original_values != category_df["diner_category_middle"]).sum()
+        logger.info(f"Changed categories: {changed_count}")
+        logger.info(
+            f"Simplified categories distribution:\n{category_df['diner_category_middle'].value_counts()}"
+        )
+
+        return category_df
 
 
 class CategoryProcessor:
