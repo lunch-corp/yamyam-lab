@@ -152,6 +152,18 @@ class MiddleCategorySimplifier:
                 f"Null middle categories: {category_df['diner_category_middle'].isna().sum()}"
             )
 
+        # 대분류가 "간식"이고 중분류가 "닭강정"인 경우 "치킨" > "닭강정"으로 변경 (간소화 전에 처리)
+        chicken_gangjeong_mask = (category_df["diner_category_large"] == "간식") & (
+            category_df["diner_category_middle"] == "닭강정"
+        )
+        if chicken_gangjeong_mask.any():
+            category_df.loc[chicken_gangjeong_mask, "diner_category_large"] = "치킨"
+            if self.logger:
+                self.logger.info(
+                    f"Changed large category from '간식' to '치킨' for {chicken_gangjeong_mask.sum()} rows "
+                    f"with middle category '닭강정' (before simplification)"
+                )
+
         # 간소화 적용 - 원본 컬럼을 직접 변경
         category_df["diner_category_middle"] = category_df.apply(
             lambda row: self.simplify_middle_category(
@@ -159,6 +171,26 @@ class MiddleCategorySimplifier:
             ),
             axis=1,
         )
+
+        # 대분류가 "치킨"이고 간소화 후 중분류가 "디저트"가 된 경우 (원본이 "닭강정"이었을 수 있음)
+        # 중분류를 "닭강정"으로 복원
+        chicken_dessert_mask = (category_df["diner_category_large"] == "치킨") & (
+            category_df["diner_category_middle"] == "디저트"
+        )
+        # 원본이 "닭강정"이었던 경우만 처리
+        original_chicken_gangjeong = original_values == "닭강정"
+        chicken_gangjeong_restore_mask = (
+            chicken_dessert_mask & original_chicken_gangjeong
+        )
+        if chicken_gangjeong_restore_mask.any():
+            category_df.loc[chicken_gangjeong_restore_mask, "diner_category_middle"] = (
+                "닭강정"
+            )
+            if self.logger:
+                self.logger.info(
+                    f"Restored middle category to '닭강정' for {chicken_gangjeong_restore_mask.sum()} rows "
+                    f"with large category '치킨' (originally was '닭강정')"
+                )
 
         # 샤브샤브, 칼국수인 경우 대분류를 한식으로 변경
         shabu_shabu_mask = category_df["diner_category_middle"].isin(
