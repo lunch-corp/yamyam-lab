@@ -28,7 +28,7 @@ class MiddleCategorySimplifier:
         self,
         config_root_path: Optional[str] = None,
         data_path: Optional[str] = None,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger = logger,
     ):
         self.config_root_path = Path(config_root_path)
         self.data_path = Path(data_path)
@@ -231,14 +231,6 @@ class MiddleCategorySimplifier:
                     f"Changed large category to '양식' for {changed_large_count} rows "
                     f"with middle category '패밀리레스토랑', '스테이크하우스', or '이탈리안'"
                 )
-
-        # 변환 통계
-        changed_count = (original_values != category_df["diner_category_middle"]).sum()
-        if self.logger:
-            self.logger.info(f"Changed categories: {changed_count}")
-            self.logger.info(
-                f"Simplified categories distribution:\n{category_df['diner_category_middle'].value_counts()}"
-            )
 
         return category_df
 

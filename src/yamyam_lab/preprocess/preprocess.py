@@ -9,7 +9,10 @@ from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data import Data
 
 from yamyam_lab.data.validator import DataValidator
-from yamyam_lab.preprocess.diner_transform import CategoryProcessor
+from yamyam_lab.preprocess.diner_transform import (
+    CategoryProcessor,
+    MiddleCategorySimplifier,
+)
 from yamyam_lab.preprocess.filter import Filter
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data")
@@ -103,6 +106,12 @@ def preprocess_common(
     processor.process_all()
     diner_with_processd_category = processor.category_preprocessed_diners
 
+    # step 4: simplify middle category
+    simplifier = MiddleCategorySimplifier(
+        config_root_path=config_root_path,
+        data_path=DATA_PATH,
+    )
+    diner_with_processd_category = simplifier.process(diner_with_processd_category)
     diner = pd.merge(
         left=diner,
         right=diner_with_processd_category,

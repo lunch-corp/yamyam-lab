@@ -57,6 +57,7 @@ def main():
 
     # 간소화 처리
     result_df = simplifier.process(category_df)
+    print(result_df["diner_category_middle"].value_counts())
 
     # 결과 저장
     result_df.to_csv(args.output, index=False)
