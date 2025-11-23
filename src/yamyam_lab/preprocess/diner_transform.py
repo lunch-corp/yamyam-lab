@@ -234,10 +234,6 @@ class MiddleCategorySimplifier:
 
         # 변환 통계
         changed_count = (original_values != category_df["diner_category_middle"]).sum()
-        changed_count_df = (
-            category_df["diner_category_middle"].value_counts().reset_index()
-        )
-        changed_count_df.to_csv(self.data_path / "changed_count.csv", index=False)
         if self.logger:
             self.logger.info(f"Changed categories: {changed_count}")
             self.logger.info(
