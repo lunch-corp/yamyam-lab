@@ -86,11 +86,16 @@ class MiddleCategorySimplifier:
         if pd.isna(middle_category) or middle_category == "":
             return middle_category
 
+        # 대분류가 "패밀리레스토랑" 또는 "샐러드"인 경우 "양식" 섹션의 매핑을 사용
+        if large_category in ["패밀리레스토랑", "샐러드"]:
+            large_category = "양식"
+
+        # 먼저 현재 대분류의 매핑에서 찾기
         large_mapping = self.simplify_mapping.get(large_category, {})
 
         # 정확히 일치하는 경우
         for simplified, originals in large_mapping.items():
-            if middle_category in originals:
+            if middle_category == originals:
                 return simplified
 
         # 부분 일치 확인 (키워드 포함)
@@ -101,6 +106,19 @@ class MiddleCategorySimplifier:
                     or str(middle_category).lower() in original.lower()
                 ):
                     return simplified
+
+        # 현재 대분류에서 찾지 못한 경우, 모든 대분류의 매핑에서 찾기
+        # (원본 데이터의 대분류가 잘못된 경우 대비)
+        for cat, cat_mapping in self.simplify_mapping.items():
+            if cat == large_category:
+                continue  # 이미 확인했음
+            for simplified, originals in cat_mapping.items():
+                for original in originals:
+                    if (
+                        original.lower() in str(middle_category).lower()
+                        or str(middle_category).lower() in original.lower()
+                    ):
+                        return simplified
 
         # 매핑되지 않으면 원본 반환
         return middle_category
@@ -128,10 +146,11 @@ class MiddleCategorySimplifier:
 
         original_values = category_df["diner_category_middle"].copy()
 
-        logger.info(f"Original category_df shape: {category_df.shape}")
-        logger.info(
-            f"Null middle categories: {category_df['diner_category_middle'].isna().sum()}"
-        )
+        if self.logger:
+            self.logger.info(f"Original category_df shape: {category_df.shape}")
+            self.logger.info(
+                f"Null middle categories: {category_df['diner_category_middle'].isna().sum()}"
+            )
 
         # 간소화 적용 - 원본 컬럼을 직접 변경
         category_df["diner_category_middle"] = category_df.apply(
@@ -141,12 +160,57 @@ class MiddleCategorySimplifier:
             axis=1,
         )
 
+        # 샤브샤브, 칼국수인 경우 대분류를 한식으로 변경
+        shabu_shabu_mask = category_df["diner_category_middle"].isin(
+            ["샤브샤브", "칼국수"]
+        )
+        if shabu_shabu_mask.any():
+            category_df.loc[shabu_shabu_mask, "diner_category_large"] = "한식"
+            if self.logger:
+                self.logger.info(
+                    f"Changed large category to '한식' for {shabu_shabu_mask.sum()} rows "
+                    f"with middle category '샤브샤브' or '칼국수'"
+                )
+
+        # 대분류가 "샐러드"인 경우 "양식"으로 변경
+        salad_mask = category_df["diner_category_large"] == "샐러드"
+        if salad_mask.any():
+            category_df.loc[salad_mask, "diner_category_large"] = "양식"
+            if self.logger:
+                self.logger.info(
+                    f"Changed large category from '샐러드' to '양식' for {salad_mask.sum()} rows"
+                )
+
+        # 패밀리레스토랑, 스테이크하우스, 이탈리안인 경우 대분류를 양식으로 변경
+        family_restaurant_mask = category_df["diner_category_middle"].isin(
+            ["패밀리레스토랑", "스테이크하우스", "이탈리안"]
+        )
+        if family_restaurant_mask.any():
+            original_large_values = category_df.loc[
+                family_restaurant_mask, "diner_category_large"
+            ].copy()
+            category_df.loc[family_restaurant_mask, "diner_category_large"] = "양식"
+            if self.logger:
+                changed_large_count = (
+                    original_large_values
+                    != category_df.loc[family_restaurant_mask, "diner_category_large"]
+                ).sum()
+                self.logger.info(
+                    f"Changed large category to '양식' for {changed_large_count} rows "
+                    f"with middle category '패밀리레스토랑', '스테이크하우스', or '이탈리안'"
+                )
+
         # 변환 통계
         changed_count = (original_values != category_df["diner_category_middle"]).sum()
-        logger.info(f"Changed categories: {changed_count}")
-        logger.info(
-            f"Simplified categories distribution:\n{category_df['diner_category_middle'].value_counts()}"
+        changed_count_df = (
+            category_df["diner_category_middle"].value_counts().reset_index()
         )
+        changed_count_df.to_csv(self.data_path / "changed_count.csv", index=False)
+        if self.logger:
+            self.logger.info(f"Changed categories: {changed_count}")
+            self.logger.info(
+                f"Simplified categories distribution:\n{category_df['diner_category_middle'].value_counts()}"
+            )
 
         return category_df
 
