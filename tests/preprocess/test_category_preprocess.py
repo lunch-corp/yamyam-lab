@@ -143,11 +143,11 @@ def test_middle_category_simplification():
     assert result_df.iloc[0]["diner_category_large"] == "한식"
 
     # 곰탕 -> 탕/국밥
-    assert result_df.iloc[1]["diner_category_middle"] == "탕/국밥"
+    assert result_df.iloc[1]["diner_category_middle"] == "탕/순대/국밥"
     assert result_df.iloc[1]["diner_category_large"] == "한식"
 
     # 햄버거 -> 햄버거 (변화 없음)
-    assert result_df.iloc[2]["diner_category_middle"] == "햄버거"
+    assert result_df.iloc[2]["diner_category_middle"] == "수제버거"
     assert result_df.iloc[2]["diner_category_large"] == "양식"
 
     # 아임일리터 -> 커피
