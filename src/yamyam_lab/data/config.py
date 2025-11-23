@@ -35,6 +35,7 @@ class DataConfig:
     test: bool = False
     candidate_type: str = "node2vec"
     config_root_path: str = None
+    validate_data: bool = True
     data_source: DataSource = DataSource.GOOGLE_DRIVE
     # below parameters are used when data are directly passed in fastapi server
     review: pd.DataFrame = None

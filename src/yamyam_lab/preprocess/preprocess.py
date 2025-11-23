@@ -47,6 +47,7 @@ def preprocess_common(
     filter_config: Dict[str, Any] = None,
     is_timeseries_by_time_point: bool = False,
     config_root_path: str = None,
+    validate_data: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Common preprocessing identically applied to ranking and candidate generation.
@@ -59,17 +60,19 @@ def preprocess_common(
         filter_config (Dict[str. Any]): Filter config used when filtering reviews.
         is_timeseries_by_time_point (bool): Flag if split dataset to train / val / test using datetime.
         config_root_path (str): Root path for config
+        validate_data (bool): Whether validate data or not
 
     Returns (Tuple[pd.DataFrame, pd.DataFrame]):
         Preprocessed review dataset and diner dataset.
     """
     # step 0: validate data
-    data_validator = DataValidator()
-    review = data_validator.validate(review, name_of_df="review")
-    diner = data_validator.validate(diner, name_of_df="diner")
-    diner_with_raw_category = data_validator.validate(
-        diner_with_raw_category, name_of_df="category"
-    )
+    if validate_data:
+        data_validator = DataValidator()
+        review = data_validator.validate(review, name_of_df="review")
+        diner = data_validator.validate(diner, name_of_df="diner")
+        diner_with_raw_category = data_validator.validate(
+            diner_with_raw_category, name_of_df="category"
+        )
 
     # step 1: filter reviewers writing reviews greater than or equal to `min_reviews`
     if not is_timeseries_by_time_point:

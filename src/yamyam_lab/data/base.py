@@ -556,6 +556,7 @@ class BaseDatasetLoader(ABC):
             is_timeseries_by_time_point=self.is_timeseries_by_time_point,
             filter_config=filter_config,
             config_root_path=self.data_config.config_root_path,
+            validate_data=self.data_config.validate_data,
         )
 
         # Map reviewer and diner data
