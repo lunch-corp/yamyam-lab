@@ -36,6 +36,8 @@ class MiddleCategorySimplifier:
 
         # 간소화 매핑 로드
         self.simplify_mapping = self._load_simplify_mapping()
+        # null 채우기 매핑 로드
+        self.null_fill_mapping = self._load_null_fill_mapping()
 
     def _load_simplify_mapping(self) -> Dict[str, Dict[str, list]]:
         """
@@ -69,6 +71,162 @@ class MiddleCategorySimplifier:
                 f"Failed to load simplify_mapping from {config_path}: {e}"
             )
             raise
+
+    def _load_null_fill_mapping(self) -> Dict[str, str]:
+        """
+        diner_name과 diner_tag 기반 중분류 매핑 규칙을 YAML 파일에서 로드합니다.
+        null_fill_mapping이 없으면 simplify_mapping을 기반으로 자동 생성합니다.
+
+        Returns:
+            Dict[str, str]: 키워드 -> 중분류 매핑 딕셔너리
+        """
+        config_path = self.config_root_path / "data" / "category_mappings.yaml"
+
+        if not config_path.exists():
+            self.logger.warning(
+                f"Category mappings file not found: {config_path}, building from simplify_mapping"
+            )
+            return self._build_null_fill_mapping_from_simplify()
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                mappings = yaml.safe_load(f)
+
+            if "null_fill_mapping" in mappings:
+                self.logger.info(f"Loaded null_fill_mapping from {config_path}")
+                return mappings["null_fill_mapping"]
+            else:
+                self.logger.info(
+                    f"'null_fill_mapping' section not found in {config_path}, "
+                    f"building from simplify_mapping"
+                )
+                return self._build_null_fill_mapping_from_simplify()
+
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to load null_fill_mapping from {config_path}: {e}, "
+                f"building from simplify_mapping"
+            )
+            return self._build_null_fill_mapping_from_simplify()
+
+    def _build_null_fill_mapping_from_simplify(self) -> Dict[str, str]:
+        """
+        simplify_mapping을 기반으로 null_fill_mapping을 자동 생성합니다.
+        각 원본 중분류를 키워드로, 간소화된 중분류를 값으로 매핑합니다.
+
+        같은 키워드가 여러 번 나타나면, 더 긴(구체적인) 키워드를 우선시합니다.
+
+        Returns:
+            Dict[str, str]: 키워드 -> 중분류 매핑
+        """
+        null_fill_mapping = {}
+        keyword_lengths = {}  # 키워드의 길이를 추적하여 더 긴 키워드를 우선시
+
+        # simplify_mapping 구조: {대분류: {간소화된_중분류: [원본_중분류_리스트]}}
+        for large_category, middle_mappings in self.simplify_mapping.items():
+            for simplified_middle, original_list in middle_mappings.items():
+                for original in original_list:
+                    # 원본 중분류를 키워드로 사용
+                    # 쉼표로 구분된 경우 각각을 별도 키워드로 추가
+                    if "," in original:
+                        keywords = [k.strip() for k in original.split(",")]
+                        for keyword in keywords:
+                            if keyword:  # 빈 문자열 제외
+                                self._add_keyword_to_mapping(
+                                    null_fill_mapping,
+                                    keyword_lengths,
+                                    keyword,
+                                    simplified_middle,
+                                )
+                    else:
+                        keyword = original.strip()
+                        if keyword:
+                            self._add_keyword_to_mapping(
+                                null_fill_mapping,
+                                keyword_lengths,
+                                keyword,
+                                simplified_middle,
+                            )
+
+        self.logger.info(
+            f"Built null_fill_mapping from simplify_mapping with {len(null_fill_mapping)} keywords"
+        )
+        return null_fill_mapping
+
+    def _add_keyword_to_mapping(
+        self,
+        null_fill_mapping: Dict[str, str],
+        keyword_lengths: Dict[str, int],
+        keyword: str,
+        simplified_middle: str,
+    ) -> None:
+        """
+        키워드를 매핑에 추가합니다. 이미 존재하는 키워드면 첫 번째 매칭을 유지합니다.
+
+        Args:
+            null_fill_mapping: 키워드 -> 중분류 매핑 딕셔너리
+            keyword_lengths: 키워드 길이 추적 딕셔너리 (사용하지 않지만 호환성을 위해 유지)
+            keyword: 추가할 키워드
+            simplified_middle: 간소화된 중분류
+        """
+        if keyword not in null_fill_mapping:
+            # 새로운 키워드면 추가
+            null_fill_mapping[keyword] = simplified_middle
+            keyword_lengths[keyword] = len(keyword)
+        # 이미 존재하는 키워드는 첫 번째 매칭을 유지 (덮어쓰지 않음)
+
+    def fill_null_middle_category(
+        self, diner_name: str, diner_tag: Any, large_category: str
+    ) -> Optional[str]:
+        """
+        diner_name과 diner_tag를 기반으로 중분류를 추론합니다.
+
+        Args:
+            diner_name: 식당 이름
+            diner_tag: 식당 태그 (리스트 또는 문자열)
+            large_category: 대분류
+
+        Returns:
+            추론된 중분류 (매칭되지 않으면 None)
+        """
+        if pd.isna(diner_name):
+            diner_name = ""
+        else:
+            diner_name = str(diner_name).lower()
+
+        # diner_tag 처리 (리스트일 수 있음)
+        tag_text = ""
+        if not pd.isna(diner_tag):
+            if isinstance(diner_tag, list):
+                tag_text = " ".join(str(tag).lower() for tag in diner_tag)
+            else:
+                tag_text = str(diner_tag).lower()
+
+        # 검색할 텍스트 합치기
+        search_text = f"{diner_name} {tag_text}".strip()
+
+        # 키워드 매칭 (긴 키워드부터 우선 매칭)
+        sorted_keywords = sorted(self.null_fill_mapping.keys(), key=len, reverse=True)
+
+        for keyword in sorted_keywords:
+            if keyword.lower() in search_text:
+                inferred_middle = self.null_fill_mapping[keyword]
+                # 대분류와 호환성 확인 (간단한 체크)
+                # 대분류가 있고 simplify_mapping에도 있으면 호환성 확인
+                if (
+                    pd.notna(large_category)
+                    and large_category != ""
+                    and large_category in self.simplify_mapping
+                ):
+                    large_mapping = self.simplify_mapping[large_category]
+                    # 추론된 중분류가 해당 대분류의 간소화된 중분류 목록에 있는지 확인
+                    if inferred_middle in large_mapping:
+                        return inferred_middle
+                    # 매핑에 없어도 일단 반환 (나중에 처리될 수 있음)
+                # 대분류가 없거나 매핑에 없어도 반환
+                return inferred_middle
+
+        return None
 
     def simplify_middle_category(
         self, large_category: str, middle_category: str
@@ -152,6 +310,41 @@ class MiddleCategorySimplifier:
                 f"Null middle categories: {category_df['diner_category_middle'].isna().sum()}"
             )
 
+        # 중분류가 null인 경우 diner_name과 diner_tag를 기반으로 채우기
+        null_middle_mask = category_df["diner_category_middle"].isna()
+        if null_middle_mask.any():
+            null_count_before = null_middle_mask.sum()
+
+            # diner_name과 diner_tag 컬럼이 있는지 확인
+            has_diner_name = "diner_name" in category_df.columns
+            has_diner_tag = "diner_tag" in category_df.columns
+
+            if has_diner_name or has_diner_tag:
+                category_df.loc[null_middle_mask, "diner_category_middle"] = (
+                    category_df.loc[null_middle_mask].apply(
+                        lambda row: self.fill_null_middle_category(
+                            row.get("diner_name", ""),
+                            row.get("diner_tag", ""),
+                            row.get("diner_category_large", ""),
+                        ),
+                        axis=1,
+                    )
+                )
+
+                null_count_after = category_df["diner_category_middle"].isna().sum()
+                filled_count = null_count_before - null_count_after
+
+                if self.logger:
+                    self.logger.info(
+                        f"Filled {filled_count} null middle categories using diner_name/diner_tag "
+                        f"({null_count_after} remaining null)"
+                    )
+            else:
+                if self.logger:
+                    self.logger.warning(
+                        "diner_name or diner_tag columns not found, skipping null fill"
+                    )
+
         # 대분류가 "간식"이고 중분류가 "닭강정"인 경우 "치킨" > "닭강정"으로 변경 (간소화 전에 처리)
         chicken_gangjeong_mask = (category_df["diner_category_large"] == "간식") & (
             category_df["diner_category_middle"] == "닭강정"
@@ -232,7 +425,56 @@ class MiddleCategorySimplifier:
                     f"with middle category '패밀리레스토랑', '스테이크하우스', or '이탈리안'"
                 )
 
+        # null 값 채우기 로직
+        self._fill_null_categories(category_df)
+
         return category_df
+
+    def _fill_null_categories(self, category_df: pd.DataFrame) -> None:
+        """
+        중분류 카테고리의 null 값을 채웁니다.
+        같은 대분류를 가진 다른 식당들의 정보를 기반으로 채웁니다.
+
+        Args:
+            category_df: 처리할 카테고리 데이터프레임
+        """
+        # 중분류 컬럼이 있는지 확인
+        has_middle = "diner_category_middle" in category_df.columns
+
+        # 중분류 null 채우기 (diner_name/diner_tag 기반 채우기 후에도 남은 경우)
+        if not has_middle:
+            if self.logger:
+                self.logger.warning(
+                    "diner_category_middle column not found, skipping null fill"
+                )
+        else:
+            middle_null = category_df["diner_category_middle"].isna()
+            if middle_null.sum() > 0:
+                # 같은 대분류를 가진 다른 식당들의 가장 빈도 높은 중분류 사용
+                for large_cat in category_df[
+                    category_df["diner_category_middle"].notna()
+                ]["diner_category_large"].unique():
+                    if pd.isna(large_cat):
+                        continue
+                    middle_counts = category_df[
+                        (category_df["diner_category_large"] == large_cat)
+                        & (category_df["diner_category_middle"].notna())
+                    ]["diner_category_middle"].value_counts()
+
+                    if len(middle_counts) > 0:
+                        most_common_middle = middle_counts.index[0]
+                        fill_mask = (
+                            category_df["diner_category_large"] == large_cat
+                        ) & middle_null
+                        if fill_mask.sum() > 0:
+                            category_df.loc[fill_mask, "diner_category_middle"] = (
+                                most_common_middle
+                            )
+                            if self.logger:
+                                self.logger.info(
+                                    f"Filled {fill_mask.sum()} null middle categories with "
+                                    f"'{most_common_middle}' for large category '{large_cat}'"
+                                )
 
 
 class CategoryProcessor:

@@ -40,6 +40,12 @@ def main():
         default="data/diner_category_modified.csv",
         help="출력 파일 경로",
     )
+    parser.add_argument(
+        "--diner-file",
+        type=str,
+        default=None,
+        help="Diner 데이터 파일 경로 (diner_name, diner_tag 포함). 제공되면 null 채우기에 사용됩니다.",
+    )
 
     args = parser.parse_args()
 
@@ -55,8 +61,43 @@ def main():
     # 데이터 로드
     category_df = pd.read_csv(args.input)
 
+    # diner 파일이 제공되면 merge하여 diner_name과 diner_tag 추가
+    if args.diner_file:
+        logger.info(f"Loading diner data from {args.diner_file} for null filling")
+        diner_df = pd.read_csv(args.diner_file)
+        # diner_idx를 기준으로 merge (필요한 컬럼만 선택)
+        merge_columns = ["diner_idx"]
+        if "diner_name" in diner_df.columns:
+            merge_columns.append("diner_name")
+        if "diner_tag" in diner_df.columns:
+            merge_columns.append("diner_tag")
+
+        category_df = pd.merge(
+            category_df,
+            diner_df[merge_columns],
+            on="diner_idx",
+            how="left",
+        )
+        logger.info(f"Merged diner data. Columns: {category_df.columns.tolist()}")
+    else:
+        logger.warning(
+            "--diner-file not provided. Null filling will be skipped if diner_name/diner_tag columns are missing."
+        )
+
     # 간소화 처리
     result_df = simplifier.process(category_df)
+
+    # null 채우기에 사용된 diner_name, diner_tag 컬럼 제거
+    columns_to_drop = []
+    if "diner_name" in result_df.columns:
+        columns_to_drop.append("diner_name")
+    if "diner_tag" in result_df.columns:
+        columns_to_drop.append("diner_tag")
+
+    if columns_to_drop:
+        result_df = result_df.drop(columns=columns_to_drop)
+        logger.info(f"Dropped columns used for null filling: {columns_to_drop}")
+
     print(result_df["diner_category_middle"].value_counts())
 
     # 결과 저장
