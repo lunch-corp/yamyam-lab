@@ -93,6 +93,8 @@ def main():
         columns_to_drop.append("diner_name")
     if "diner_tag" in result_df.columns:
         columns_to_drop.append("diner_tag")
+    if "diner_menu_name" in result_df.columns:
+        columns_to_drop.append("diner_menu_name")
 
     if columns_to_drop:
         result_df = result_df.drop(columns=columns_to_drop)

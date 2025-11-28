@@ -176,15 +176,20 @@ class MiddleCategorySimplifier:
         # 이미 존재하는 키워드는 첫 번째 매칭을 유지 (덮어쓰지 않음)
 
     def fill_null_middle_category(
-        self, diner_name: str, diner_tag: Any, large_category: str
+        self,
+        diner_name: str,
+        diner_tag: Any,
+        large_category: str,
+        diner_menu: Any = None,
     ) -> Optional[str]:
         """
-        diner_name과 diner_tag를 기반으로 중분류를 추론합니다.
+        diner_name, diner_tag, diner_menu를 기반으로 중분류를 추론합니다.
 
         Args:
             diner_name: 식당 이름
             diner_tag: 식당 태그 (리스트 또는 문자열)
             large_category: 대분류
+            diner_menu: 식당 메뉴 (리스트 또는 문자열)
 
         Returns:
             추론된 중분류 (매칭되지 않으면 None)
@@ -202,8 +207,28 @@ class MiddleCategorySimplifier:
             else:
                 tag_text = str(diner_tag).lower()
 
+        # diner_menu 처리 (리스트 또는 문자열)
+        menu_text = ""
+        if not pd.isna(diner_menu) and diner_menu is not None:
+            if isinstance(diner_menu, str):
+                # 문자열 형태의 리스트인 경우 파싱 시도
+                try:
+                    import ast
+
+                    parsed_menu = ast.literal_eval(diner_menu)
+                    if isinstance(parsed_menu, list):
+                        menu_text = " ".join(str(menu).lower() for menu in parsed_menu)
+                    else:
+                        menu_text = str(diner_menu).lower()
+                except:
+                    menu_text = str(diner_menu).lower()
+            elif isinstance(diner_menu, list):
+                menu_text = " ".join(str(menu).lower() for menu in diner_menu)
+            else:
+                menu_text = str(diner_menu).lower()
+
         # 검색할 텍스트 합치기
-        search_text = f"{diner_name} {tag_text}".strip()
+        search_text = f"{diner_name} {tag_text} {menu_text}".strip()
 
         # 키워드 매칭 (긴 키워드부터 우선 매칭)
         sorted_keywords = sorted(self.null_fill_mapping.keys(), key=len, reverse=True)
@@ -302,6 +327,60 @@ class MiddleCategorySimplifier:
         else:
             category_df = category_df.copy() if not inplace else category_df
 
+        # diner_name, diner_tag, diner_menu_name이 없으면 diner.csv에서 로드하여 merge
+        has_diner_name = "diner_name" in category_df.columns
+        has_diner_tag = "diner_tag" in category_df.columns
+        has_diner_menu = "diner_menu_name" in category_df.columns
+
+        if not has_diner_name or not has_diner_tag or not has_diner_menu:
+            diner_file = self.data_path / "diner.csv"
+            if diner_file.exists():
+                if self.logger:
+                    missing_cols = []
+                    if not has_diner_name:
+                        missing_cols.append("diner_name")
+                    if not has_diner_tag:
+                        missing_cols.append("diner_tag")
+                    if not has_diner_menu:
+                        missing_cols.append("diner_menu_name")
+                    self.logger.info(
+                        f"Missing columns {missing_cols}, loading from {diner_file}"
+                    )
+                diner_df = pd.read_csv(diner_file, low_memory=False)
+
+                # 필요한 컬럼만 선택 (없는 것만 merge)
+                merge_columns = ["diner_idx"]
+                if not has_diner_name and "diner_name" in diner_df.columns:
+                    merge_columns.append("diner_name")
+                if not has_diner_tag and "diner_tag" in diner_df.columns:
+                    merge_columns.append("diner_tag")
+                if not has_diner_menu and "diner_menu_name" in diner_df.columns:
+                    merge_columns.append("diner_menu_name")
+
+                # merge_columns에 diner_idx 외의 컬럼이 있으면 merge 수행
+                if len(merge_columns) > 1:
+                    category_df = pd.merge(
+                        category_df,
+                        diner_df[merge_columns],
+                        on="diner_idx",
+                        how="left",
+                    )
+                    if self.logger:
+                        self.logger.info(
+                            f"Merged diner data. Added columns: {[c for c in merge_columns if c != 'diner_idx']}"
+                        )
+                else:
+                    if self.logger:
+                        self.logger.info(
+                            "All required columns already exist, skipping merge"
+                        )
+            else:
+                if self.logger:
+                    self.logger.warning(
+                        f"diner.csv not found at {diner_file}, "
+                        f"null filling will be skipped if diner_name/diner_tag/diner_menu_name columns are missing"
+                    )
+
         original_values = category_df["diner_category_middle"].copy()
 
         if self.logger:
@@ -315,17 +394,19 @@ class MiddleCategorySimplifier:
         if null_middle_mask.any():
             null_count_before = null_middle_mask.sum()
 
-            # diner_name과 diner_tag 컬럼이 있는지 확인
+            # diner_name, diner_tag, diner_menu_name 컬럼이 있는지 확인
             has_diner_name = "diner_name" in category_df.columns
             has_diner_tag = "diner_tag" in category_df.columns
+            has_diner_menu = "diner_menu_name" in category_df.columns
 
-            if has_diner_name or has_diner_tag:
+            if has_diner_name or has_diner_tag or has_diner_menu:
                 category_df.loc[null_middle_mask, "diner_category_middle"] = (
                     category_df.loc[null_middle_mask].apply(
                         lambda row: self.fill_null_middle_category(
                             row.get("diner_name", ""),
                             row.get("diner_tag", ""),
                             row.get("diner_category_large", ""),
+                            row.get("diner_menu_name", None),
                         ),
                         axis=1,
                     )
@@ -336,7 +417,7 @@ class MiddleCategorySimplifier:
 
                 if self.logger:
                     self.logger.info(
-                        f"Filled {filled_count} null middle categories using diner_name/diner_tag "
+                        f"Filled {filled_count} null middle categories using diner_name/diner_tag/diner_menu_name "
                         f"({null_count_after} remaining null)"
                     )
             else:
@@ -428,12 +509,28 @@ class MiddleCategorySimplifier:
         # null 값 채우기 로직
         self._fill_null_categories(category_df)
 
+        # null 채우기에 사용된 diner_name, diner_tag, diner_menu_name 컬럼 제거
+        columns_to_drop = []
+        if "diner_name" in category_df.columns:
+            columns_to_drop.append("diner_name")
+        if "diner_tag" in category_df.columns:
+            columns_to_drop.append("diner_tag")
+        if "diner_menu_name" in category_df.columns:
+            columns_to_drop.append("diner_menu_name")
+
+        if columns_to_drop:
+            category_df = category_df.drop(columns=columns_to_drop)
+            if self.logger:
+                self.logger.info(
+                    f"Dropped columns used for null filling: {columns_to_drop}"
+                )
+
         return category_df
 
     def _fill_null_categories(self, category_df: pd.DataFrame) -> None:
         """
         중분류 카테고리의 null 값을 채웁니다.
-        같은 대분류를 가진 다른 식당들의 정보를 기반으로 채웁니다.
+        diner_name과 diner_tag를 기반으로 중분류를 추론합니다.
 
         Args:
             category_df: 처리할 카테고리 데이터프레임
@@ -441,7 +538,7 @@ class MiddleCategorySimplifier:
         # 중분류 컬럼이 있는지 확인
         has_middle = "diner_category_middle" in category_df.columns
 
-        # 중분류 null 채우기 (diner_name/diner_tag 기반 채우기 후에도 남은 경우)
+        # 중분류 null 채우기 (diner_name/diner_tag 기반)
         if not has_middle:
             if self.logger:
                 self.logger.warning(
@@ -450,31 +547,40 @@ class MiddleCategorySimplifier:
         else:
             middle_null = category_df["diner_category_middle"].isna()
             if middle_null.sum() > 0:
-                # 같은 대분류를 가진 다른 식당들의 가장 빈도 높은 중분류 사용
-                for large_cat in category_df[
-                    category_df["diner_category_middle"].notna()
-                ]["diner_category_large"].unique():
-                    if pd.isna(large_cat):
-                        continue
-                    middle_counts = category_df[
-                        (category_df["diner_category_large"] == large_cat)
-                        & (category_df["diner_category_middle"].notna())
-                    ]["diner_category_middle"].value_counts()
+                # diner_name, diner_tag, diner_menu_name 컬럼이 있는지 확인
+                has_diner_name = "diner_name" in category_df.columns
+                has_diner_tag = "diner_tag" in category_df.columns
+                has_diner_menu = "diner_menu_name" in category_df.columns
 
-                    if len(middle_counts) > 0:
-                        most_common_middle = middle_counts.index[0]
-                        fill_mask = (
-                            category_df["diner_category_large"] == large_cat
-                        ) & middle_null
-                        if fill_mask.sum() > 0:
-                            category_df.loc[fill_mask, "diner_category_middle"] = (
-                                most_common_middle
-                            )
-                            if self.logger:
-                                self.logger.info(
-                                    f"Filled {fill_mask.sum()} null middle categories with "
-                                    f"'{most_common_middle}' for large category '{large_cat}'"
-                                )
+                if has_diner_name or has_diner_tag or has_diner_menu:
+                    null_count_before = middle_null.sum()
+
+                    category_df.loc[middle_null, "diner_category_middle"] = (
+                        category_df.loc[middle_null].apply(
+                            lambda row: self.fill_null_middle_category(
+                                row.get("diner_name", ""),
+                                row.get("diner_tag", ""),
+                                row.get("diner_category_large", ""),
+                                row.get("diner_menu_name", None),
+                            ),
+                            axis=1,
+                        )
+                    )
+
+                    null_count_after = category_df["diner_category_middle"].isna().sum()
+                    filled_count = null_count_before - null_count_after
+
+                    if self.logger:
+                        self.logger.info(
+                            f"Filled {filled_count} null middle categories using diner_name/diner_tag/diner_menu_name "
+                            f"in _fill_null_categories ({null_count_after} remaining null)"
+                        )
+                else:
+                    if self.logger:
+                        self.logger.warning(
+                            "diner_name/diner_tag/diner_menu_name columns not found in _fill_null_categories, "
+                            "skipping null fill"
+                        )
 
 
 class CategoryProcessor:
