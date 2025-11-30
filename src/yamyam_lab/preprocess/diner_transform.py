@@ -1,9 +1,20 @@
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import yaml
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+)
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import LabelEncoder
 
 # 로깅 설정
 logging.basicConfig(
@@ -146,11 +157,10 @@ class MiddleCategorySimplifier:
 
         original_values = category_df["diner_category_middle"].copy()
 
-        if self.logger:
-            self.logger.info(f"Original category_df shape: {category_df.shape}")
-            self.logger.info(
-                f"Null middle categories: {category_df['diner_category_middle'].isna().sum()}"
-            )
+        self.logger.info(f"Original category_df shape: {category_df.shape}")
+        self.logger.info(
+            f"Null middle categories: {category_df['diner_category_middle'].isna().sum()}"
+        )
 
         # 대분류가 "간식"이고 중분류가 "닭강정"인 경우 "치킨" > "닭강정"으로 변경 (간소화 전에 처리)
         chicken_gangjeong_mask = (category_df["diner_category_large"] == "간식") & (
@@ -158,11 +168,10 @@ class MiddleCategorySimplifier:
         )
         if chicken_gangjeong_mask.any():
             category_df.loc[chicken_gangjeong_mask, "diner_category_large"] = "치킨"
-            if self.logger:
-                self.logger.info(
-                    f"Changed large category from '간식' to '치킨' for {chicken_gangjeong_mask.sum()} rows "
-                    f"with middle category '닭강정' (before simplification)"
-                )
+            self.logger.info(
+                f"Changed large category from '간식' to '치킨' for {chicken_gangjeong_mask.sum()} rows "
+                f"with middle category '닭강정' (before simplification)"
+            )
 
         # 간소화 적용 - 원본 컬럼을 직접 변경
         category_df["diner_category_middle"] = category_df.apply(
@@ -186,11 +195,10 @@ class MiddleCategorySimplifier:
             category_df.loc[chicken_gangjeong_restore_mask, "diner_category_middle"] = (
                 "닭강정"
             )
-            if self.logger:
-                self.logger.info(
-                    f"Restored middle category to '닭강정' for {chicken_gangjeong_restore_mask.sum()} rows "
-                    f"with large category '치킨' (originally was '닭강정')"
-                )
+            self.logger.info(
+                f"Restored middle category to '닭강정' for {chicken_gangjeong_restore_mask.sum()} rows "
+                f"with large category '치킨' (originally was '닭강정')"
+            )
 
         # 샤브샤브, 칼국수인 경우 대분류를 한식으로 변경
         shabu_shabu_mask = category_df["diner_category_middle"].isin(
@@ -198,20 +206,18 @@ class MiddleCategorySimplifier:
         )
         if shabu_shabu_mask.any():
             category_df.loc[shabu_shabu_mask, "diner_category_large"] = "한식"
-            if self.logger:
-                self.logger.info(
-                    f"Changed large category to '한식' for {shabu_shabu_mask.sum()} rows "
-                    f"with middle category '샤브샤브' or '칼국수'"
-                )
+            self.logger.info(
+                f"Changed large category to '한식' for {shabu_shabu_mask.sum()} rows "
+                f"with middle category '샤브샤브' or '칼국수'"
+            )
 
         # 대분류가 "샐러드"인 경우 "양식"으로 변경
         salad_mask = category_df["diner_category_large"] == "샐러드"
         if salad_mask.any():
             category_df.loc[salad_mask, "diner_category_large"] = "양식"
-            if self.logger:
-                self.logger.info(
-                    f"Changed large category from '샐러드' to '양식' for {salad_mask.sum()} rows"
-                )
+            self.logger.info(
+                f"Changed large category from '샐러드' to '양식' for {salad_mask.sum()} rows"
+            )
 
         # 패밀리레스토랑, 스테이크하우스, 이탈리안인 경우 대분류를 양식으로 변경
         family_restaurant_mask = category_df["diner_category_middle"].isin(
@@ -222,17 +228,524 @@ class MiddleCategorySimplifier:
                 family_restaurant_mask, "diner_category_large"
             ].copy()
             category_df.loc[family_restaurant_mask, "diner_category_large"] = "양식"
-            if self.logger:
-                changed_large_count = (
-                    original_large_values
-                    != category_df.loc[family_restaurant_mask, "diner_category_large"]
-                ).sum()
-                self.logger.info(
-                    f"Changed large category to '양식' for {changed_large_count} rows "
-                    f"with middle category '패밀리레스토랑', '스테이크하우스', or '이탈리안'"
-                )
+            changed_large_count = (
+                original_large_values
+                != category_df.loc[family_restaurant_mask, "diner_category_large"]
+            ).sum()
+            self.logger.info(
+                f"Changed large category to '양식' for {changed_large_count} rows "
+                f"with middle category '패밀리레스토랑', '스테이크하우스', or '이탈리안'"
+            )
 
         return category_df
+
+
+class MiddleCategoryKNNImputer:
+    """
+    KNN 기반 중분류 null 값 imputation 클래스
+
+    각 대분류별로 별도의 KNN 모델을 학습하여 중분류를 예측합니다.
+    대분류, 소분류, 상세분류 등의 정보를 활용하여 중분류를 예측합니다.
+    """
+
+    def __init__(
+        self,
+        n_neighbors: int = 5,
+        data_path: Optional[str] = None,
+        logger: logging.Logger = logger,
+    ):
+        """
+        Args:
+            n_neighbors: KNN에서 사용할 이웃 수 (기본값: 5)
+            data_path: diner.csv 파일 경로 (diner_name, diner_tag 등 사용 시)
+            logger: 로거 인스턴스
+        """
+        self.n_neighbors = n_neighbors
+        self.data_path = Path(data_path) if data_path else None
+        self.logger = logger
+        # 대분류별 모델 저장
+        self.knn_models: Dict[str, KNeighborsClassifier] = {}
+        self.label_encoders: Dict[
+            str, Dict[str, LabelEncoder]
+        ] = {}  # {large_category: {feature_col: encoder}}
+        self.feature_columns: Dict[
+            str, List[str]
+        ] = {}  # {large_category: [feature_cols]}
+        self.target_encoders: Dict[str, LabelEncoder] = {}  # {large_category: encoder}
+        # TF-IDF vectorizers 저장 (대분류별)
+        self.tfidf_vectorizers: Dict[
+            str, Dict[str, TfidfVectorizer]
+        ] = {}  # {large_category: {name/tag: vectorizer}}
+
+    def _prepare_features(
+        self,
+        df: pd.DataFrame,
+        use_diner_info: bool = False,
+        large_category: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        KNN을 위한 feature 준비
+
+        Args:
+            df: 카테고리 데이터프레임
+            use_diner_info: diner.csv의 정보(diner_name, diner_tag 등) 사용 여부
+            large_category: 대분류 (대분류별로 이미 필터링된 데이터의 경우)
+
+        Returns:
+            feature 데이터프레임
+        """
+        features = df.copy()
+
+        # 기본 카테고리 정보 사용 (대분류는 이미 필터링되어 있으므로 제외)
+        feature_cols = []
+        if "diner_category_small" in df.columns:
+            feature_cols.append("diner_category_small")
+        if "diner_category_detail" in df.columns:
+            feature_cols.append("diner_category_detail")
+
+        # diner.csv 정보 병합 (선택적)
+        if use_diner_info and self.data_path:
+            diner_path = self.data_path / "diner.csv"
+            if diner_path.exists():
+                try:
+                    diner_df = pd.read_csv(diner_path)
+                    # diner_idx로 병합
+                    if "diner_idx" in df.columns and "diner_idx" in diner_df.columns:
+                        features = features.merge(
+                            diner_df[["diner_idx", "diner_name", "diner_tag"]],
+                            on="diner_idx",
+                            how="left",
+                        )
+                        # diner_name, diner_tag에 대해 TF-IDF 처리를 하여 feature로 추가
+                        if large_category not in self.tfidf_vectorizers:
+                            self.tfidf_vectorizers[large_category] = {}
+
+                    if "diner_name" in features.columns:
+                        name_values = features["diner_name"].fillna("").astype(str)
+
+                        if large_category and "name" in self.tfidf_vectorizers.get(
+                            large_category, {}
+                        ):
+                            # 이미 학습된 vectorizer 사용
+                            tfidf_name = self.tfidf_vectorizers[large_category]["name"]
+                            name_tfidf = tfidf_name.transform(name_values)
+                        else:
+                            # 새로운 vectorizer 학습
+                            tfidf_name = TfidfVectorizer(max_features=10)
+                            name_tfidf = tfidf_name.fit_transform(name_values)
+                            if large_category:
+                                if large_category not in self.tfidf_vectorizers:
+                                    self.tfidf_vectorizers[large_category] = {}
+                                self.tfidf_vectorizers[large_category]["name"] = (
+                                    tfidf_name
+                                )
+
+                        name_tfidf_df = pd.DataFrame(
+                            name_tfidf.toarray(),
+                            columns=[
+                                f"diner_name_tfidf_{i}"
+                                for i in range(name_tfidf.shape[1])
+                            ],
+                            index=features.index,
+                        )
+                        features = pd.concat([features, name_tfidf_df], axis=1)
+                        feature_cols.extend(name_tfidf_df.columns.tolist())
+
+                    if "diner_tag" in features.columns:
+                        # diner_tag는 리스트 형태일 수 있으므로 문자열로 변환
+                        tag_values = features["diner_tag"].apply(
+                            lambda x: " ".join(x)
+                            if isinstance(x, list)
+                            else str(x)
+                            if pd.notna(x)
+                            else ""
+                        )
+
+                        if large_category and "tag" in self.tfidf_vectorizers.get(
+                            large_category, {}
+                        ):
+                            # 이미 학습된 vectorizer 사용
+                            tfidf_tag = self.tfidf_vectorizers[large_category]["tag"]
+                            tag_tfidf = tfidf_tag.transform(tag_values)
+                        else:
+                            # 새로운 vectorizer 학습
+                            tfidf_tag = TfidfVectorizer(max_features=10)
+                            tag_tfidf = tfidf_tag.fit_transform(tag_values)
+                            if large_category:
+                                if large_category not in self.tfidf_vectorizers:
+                                    self.tfidf_vectorizers[large_category] = {}
+                                self.tfidf_vectorizers[large_category]["tag"] = (
+                                    tfidf_tag
+                                )
+
+                        tag_tfidf_df = pd.DataFrame(
+                            tag_tfidf.toarray(),
+                            columns=[
+                                f"diner_tag_tfidf_{i}"
+                                for i in range(tag_tfidf.shape[1])
+                            ],
+                            index=features.index,
+                        )
+                        features = pd.concat([features, tag_tfidf_df], axis=1)
+                        feature_cols.extend(tag_tfidf_df.columns.tolist())
+                except Exception as e:
+                    self.logger.warning(f"Failed to load diner.csv: {e}")
+
+        # feature 컬럼 선택
+        available_cols = [col for col in feature_cols if col in features.columns]
+
+        # 대분류별로 feature 컬럼 저장
+        if large_category:
+            self.feature_columns[large_category] = available_cols
+
+        return (
+            features[available_cols] if available_cols else pd.DataFrame(index=df.index)
+        )
+
+    def _encode_features(
+        self, df: pd.DataFrame, large_category: str, is_training: bool = False
+    ) -> np.ndarray:
+        """
+        범주형 feature를 수치형으로 인코딩
+
+        Args:
+            df: feature 데이터프레임
+            large_category: 대분류
+            is_training: 학습 단계인지 여부 (fit 시 True)
+
+        Returns:
+            인코딩된 feature 배열
+        """
+        # feature_columns가 없으면 자동으로 초기화
+        if large_category not in self.feature_columns:
+            self.feature_columns[large_category] = (
+                list(df.columns) if len(df.columns) > 0 else []
+            )
+
+        if large_category not in self.label_encoders:
+            self.label_encoders[large_category] = {}
+
+        feature_cols = self.feature_columns[large_category]
+
+        if len(feature_cols) == 0:
+            # feature가 없는 경우 더미 feature 생성
+            return np.zeros((len(df), 1))
+
+        encoded_features = []
+
+        for col in feature_cols:
+            # TF-IDF feature는 이미 수치형이므로 그대로 사용
+            if col.startswith("diner_name_tfidf_") or col.startswith(
+                "diner_tag_tfidf_"
+            ):
+                # 수치형 feature는 그대로 사용 (null은 0으로 처리)
+                encoded_col = df[col].fillna(0).values.astype(float)
+                encoded_features.append(encoded_col)
+            else:
+                # 범주형 feature는 LabelEncoder로 인코딩
+                if col not in self.label_encoders[large_category]:
+                    self.label_encoders[large_category][col] = LabelEncoder()
+                    # null 값을 별도로 처리
+                    non_null_mask = df[col].notna()
+                    if non_null_mask.any():
+                        self.label_encoders[large_category][col].fit(
+                            df.loc[non_null_mask, col]
+                        )
+                    else:
+                        # 모든 값이 null인 경우 더미 인코더 생성
+                        self.label_encoders[large_category][col] = LabelEncoder()
+                        self.label_encoders[large_category][col].fit([""])
+
+                # 인코딩 (null은 -1로 처리)
+                encoded_col = np.full(len(df), -1, dtype=float)
+                non_null_mask = df[col].notna()
+                if non_null_mask.any():
+                    values_to_encode = df.loc[non_null_mask, col]
+                    # 학습 시 보지 못한 값 처리
+                    known_values_mask = values_to_encode.isin(
+                        self.label_encoders[large_category][col].classes_
+                    )
+
+                    if known_values_mask.any():
+                        # 학습된 값들만 인코딩
+                        non_null_positions = np.where(non_null_mask)[0]
+                        known_positions = non_null_positions[known_values_mask]
+                        encoded_col[known_positions] = self.label_encoders[
+                            large_category
+                        ][col].transform(values_to_encode[known_values_mask])
+
+                    # 학습 시 보지 못한 값이 있으면 경고 (이론적으로는 발생하지 않아야 함)
+                    if not known_values_mask.all():
+                        unknown_values = values_to_encode[~known_values_mask].unique()
+                        self.logger.warning(
+                            f"Column '{col}' (large_category='{large_category}') contains "
+                            f"previously unseen values: {unknown_values.tolist()[:5]}. "
+                            f"These will be encoded as -1 (missing value)."
+                        )
+                encoded_features.append(encoded_col)
+
+        return (
+            np.column_stack(encoded_features)
+            if encoded_features
+            else np.zeros((len(df), 1))
+        )
+
+    def fit(
+        self,
+        category_df: pd.DataFrame,
+        use_diner_info: bool = False,
+        test_size: float = 0.2,
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        각 대분류별로 KNN 모델 학습 및 평가
+
+        Args:
+            category_df: 카테고리 데이터프레임
+            use_diner_info: diner.csv 정보 사용 여부
+            test_size: 평가용 데이터 비율
+
+        Returns:
+            대분류별 평가 메트릭 딕셔너리 {large_category: {metric: value}}
+        """
+        # 중분류가 null이 아닌 데이터만 사용
+        train_df = category_df[category_df["diner_category_middle"].notna()].copy()
+
+        if len(train_df) == 0:
+            raise ValueError("No non-null middle category data for training")
+
+        # 대분류별로 데이터 분리
+        all_metrics = {}
+        large_categories = train_df["diner_category_large"].unique()
+
+        self.logger.info("=" * 60)
+        self.logger.info("Training KNN Models by Large Category")
+        self.logger.info("=" * 60)
+        self.logger.info(f"Total large categories: {len(large_categories)}")
+        self.logger.info("")
+
+        for large_cat in sorted(large_categories):
+            if pd.isna(large_cat):
+                continue
+
+            # 해당 대분류의 데이터만 필터링
+            large_cat_df = train_df[
+                train_df["diner_category_large"] == large_cat
+            ].copy()
+
+            if len(large_cat_df) < 2:
+                self.logger.warning(
+                    f"Skipping '{large_cat}': insufficient data ({len(large_cat_df)} samples)"
+                )
+                continue
+
+            # Feature 준비
+            features_df = self._prepare_features(
+                large_cat_df, use_diner_info, large_category=large_cat
+            )
+            X = self._encode_features(features_df, large_cat, is_training=True)
+
+            # Target (중분류)
+            target_encoder = LabelEncoder()
+            y = target_encoder.fit_transform(large_cat_df["diner_category_middle"])
+            self.target_encoders[large_cat] = target_encoder
+
+            # 중분류가 1개만 있으면 학습 불가
+            unique_middles = large_cat_df["diner_category_middle"].nunique()
+            if unique_middles < 2:
+                self.logger.warning(
+                    f"Skipping '{large_cat}': only {unique_middles} unique middle category"
+                )
+                continue
+
+            # Train/Test split
+            try:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=test_size, random_state=42, stratify=y
+                )
+            except ValueError:
+                # stratify가 실패하면 (데이터가 적은 경우) stratify 없이 split
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=test_size, random_state=42
+                )
+
+            if len(X_train) == 0:
+                self.logger.warning(
+                    f"Skipping '{large_cat}': no training data after split"
+                )
+                continue
+
+            # KNN 모델 학습
+            knn_model = KNeighborsClassifier(
+                n_neighbors=min(self.n_neighbors, len(X_train)), weights="distance"
+            )
+            knn_model.fit(X_train, y_train)
+            self.knn_models[large_cat] = knn_model
+
+            # 평가
+            if len(X_test) > 0:
+                y_pred = knn_model.predict(X_test)
+                metrics = {
+                    "accuracy": accuracy_score(y_test, y_pred),
+                    "precision_macro": precision_score(
+                        y_test, y_pred, average="macro", zero_division=0
+                    ),
+                    "recall_macro": recall_score(
+                        y_test, y_pred, average="macro", zero_division=0
+                    ),
+                    "f1_macro": f1_score(
+                        y_test, y_pred, average="macro", zero_division=0
+                    ),
+                    "precision_weighted": precision_score(
+                        y_test, y_pred, average="weighted", zero_division=0
+                    ),
+                    "recall_weighted": recall_score(
+                        y_test, y_pred, average="weighted", zero_division=0
+                    ),
+                    "f1_weighted": f1_score(
+                        y_test, y_pred, average="weighted", zero_division=0
+                    ),
+                }
+                all_metrics[large_cat] = metrics
+
+                self.logger.info("=" * 60)
+                self.logger.info(f"Large Category: {large_cat}")
+                self.logger.info("=" * 60)
+                self.logger.info(f"Training samples: {len(X_train)}")
+                self.logger.info(f"Test samples: {len(X_test)}")
+                self.logger.info(
+                    f"Features used: {self.feature_columns.get(large_cat, [])}"
+                )
+                self.logger.info(
+                    f"Number of neighbors: {min(self.n_neighbors, len(X_train))}"
+                )
+                self.logger.info(f"Unique middle categories: {unique_middles}")
+                self.logger.info("-" * 60)
+                self.logger.info("Metrics (Macro Average):")
+                self.logger.info(f"  Accuracy:  {metrics['accuracy']:.4f}")
+                self.logger.info(f"  Precision: {metrics['precision_macro']:.4f}")
+                self.logger.info(f"  Recall:    {metrics['recall_macro']:.4f}")
+                self.logger.info(f"  F1-Score:  {metrics['f1_macro']:.4f}")
+                self.logger.info("-" * 60)
+                self.logger.info("Metrics (Weighted Average):")
+                self.logger.info(f"  Precision: {metrics['precision_weighted']:.4f}")
+                self.logger.info(f"  Recall:    {metrics['recall_weighted']:.4f}")
+                self.logger.info(f"  F1-Score:  {metrics['f1_weighted']:.4f}")
+                self.logger.info("=" * 60)
+
+            else:
+                self.logger.warning(
+                    f"No test data for '{large_cat}', skipping evaluation"
+                )
+
+        self.logger.info("")
+        self.logger.info("=" * 60)
+        self.logger.info(f"Total models trained: {len(self.knn_models)}")
+        self.logger.info("=" * 60)
+
+        return all_metrics
+
+    def impute(
+        self,
+        category_df: pd.DataFrame,
+        use_diner_info: bool = False,
+    ) -> pd.DataFrame:
+        """
+        중분류 null 값을 대분류별 모델로 imputation
+
+        Args:
+            category_df: 카테고리 데이터프레임
+            use_diner_info: diner.csv 정보 사용 여부
+
+        Returns:
+            imputation이 적용된 데이터프레임
+        """
+        if not self.knn_models:
+            raise ValueError(
+                "Models not trained. Call fit() first or use fit_and_impute()"
+            )
+
+        result_df = category_df.copy()
+
+        # 중분류가 null인 행 찾기
+        null_mask = result_df["diner_category_middle"].isna()
+
+        if not null_mask.any():
+            self.logger.info("No null values to impute")
+            return result_df
+
+        # 대분류별로 처리
+        total_filled = 0
+
+        for large_cat in self.knn_models.keys():
+            # 해당 대분류이면서 중분류가 null인 행 찾기
+            large_cat_mask = result_df["diner_category_large"] == large_cat
+            null_and_large_mask = null_mask & large_cat_mask
+
+            if not null_and_large_mask.any():
+                continue
+
+            # 해당 대분류의 데이터만 추출
+            large_cat_df = result_df[null_and_large_mask].copy()
+
+            # Feature 준비 (대분류 정보는 이미 알고 있으므로 제외)
+            features_df = self._prepare_features(
+                large_cat_df, use_diner_info, large_category=large_cat
+            )
+
+            X = self._encode_features(features_df, large_cat, is_training=False)
+
+            if len(X) > 0:
+                try:
+                    # 예측
+                    y_pred_encoded = self.knn_models[large_cat].predict(X)
+                    y_pred = self.target_encoders[large_cat].inverse_transform(
+                        y_pred_encoded
+                    )
+
+                    # Imputation 적용
+                    result_df.loc[null_and_large_mask, "diner_category_middle"] = y_pred
+
+                    filled_count = null_and_large_mask.sum()
+                    total_filled += filled_count
+                    self.logger.info(
+                        f"Imputed {filled_count:,} null middle category values for '{large_cat}' using KNN"
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Failed to impute for '{large_cat}': {e}")
+
+        if total_filled > 0:
+            self.logger.info(
+                f"Total imputed {total_filled:,} null middle category values across all large categories"
+            )
+        else:
+            self.logger.info("No values were imputed (no matching models or data)")
+
+        return result_df
+
+    def fit_and_impute(
+        self,
+        category_df: pd.DataFrame,
+        use_diner_info: bool = False,
+        test_size: float = 0.2,
+    ) -> Tuple[pd.DataFrame, Dict[str, Dict[str, float]]]:
+        """
+        모델 학습 및 imputation을 한 번에 수행
+
+        Args:
+            category_df: 카테고리 데이터프레임
+            use_diner_info: diner.csv 정보 사용 여부
+            test_size: 평가용 데이터 비율
+
+        Returns:
+            (imputation된 데이터프레임, 대분류별 평가 메트릭)
+        """
+        # 학습 및 평가
+        metrics = self.fit(category_df, use_diner_info, test_size)
+
+        # Imputation
+        result_df = self.impute(category_df, use_diner_info)
+
+        return result_df, metrics
 
 
 class CategoryProcessor:
