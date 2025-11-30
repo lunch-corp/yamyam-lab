@@ -11,6 +11,7 @@ import logging
 import pandas as pd
 
 from yamyam_lab.preprocess.diner_transform import (
+    CategoryProcessor,
     MiddleCategoryKNNImputer,
     MiddleCategorySimplifier,
 )
@@ -74,14 +75,29 @@ def main():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     logger = logging.getLogger(__name__)
-    simplifier = MiddleCategorySimplifier(
-        config_root_path=args.config_path, data_path=args.data_path, logger=logger
-    )
 
     # 데이터 로드
     category_df = pd.read_csv(args.input)
 
-    # 간소화 처리
+    # step 1: CategoryProcessor로 대분류 분류 로직 적용
+    logger.info("=" * 60)
+    logger.info("Step 1: Category Processing")
+    logger.info("=" * 60)
+    processor = CategoryProcessor(
+        df=category_df,
+        config_root_path=args.config_path,
+    )
+    processor.process_all()
+    category_df = processor.category_preprocessed_diners
+    logger.info("Category processing completed")
+
+    # step 2: 간소화 처리
+    logger.info("=" * 60)
+    logger.info("Step 2: Middle Category Simplification")
+    logger.info("=" * 60)
+    simplifier = MiddleCategorySimplifier(
+        config_root_path=args.config_path, data_path=args.data_path, logger=logger
+    )
     result_df = simplifier.process(category_df)
 
     # KNN imputation (옵션)

@@ -331,7 +331,7 @@ class MiddleCategoryKNNImputer:
                             name_tfidf = tfidf_name.transform(name_values)
                         else:
                             # 새로운 vectorizer 학습
-                            tfidf_name = TfidfVectorizer(max_features=10)
+                            tfidf_name = TfidfVectorizer(max_features=100)
                             name_tfidf = tfidf_name.fit_transform(name_values)
                             if large_category:
                                 if large_category not in self.tfidf_vectorizers:
