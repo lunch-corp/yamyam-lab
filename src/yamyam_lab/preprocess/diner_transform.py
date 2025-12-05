@@ -1160,6 +1160,11 @@ class MiddleCategoryLLMImputer:
                 if isinstance(tag, list):
                     tag = ", ".join(tag)
                 features.append(f"태그: {tag}")
+            if pd.notna(row.get("diner_menu_name")):
+                menu = row["diner_menu_name"]
+                if isinstance(menu, list):
+                    menu = ", ".join(menu)
+                features.append(f"메뉴: {menu}")
 
         return ", ".join(features) if features else "정보 없음"
 
@@ -1401,8 +1406,12 @@ class MiddleCategoryLLMImputer:
                         "diner_idx" in category_df.columns
                         and "diner_idx" in diner_df.columns
                     ):
+                        # diner_menu_name이 있는 경우에만 포함
+                        merge_cols = ["diner_idx", "diner_name", "diner_tag"]
+                        if "diner_menu_name" in diner_df.columns:
+                            merge_cols.append("diner_menu_name")
                         category_df = category_df.merge(
-                            diner_df[["diner_idx", "diner_name", "diner_tag"]],
+                            diner_df[merge_cols],
                             on="diner_idx",
                             how="left",
                         )
@@ -1598,8 +1607,12 @@ class MiddleCategoryLLMImputer:
                         "diner_idx" in category_df.columns
                         and "diner_idx" in diner_df.columns
                     ):
+                        # diner_menu_name이 있는 경우에만 포함
+                        merge_cols = ["diner_idx", "diner_name", "diner_tag"]
+                        if "diner_menu_name" in diner_df.columns:
+                            merge_cols.append("diner_menu_name")
                         category_df = category_df.merge(
-                            diner_df[["diner_idx", "diner_name", "diner_tag"]],
+                            diner_df[merge_cols],
                             on="diner_idx",
                             how="left",
                         )

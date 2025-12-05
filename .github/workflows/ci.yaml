@@ -49,7 +49,16 @@ jobs:
     env:
       DATA_FOLDER_ID: ${{ secrets.DATA_FOLDER_ID }}
       KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+
     steps:
+      - name: Emergency Disk Cleanup
+        run: |
+          df -h
+          sudo rm -rf /home/runner/.cache/*
+          sudo rm -rf /home/runner/work/_temp/*
+          sudo rm -rf /home/runner/actions-runner/cached/_diag/* || true
+          df -h
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -66,14 +75,16 @@ jobs:
           poetry-version: "2.1.1"
 
       - uses: actions/cache@v3
-        name: Define a cache for the virtual environment based on the dependencies lock file
+        name: Cache pip
         with:
-          path: ./.venv
-          key: venv-${{ hashFiles('poetry.lock') }}
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
 
       - name: Install the project dependencies
-        run: poetry install
+        run: poetry install --no-root --no-interaction
 
       - name: Run pytest
         run: |
-          poetry run pytest
+          poetry run pytest -q --disable-warnings --maxfail=1
