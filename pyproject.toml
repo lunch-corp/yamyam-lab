@@ -57,9 +57,6 @@ pytest-dotenv = "^0.5.2"
 ruff = "0.9.9"
 streamlit = ">=1.28.0"
 
-[tool.poetry.group.llm.dependencies]
-transformers = "^4.57.3"
-
 [tool.ruff]
 # Refer https://github.com/astral-sh/ruff?tab=readme-ov-file#configuration
 exclude = [
