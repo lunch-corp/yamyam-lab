@@ -114,8 +114,8 @@ jobs:
           # Set environment variables to prevent disk space issues
           export MLFLOW_TRACKING_URI=""
           export PYTHONDONTWRITEBYTECODE=1
-          # Limit output to prevent log file growth
-          poetry run pytest --cache-clear -v --tb=line --maxfail=1 -q 2>&1 | head -200 || true
+          # Run pytest with minimal output (--tb=line for short traceback, -q for quiet mode)
+          poetry run pytest --cache-clear -q --tb=line --maxfail=5
           # Immediately clean up after test
           rm -rf mlruns/*/artifacts 2>/dev/null || true
           rm -rf result/test/* 2>/dev/null || true
