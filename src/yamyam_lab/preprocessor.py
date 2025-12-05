@@ -19,7 +19,7 @@ from yamyam_lab.preprocess.diner_transform import (
 
 def main():
     """메인 실행 함수"""
-
+    print("Hello, World!")
     parser = argparse.ArgumentParser(description="중분류 카테고리 간소화")
     parser.add_argument(
         "--config-path",
