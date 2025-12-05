@@ -47,7 +47,17 @@ def download_from_drive_and_return_paths() -> Dict[str, str]:
 
     Returns:
         Dict[str, str]: 파일명과 경로를 담은 딕셔너리
+
+    Raises:
+        FileNotFoundError: CI 환경에서 데이터 다운로드를 시도할 때
     """
+    # CI 환경에서는 데이터 다운로드를 시도하지 않음 (디스크 공간 부족 방지)
+    if os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true":
+        raise FileNotFoundError(
+            "Data download is disabled in CI environment to prevent disk space issues. "
+            "Tests requiring data files should be skipped when data is not available."
+        )
+
     folder_id_var = "DATA_FOLDER_ID"
     zip_path = os.path.join(data_dir, "dataset.zip")
     google_save_dir = os.path.join(data_dir, "google_save_dir")

@@ -59,6 +59,11 @@ def test_loader_dataset():
         assert data["diner_feature"].shape[0] > 0
         assert data["diner_meta_feature"].shape[0] > 0
         assert data["mapped_res"] is not None
+    except FileNotFoundError as e:
+        # CI 환경에서 데이터 다운로드가 차단된 경우 스킵
+        if "CI environment" in str(e) or "disk space" in str(e).lower():
+            pytest.skip(f"Data download disabled in CI: {e}")
+        raise
     except Exception as e:
         # CI 환경에서 더 자세한 에러 정보 출력
         import traceback
@@ -81,6 +86,11 @@ def test_load_test_dataset(setup_data_config):
         assert test is not None
         assert len(test) > 0
         assert isinstance(test, pd.DataFrame)
+    except FileNotFoundError as e:
+        # CI 환경에서 데이터 다운로드가 차단된 경우 스킵
+        if "CI environment" in str(e) or "disk space" in str(e).lower():
+            pytest.skip(f"Data download disabled in CI: {e}")
+        raise
     except Exception as e:
         # CI 환경에서 더 자세한 에러 정보 출력
         import traceback
