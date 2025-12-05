@@ -118,8 +118,17 @@ def check_data_and_return_paths() -> Dict[str, str]:
 
     Returns:
         Dict[str, str]: 파일명과 경로를 담은 딕셔너리
+
+    Raises:
+        FileNotFoundError: CI 환경에서 데이터 파일이 없을 때
     """
     if not check_required_files():
+        # CI 환경에서는 데이터 다운로드를 시도하지 않음 (디스크 공간 부족 방지)
+        if os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true":
+            raise FileNotFoundError(
+                "Data files not available in CI environment. "
+                "These tests should be skipped when data is not available."
+            )
         return download_from_drive_and_return_paths()
     else:
         print("기존 data가 존재합니다. 파일 경로를 반환합니다.")

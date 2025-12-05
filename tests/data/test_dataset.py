@@ -15,10 +15,15 @@ import pytest
 from yamyam_lab.data.base import BaseDatasetLoader
 from yamyam_lab.data.config import DataConfig
 from yamyam_lab.data.ranker import load_test_dataset
+from yamyam_lab.tools.google_drive import check_required_files
 from yamyam_lab.tools.utils import get_kakao_lat_lng
 
 
 def test_loader_dataset():
+    # CI 환경에서 데이터 파일이 없으면 스킵
+    if not check_required_files():
+        pytest.skip("Data files not available (likely in CI environment)")
+
     try:
         data_loader = BaseDatasetLoader(
             data_config=DataConfig(
@@ -67,6 +72,10 @@ def test_loader_dataset():
     "setup_data_config", [("lightgbm", {}, 1)], indirect=["setup_data_config"]
 )
 def test_load_test_dataset(setup_data_config):
+    # CI 환경에서 데이터 파일이 없으면 스킵
+    if not check_required_files():
+        pytest.skip("Data files not available (likely in CI environment)")
+
     try:
         test = load_test_dataset(setup_data_config)
         assert test is not None
