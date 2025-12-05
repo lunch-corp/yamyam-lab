@@ -74,32 +74,6 @@ jobs:
       - name: Install the project dependencies
         run: poetry install
 
-      - name: Clean up disk space before tests
-        run: |
-          # Check disk space
-          df -h
-          # Remove unnecessary files and directories
-          rm -rf mlruns/*/artifacts
-          rm -rf result/test/*
-          rm -rf result/untest/*
-          rm -rf .pytest_cache
-          rm -rf __pycache__
-          find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
-          find . -type f -name "*.pyc" -delete 2>/dev/null || true
-          find . -type f -name "*.log" -delete 2>/dev/null || true
-          # Check disk space after cleanup
-          df -h
-
       - name: Run pytest
         run: |
-          poetry run pytest --cache-clear -v --tb=short
-
-      - name: Clean up after tests
-        run: |
-          # Clean up test artifacts
-          rm -rf .pytest_cache
-          rm -rf mlruns/*/artifacts 2>/dev/null || true
-          rm -rf result/test/* 2>/dev/null || true
-          find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
-          find . -type f -name "*.pyc" -delete 2>/dev/null || true
-          find . -type f -name "*.log" -delete 2>/dev/null || true
+          poetry run pytest

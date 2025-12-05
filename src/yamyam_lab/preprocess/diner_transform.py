@@ -17,7 +17,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# transformers는 테스트 환경에서는 import하지 않음
+try:
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+except ImportError:
+    # pytest 실행 중이거나 CI 환경에서는 transformers를 import하지 않음
+    AutoModelForCausalLM = None
+    AutoTokenizer = None
 
 # 로깅 설정
 logging.basicConfig(
@@ -1039,7 +1046,8 @@ class MiddleCategoryLLMImputer:
             self.device = device
 
         # 모델 및 토크나이저 (lazy loading)
-        self.tokenizer: Optional[AutoTokenizer] = None
+        # 타입 힌트는 Any로 설정 (테스트 환경에서 AutoTokenizer가 None일 수 있음)
+        self.tokenizer: Optional[Any] = None
         self.model: Optional[Any] = None
 
         # 대분류별 few-shot 예제 저장
@@ -1091,6 +1099,14 @@ class MiddleCategoryLLMImputer:
 
     def _load_model(self):
         """LLM 모델과 토크나이저를 로드합니다 (lazy loading)"""
+        # 테스트 환경에서는 transformers를 사용할 수 없으므로 스킵
+        if AutoTokenizer is None or AutoModelForCausalLM is None:
+            self.logger.warning(
+                "transformers is not available (likely in test environment). "
+                "Skipping model loading."
+            )
+            return
+
         if self.tokenizer is None or self.model is None:
             self.logger.info(f"Loading LLM model: {self.model_name}")
             self.logger.info(f"Using device: {self.device}")
