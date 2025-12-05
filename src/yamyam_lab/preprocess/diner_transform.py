@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import torch
 import yaml
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import (
@@ -15,6 +16,8 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # 로깅 설정
 logging.basicConfig(
@@ -989,3 +992,706 @@ class CategoryProcessor:
             self.df.loc[target_rows, f"diner_category_{to_category}"] = self.df.loc[
                 target_rows, f"diner_category_{from_category}"
             ]
+
+
+class MiddleCategoryLLMImputer:
+    """
+    LLM 기반 중분류 null 값 imputation 클래스
+
+    각 대분류별로 few-shot prompt를 구성하여 오픈소스 LLM으로 중분류를 예측합니다.
+    대분류, 소분류, 상세분류, diner_name, diner_tag 등의 정보를 활용합니다.
+    """
+
+    def __init__(
+        self,
+        model_name: str = "Qwen/Qwen2-1.5B-Instruct",
+        data_path: Optional[str] = None,
+        n_few_shot: int = 5,
+        max_new_tokens: int = 10,
+        temperature: float = 0.1,
+        device: Optional[str] = None,
+        batch_size: int = 8,
+        logger: logging.Logger = logger,
+    ):
+        """
+        Args:
+            model_name: 사용할 LLM 모델 이름 (HuggingFace 모델 ID)
+            data_path: diner.csv 파일 경로 (diner_name, diner_tag 등 사용 시)
+            n_few_shot: Few-shot 예제 개수 (기본값: 5)
+            max_new_tokens: 생성할 최대 토큰 수 (기본값: 10)
+            temperature: 생성 시 temperature (기본값: 0.1, 낮을수록 결정적)
+            device: 사용할 디바이스 ("cuda", "cpu", None=자동)
+            batch_size: 배치 크기 (기본값: 8)
+            logger: 로거 인스턴스
+        """
+        self.model_name = model_name
+        self.data_path = Path(data_path) if data_path else None
+        self.n_few_shot = n_few_shot
+        self.max_new_tokens = max_new_tokens
+        self.temperature = temperature
+        self.batch_size = batch_size
+        self.logger = logger
+
+        # 디바이스 설정
+        if device is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
+
+        # 모델 및 토크나이저 (lazy loading)
+        self.tokenizer: Optional[AutoTokenizer] = None
+        self.model: Optional[Any] = None
+
+        # 대분류별 few-shot 예제 저장
+        self.few_shot_examples: Dict[str, List[Dict[str, str]]] = {}
+
+        # 대분류별 가능한 중분류 목록 저장
+        self.possible_middle_categories: Dict[str, List[str]] = {}
+
+        # 프롬프트 템플릿 로드
+        self.prompt_template = self._load_prompt_template()
+
+    def _load_prompt_template(self) -> str:
+        """
+        프롬프트 템플릿 파일을 로드합니다.
+
+        Returns:
+            프롬프트 템플릿 문자열
+        """
+        # 프로젝트 루트 경로 찾기 (src/yamyam_lab/preprocess/diner_transform.py -> 프로젝트 루트)
+        current_file = Path(__file__)
+        project_root = current_file.parent.parent.parent.parent
+        prompt_path = project_root / "prompt" / "middle_category_imputation.txt"
+
+        if not prompt_path.exists():
+            self.logger.warning(
+                f"Prompt template not found at {prompt_path}, using default template"
+            )
+            # 기본 템플릿 반환
+            return (
+                "당신은 음식점 카테고리 분류 전문가입니다.\n"
+                "주어진 음식점 정보를 바탕으로 '{large_category}' 대분류에 속하는 중분류를 예측하세요.\n\n"
+                "중요:\n"
+                "- 예제들을 참고하여 유사한 패턴을 찾으세요\n"
+                "- 소분류, 상세분류, 식당명, 태그 등의 정보를 종합적으로 고려하세요\n"
+                "- 중분류 이름만 정확히 답변하세요 (설명 없이)\n"
+                "{possible_middles_section}\n\n"
+                "예제:\n{examples_section}\n\n"
+                "예측할 음식점:\n정보: {query_features}\n중분류:\n"
+            )
+
+        try:
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                template = f.read()
+            self.logger.info(f"Loaded prompt template from {prompt_path}")
+            return template
+        except Exception as e:
+            self.logger.error(f"Failed to load prompt template: {e}")
+            raise
+
+    def _load_model(self):
+        """LLM 모델과 토크나이저를 로드합니다 (lazy loading)"""
+        if self.tokenizer is None or self.model is None:
+            self.logger.info(f"Loading LLM model: {self.model_name}")
+            self.logger.info(f"Using device: {self.device}")
+
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_name, trust_remote_code=True
+                )
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
+                    device_map="auto" if self.device == "cuda" else None,
+                    trust_remote_code=True,
+                )
+                if self.device == "cpu":
+                    self.model = self.model.to(self.device)
+
+                self.logger.info(f"Successfully loaded model: {self.model_name}")
+            except Exception as e:
+                self.logger.error(f"Failed to load model {self.model_name}: {e}")
+                raise
+
+    def _prepare_features_text(
+        self,
+        row: pd.Series,
+        use_diner_info: bool = False,
+    ) -> str:
+        """
+        행의 정보를 텍스트로 변환하여 prompt에 사용
+
+        Args:
+            row: 데이터프레임의 한 행
+            use_diner_info: diner.csv 정보 사용 여부
+
+        Returns:
+            feature 텍스트
+        """
+        features = []
+
+        # 대분류는 이미 알고 있으므로 제외
+        if pd.notna(row.get("diner_category_small")):
+            features.append(f"소분류: {row['diner_category_small']}")
+        if pd.notna(row.get("diner_category_detail")):
+            features.append(f"상세분류: {row['diner_category_detail']}")
+
+        if use_diner_info:
+            if pd.notna(row.get("diner_name")):
+                features.append(f"식당명: {row['diner_name']}")
+            if pd.notna(row.get("diner_tag")):
+                tag = row["diner_tag"]
+                if isinstance(tag, list):
+                    tag = ", ".join(tag)
+                features.append(f"태그: {tag}")
+
+        return ", ".join(features) if features else "정보 없음"
+
+    def _build_few_shot_prompt(
+        self,
+        large_category: str,
+        examples: List[Dict[str, str]],
+        query_features: str,
+        possible_middles: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Few-shot prompt 구성
+
+        Args:
+            large_category: 대분류
+            examples: Few-shot 예제 리스트 [{"features": "...", "middle": "..."}, ...]
+            query_features: 예측할 행의 feature 텍스트
+            possible_middles: 가능한 중분류 목록 (프롬프트에 포함)
+
+        Returns:
+            구성된 prompt
+        """
+        # 가능한 중분류 목록 섹션 구성
+        if possible_middles:
+            possible_middles_section = (
+                f"- 가능한 중분류: {', '.join(sorted(possible_middles))}\n"
+            )
+        else:
+            possible_middles_section = ""
+
+        # Few-shot 예제 섹션 구성
+        examples_section = ""
+        for i, ex in enumerate(examples, 1):
+            examples_section += (
+                f"\n예제 {i}:\n정보: {ex['features']}\n중분류: {ex['middle']}\n"
+            )
+
+        # 템플릿에 값 채우기
+        prompt = self.prompt_template.format(
+            large_category=large_category,
+            possible_middles_section=possible_middles_section,
+            examples_section=examples_section,
+            query_features=query_features,
+        )
+
+        return prompt
+
+    def _predict_with_llm(
+        self, prompt: str, possible_middles: Optional[List[str]] = None
+    ) -> str:
+        """
+        LLM을 사용하여 중분류 예측 (단일)
+
+        Args:
+            prompt: 입력 prompt
+            possible_middles: 가능한 중분류 목록 (매칭용)
+
+        Returns:
+            예측된 중분류
+        """
+        results = self._predict_with_llm_batch([prompt], possible_middles)
+        return results[0] if results else ""
+
+    def _predict_with_llm_batch(
+        self,
+        prompts: List[str],
+        possible_middles: Optional[List[str]] = None,
+    ) -> List[str]:
+        """
+        LLM을 사용하여 중분류 예측 (배치)
+
+        Args:
+            prompts: 입력 prompt 리스트
+            possible_middles: 가능한 중분류 목록 (매칭용)
+
+        Returns:
+            예측된 중분류 리스트
+        """
+        if self.tokenizer is None or self.model is None:
+            self._load_model()
+
+        if not prompts:
+            return []
+
+        # Prompt를 모델 형식에 맞게 변환
+        formatted_prompts = []
+        for prompt in prompts:
+            messages = [{"role": "user", "content": prompt}]
+
+            # Qwen2 형식에 맞게 포맷팅
+            if hasattr(self.tokenizer, "apply_chat_template"):
+                formatted_prompt = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+            else:
+                formatted_prompt = prompt
+
+            formatted_prompts.append(formatted_prompt)
+
+        # 배치 토크나이징
+        inputs = self.tokenizer(
+            formatted_prompts,
+            return_tensors="pt",
+            truncation=True,
+            max_length=2048,
+            padding=True,
+        ).to(self.device)
+
+        # 배치 생성
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=self.max_new_tokens,
+                temperature=self.temperature,
+                do_sample=self.temperature > 0,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+
+        # 배치 디코딩
+        input_lengths = inputs["input_ids"].shape[1]
+        predictions = []
+        for i, output in enumerate(outputs):
+            generated_text = self.tokenizer.decode(
+                output[input_lengths:], skip_special_tokens=True
+            )
+
+            # 중분류만 추출 (첫 줄 또는 첫 단어)
+            predicted = generated_text.strip().split("\n")[0].split(",")[0].strip()
+
+            # 가능한 중분류 목록이 있으면 매칭 시도
+            if possible_middles:
+                # 정확히 일치하는 경우
+                if predicted in possible_middles:
+                    predictions.append(predicted)
+                    continue
+
+                # 부분 일치 확인
+                matched = None
+                for middle in possible_middles:
+                    if predicted in middle or middle in predicted:
+                        matched = middle
+                        break
+
+                if matched:
+                    predictions.append(matched)
+                else:
+                    # 매칭 실패 시 첫 번째 가능한 값 반환 (fallback)
+                    predictions.append(
+                        possible_middles[0] if possible_middles else predicted
+                    )
+            else:
+                predictions.append(predicted)
+
+        return predictions
+
+    def _prepare_few_shot_examples(
+        self,
+        large_cat_df: pd.DataFrame,
+        use_diner_info: bool = False,
+    ) -> List[Dict[str, str]]:
+        """
+        대분류별 few-shot 예제 준비
+
+        Args:
+            large_cat_df: 해당 대분류의 데이터프레임 (중분류가 있는 데이터)
+            use_diner_info: diner.csv 정보 사용 여부
+
+        Returns:
+            Few-shot 예제 리스트
+        """
+        # 중분류가 있는 데이터만 사용
+        valid_df = large_cat_df[large_cat_df["diner_category_middle"].notna()].copy()
+
+        if len(valid_df) == 0:
+            return []
+
+        # 중분류별로 샘플링하여 다양성 확보
+        examples = []
+        middle_categories = valid_df["diner_category_middle"].unique()
+
+        samples_per_category = max(1, self.n_few_shot // len(middle_categories))
+
+        for middle_cat in middle_categories:
+            middle_df = valid_df[valid_df["diner_category_middle"] == middle_cat]
+            sample_size = min(samples_per_category, len(middle_df))
+            sampled = middle_df.sample(n=sample_size, random_state=42)
+
+            for _, row in sampled.iterrows():
+                features = self._prepare_features_text(row, use_diner_info)
+                examples.append(
+                    {
+                        "features": features,
+                        "middle": str(row["diner_category_middle"]),
+                    }
+                )
+
+        # 전체 예제가 n_few_shot보다 적으면 추가 샘플링
+        if len(examples) < self.n_few_shot:
+            remaining = self.n_few_shot - len(examples)
+            additional = valid_df.sample(
+                n=min(remaining, len(valid_df)), random_state=42
+            )
+            for _, row in additional.iterrows():
+                features = self._prepare_features_text(row, use_diner_info)
+                examples.append(
+                    {
+                        "features": features,
+                        "middle": str(row["diner_category_middle"]),
+                    }
+                )
+
+        # 최대 n_few_shot개만 반환
+        return examples[: self.n_few_shot]
+
+    def fit(
+        self,
+        category_df: pd.DataFrame,
+        use_diner_info: bool = False,
+        test_size: float = 0.2,
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        각 대분류별로 few-shot 예제 준비 및 평가
+
+        Args:
+            category_df: 카테고리 데이터프레임
+            use_diner_info: diner.csv 정보 사용 여부
+            test_size: 평가용 데이터 비율
+
+        Returns:
+            대분류별 평가 메트릭 딕셔너리 {large_category: {metric: value}}
+        """
+        # diner.csv 정보 병합 (필요한 경우)
+        if use_diner_info and self.data_path:
+            diner_path = self.data_path / "diner.csv"
+            if diner_path.exists():
+                try:
+                    diner_df = pd.read_csv(diner_path)
+                    if (
+                        "diner_idx" in category_df.columns
+                        and "diner_idx" in diner_df.columns
+                    ):
+                        category_df = category_df.merge(
+                            diner_df[["diner_idx", "diner_name", "diner_tag"]],
+                            on="diner_idx",
+                            how="left",
+                        )
+                except Exception as e:
+                    self.logger.warning(f"Failed to load diner.csv: {e}")
+
+        # 중분류가 null이 아닌 데이터만 사용
+        train_df = category_df[category_df["diner_category_middle"].notna()].copy()
+
+        if len(train_df) == 0:
+            raise ValueError("No non-null middle category data for training")
+
+        # 대분류별로 데이터 분리
+        all_metrics = {}
+        large_categories = train_df["diner_category_large"].unique()
+
+        self.logger.info("=" * 60)
+        self.logger.info("Preparing LLM Few-Shot Examples by Large Category")
+        self.logger.info("=" * 60)
+        self.logger.info(f"Total large categories: {len(large_categories)}")
+        self.logger.info("")
+
+        for large_cat in tqdm(
+            sorted(large_categories), desc="Processing categories", leave=True
+        ):
+            if pd.isna(large_cat):
+                continue
+
+            # 해당 대분류의 데이터만 필터링
+            large_cat_df = train_df[
+                train_df["diner_category_large"] == large_cat
+            ].copy()
+
+            if len(large_cat_df) < 2:
+                self.logger.warning(
+                    f"Skipping '{large_cat}': insufficient data ({len(large_cat_df)} samples)"
+                )
+                continue
+
+            # 가능한 중분류 목록 저장
+            unique_middles = large_cat_df["diner_category_middle"].unique().tolist()
+            self.possible_middle_categories[large_cat] = unique_middles
+
+            # Few-shot 예제 준비
+            examples = self._prepare_few_shot_examples(large_cat_df, use_diner_info)
+            self.few_shot_examples[large_cat] = examples
+
+            # Train/Test split
+            try:
+                train_split, test_split = train_test_split(
+                    large_cat_df,
+                    test_size=test_size,
+                    random_state=42,
+                    stratify=large_cat_df["diner_category_middle"],
+                )
+            except ValueError:
+                # stratify가 실패하면 stratify 없이 split
+                train_split, test_split = train_test_split(
+                    large_cat_df, test_size=test_size, random_state=42
+                )
+
+            if len(test_split) == 0:
+                self.logger.warning(
+                    f"No test data for '{large_cat}', skipping evaluation"
+                )
+                continue
+
+            # 평가
+            y_true = []
+            y_pred = []
+
+            self.logger.info("=" * 60)
+            self.logger.info(f"Large Category: {large_cat}")
+            self.logger.info("=" * 60)
+            self.logger.info(f"Training samples: {len(train_split)}")
+            self.logger.info(f"Test samples: {len(test_split)}")
+            self.logger.info(f"Few-shot examples: {len(examples)}")
+            self.logger.info(f"Unique middle categories: {len(unique_middles)}")
+
+            # 테스트 데이터에 대해 배치 예측
+            test_rows = list(test_split.iterrows())
+            prompts_list = []
+            indices_list = []
+
+            for idx, row in test_rows:
+                query_features = self._prepare_features_text(row, use_diner_info)
+                prompt = self._build_few_shot_prompt(
+                    large_cat, examples, query_features, unique_middles
+                )
+                prompts_list.append(prompt)
+                indices_list.append((idx, row))
+
+            # 배치 단위로 예측
+            y_true = []
+            y_pred = []
+            for i in tqdm(
+                range(0, len(prompts_list), self.batch_size),
+                desc=f"Predicting {large_cat}",
+                leave=False,
+            ):
+                batch_prompts = prompts_list[i : i + self.batch_size]
+                batch_indices = indices_list[i : i + self.batch_size]
+
+                try:
+                    batch_predictions = self._predict_with_llm_batch(
+                        batch_prompts, unique_middles
+                    )
+
+                    for (idx, row), predicted in zip(batch_indices, batch_predictions):
+                        y_true.append(str(row["diner_category_middle"]))
+                        y_pred.append(predicted)
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to predict batch for '{large_cat}': {e}"
+                    )
+                    # Fallback: 첫 번째 가능한 값 사용
+                    fallback = unique_middles[0] if unique_middles else ""
+                    for idx, row in batch_indices:
+                        y_true.append(str(row["diner_category_middle"]))
+                        y_pred.append(fallback)
+
+            if len(y_true) > 0 and len(y_pred) > 0:
+                metrics = {
+                    "accuracy": accuracy_score(y_true, y_pred),
+                    "precision_macro": precision_score(
+                        y_true, y_pred, average="macro", zero_division=0
+                    ),
+                    "recall_macro": recall_score(
+                        y_true, y_pred, average="macro", zero_division=0
+                    ),
+                    "f1_macro": f1_score(
+                        y_true, y_pred, average="macro", zero_division=0
+                    ),
+                    "precision_weighted": precision_score(
+                        y_true, y_pred, average="weighted", zero_division=0
+                    ),
+                    "recall_weighted": recall_score(
+                        y_true, y_pred, average="weighted", zero_division=0
+                    ),
+                    "f1_weighted": f1_score(
+                        y_true, y_pred, average="weighted", zero_division=0
+                    ),
+                }
+                all_metrics[large_cat] = metrics
+
+                self.logger.info("-" * 60)
+                self.logger.info("Metrics (Macro Average):")
+                self.logger.info(f"  Accuracy:  {metrics['accuracy']:.4f}")
+                self.logger.info(f"  Precision: {metrics['precision_macro']:.4f}")
+                self.logger.info(f"  Recall:    {metrics['recall_macro']:.4f}")
+                self.logger.info(f"  F1-Score:  {metrics['f1_macro']:.4f}")
+                self.logger.info("-" * 60)
+                self.logger.info("Metrics (Weighted Average):")
+                self.logger.info(f"  Precision: {metrics['precision_weighted']:.4f}")
+                self.logger.info(f"  Recall:    {metrics['recall_weighted']:.4f}")
+                self.logger.info(f"  F1-Score:  {metrics['f1_weighted']:.4f}")
+                self.logger.info("=" * 60)
+
+        self.logger.info("")
+        self.logger.info("=" * 60)
+        self.logger.info(f"Total categories prepared: {len(self.few_shot_examples)}")
+        self.logger.info("=" * 60)
+
+        return all_metrics
+
+    def impute(
+        self,
+        category_df: pd.DataFrame,
+        use_diner_info: bool = False,
+    ) -> pd.DataFrame:
+        """
+        중분류 null 값을 대분류별 LLM 모델로 imputation
+
+        Args:
+            category_df: 카테고리 데이터프레임
+            use_diner_info: diner.csv 정보 사용 여부
+
+        Returns:
+            imputation이 적용된 데이터프레임
+        """
+        if not self.few_shot_examples:
+            raise ValueError(
+                "Few-shot examples not prepared. Call fit() first or use fit_and_impute()"
+            )
+
+        # diner.csv 정보 병합 (필요한 경우)
+        if use_diner_info and self.data_path:
+            diner_path = self.data_path / "diner.csv"
+            if diner_path.exists():
+                try:
+                    diner_df = pd.read_csv(diner_path)
+                    if (
+                        "diner_idx" in category_df.columns
+                        and "diner_idx" in diner_df.columns
+                    ):
+                        category_df = category_df.merge(
+                            diner_df[["diner_idx", "diner_name", "diner_tag"]],
+                            on="diner_idx",
+                            how="left",
+                        )
+                except Exception as e:
+                    self.logger.warning(f"Failed to load diner.csv: {e}")
+
+        result_df = category_df.copy()
+
+        # 중분류가 null인 행 찾기
+        null_mask = result_df["diner_category_middle"].isna()
+
+        if not null_mask.any():
+            self.logger.info("No null values to impute")
+            return result_df
+
+        # 대분류별로 처리
+        total_filled = 0
+
+        for large_cat in tqdm(
+            self.few_shot_examples.keys(),
+            desc="Imputing by category",
+            leave=True,
+        ):
+            # 해당 대분류이면서 중분류가 null인 행 찾기
+            large_cat_mask = result_df["diner_category_large"] == large_cat
+            null_and_large_mask = null_mask & large_cat_mask
+
+            if not null_and_large_mask.any():
+                continue
+
+            # 해당 대분류의 데이터만 추출
+            large_cat_df = result_df[null_and_large_mask].copy()
+            examples = self.few_shot_examples[large_cat]
+            possible_middles = self.possible_middle_categories.get(large_cat, [])
+
+            # 배치 단위로 처리
+            rows_list = list(large_cat_df.iterrows())
+            prompts_list = []
+            indices_list = []
+
+            for idx, row in rows_list:
+                query_features = self._prepare_features_text(row, use_diner_info)
+                prompt = self._build_few_shot_prompt(
+                    large_cat, examples, query_features, possible_middles
+                )
+                prompts_list.append(prompt)
+                indices_list.append(idx)
+
+            # 배치 단위로 예측
+            filled_count = 0
+            for i in tqdm(
+                range(0, len(prompts_list), self.batch_size),
+                desc=f"Imputing {large_cat}",
+                leave=False,
+            ):
+                batch_prompts = prompts_list[i : i + self.batch_size]
+                batch_indices = indices_list[i : i + self.batch_size]
+
+                try:
+                    batch_predictions = self._predict_with_llm_batch(
+                        batch_prompts, possible_middles
+                    )
+
+                    for idx, predicted in zip(batch_indices, batch_predictions):
+                        if predicted:
+                            result_df.loc[idx, "diner_category_middle"] = predicted
+                            filled_count += 1
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to impute batch for '{large_cat}': {e}"
+                    )
+
+            total_filled += filled_count
+            if filled_count > 0:
+                self.logger.info(
+                    f"Imputed {filled_count:,} null middle category values for '{large_cat}' using LLM"
+                )
+
+        if total_filled > 0:
+            self.logger.info(
+                f"Total imputed {total_filled:,} null middle category values across all large categories"
+            )
+        else:
+            self.logger.info("No values were imputed")
+
+        return result_df
+
+    def fit_and_impute(
+        self,
+        category_df: pd.DataFrame,
+        use_diner_info: bool = False,
+        test_size: float = 0.2,
+    ) -> Tuple[pd.DataFrame, Dict[str, Dict[str, float]]]:
+        """
+        Few-shot 예제 준비 및 imputation을 한 번에 수행
+
+        Args:
+            category_df: 카테고리 데이터프레임
+            use_diner_info: diner.csv 정보 사용 여부
+            test_size: 평가용 데이터 비율
+
+        Returns:
+            (imputation된 데이터프레임, 대분류별 평가 메트릭)
+        """
+        # Few-shot 예제 준비 및 평가
+        metrics = self.fit(category_df, use_diner_info, test_size)
+
+        # Imputation
+        result_df = self.impute(category_df, use_diner_info)
+
+        return result_df, metrics

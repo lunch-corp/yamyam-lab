@@ -13,6 +13,7 @@ import pandas as pd
 from yamyam_lab.preprocess.diner_transform import (
     CategoryProcessor,
     MiddleCategoryKNNImputer,
+    MiddleCategoryLLMImputer,
     MiddleCategorySimplifier,
 )
 
@@ -51,10 +52,45 @@ def main():
         help="KNN 기반 중분류 null 값 imputation 사용",
     )
     parser.add_argument(
+        "--use-llm-imputation",
+        action="store_true",
+        help="LLM 기반 중분류 null 값 imputation 사용",
+    )
+    parser.add_argument(
         "--knn-neighbors",
         type=int,
         default=5,
         help="KNN에서 사용할 이웃 수 (기본값: 5, model-type=knn일 때만 사용)",
+    )
+    parser.add_argument(
+        "--llm-model-name",
+        type=str,
+        default="Qwen/Qwen2-1.5B-Instruct",
+        help="LLM 모델 이름 (HuggingFace 모델 ID, 기본값: Qwen/Qwen2-1.5B-Instruct)",
+    )
+    parser.add_argument(
+        "--llm-n-few-shot",
+        type=int,
+        default=5,
+        help="Few-shot 예제 개수 (기본값: 5)",
+    )
+    parser.add_argument(
+        "--llm-max-new-tokens",
+        type=int,
+        default=10,
+        help="LLM 생성 최대 토큰 수 (기본값: 10)",
+    )
+    parser.add_argument(
+        "--llm-temperature",
+        type=float,
+        default=0.1,
+        help="LLM 생성 temperature (기본값: 0.1)",
+    )
+    parser.add_argument(
+        "--llm-batch-size",
+        type=int,
+        default=8,
+        help="LLM 배치 크기 (기본값: 8)",
     )
     parser.add_argument(
         "--use-diner-info",
@@ -69,6 +105,13 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # KNN과 LLM을 동시에 사용할 수 없도록 체크
+    if args.use_knn_imputation and args.use_llm_imputation:
+        raise ValueError(
+            "Cannot use both KNN and LLM imputation at the same time. "
+            "Please choose either --use-knn-imputation or --use-llm-imputation."
+        )
 
     logging.basicConfig(
         level=logging.INFO,
@@ -120,6 +163,31 @@ def main():
         )
 
         logger.info("KNN Imputation completed")
+
+    # LLM imputation (옵션)
+    if args.use_llm_imputation:
+        logger.info("=" * 60)
+        logger.info("Starting LLM-based imputation")
+        logger.info("=" * 60)
+
+        imputer = MiddleCategoryLLMImputer(
+            model_name=args.llm_model_name,
+            data_path=args.data_path,
+            n_few_shot=args.llm_n_few_shot,
+            max_new_tokens=args.llm_max_new_tokens,
+            temperature=args.llm_temperature,
+            batch_size=args.llm_batch_size,
+            logger=logger,
+        )
+
+        # 학습 및 imputation
+        result_df, metrics = imputer.fit_and_impute(
+            result_df,
+            use_diner_info=args.use_diner_info,
+            test_size=args.test_size,
+        )
+
+        logger.info("LLM Imputation completed")
 
     print("\n중분류 분포:")
     print(result_df["diner_category_middle"].value_counts())

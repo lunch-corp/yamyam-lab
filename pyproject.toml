@@ -45,6 +45,7 @@ catboost = "^1.2.7"
 wordcloud = "^1.9.4"
 kiwipiepy = "0.21.0"
 gensim = ">=4.3.0"
+transformers = "^4.57.3"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "4.0.*"
