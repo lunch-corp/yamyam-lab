@@ -72,7 +72,7 @@ jobs:
           key: venv-${{ hashFiles('poetry.lock') }}
 
       - name: Install the project dependencies
-        run: poetry install --without llm
+        run: poetry install
 
       - name: Run pytest
         run: |
