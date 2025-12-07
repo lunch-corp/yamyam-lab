@@ -1,8 +1,8 @@
 preprocess:
   data:
-    train_time_point: "2024-09-01"
-    val_time_point: "2024-12-01"
-    test_time_point: "2025-01-01"
+    train_time_point: "2023-08-01"
+    val_time_point: "2024-08-01"
+    test_time_point: "2024-11-01"
     end_time_point: "2025-02-01"
     is_timeseries_by_time_point: true
   feature_engineering:
