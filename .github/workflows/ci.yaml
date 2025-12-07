@@ -56,15 +56,13 @@ jobs:
       TORCH_HOME: /tmp/torch
 
     steps:
-      - name: Aggressive Disk Cleanup (Before Anything)
+      - name: Safe Disk Cleanup
         run: |
           df -h
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
           sudo rm -rf /home/runner/.cache
-          sudo rm -rf /home/runner/actions-runner
-          sudo rm -rf /home/runner/work/_temp
           df -h
 
       - name: Checkout
