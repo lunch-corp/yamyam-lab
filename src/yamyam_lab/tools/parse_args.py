@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("--random_state", type=int, default=42)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--test", action="store_true")
+    parser.add_argument("--config_root_path", type=str, default=None)
     parser.add_argument("--postfix", type=str, default=None)
     return parser.parse_args()
 
