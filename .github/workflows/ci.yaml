@@ -57,6 +57,7 @@ jobs:
           sudo rm -rf /home/runner/.cache/*
           sudo rm -rf /home/runner/work/_temp/*
           sudo rm -rf /home/runner/actions-runner/cached/_diag/* || true
+          docker system prune -af
           df -h
 
       - name: Checkout
