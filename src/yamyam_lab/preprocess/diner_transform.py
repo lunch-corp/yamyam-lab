@@ -111,15 +111,26 @@ class MiddleCategorySimplifier:
         if large_category in ["패밀리레스토랑", "샐러드"]:
             large_category = "양식"
 
+        # 양식 대분류인 경우, 치킨 섹션도 확인 (치킨이 lowering_large_categories에서 양식으로 변경되었을 수 있음)
+        chicken_mapping = None
+        if large_category == "양식":
+            chicken_mapping = self.simplify_mapping.get("치킨", {})
+
         # 먼저 현재 대분류의 매핑에서 찾기
         large_mapping = self.simplify_mapping.get(large_category, {})
 
-        # 정확히 일치하는 경우
+        # 정확히 일치하는 경우 (현재 대분류)
         for simplified, originals in large_mapping.items():
-            if middle_category == originals:
+            if middle_category in originals:
                 return simplified
 
-        # 부분 일치 확인 (키워드 포함)
+        # 양식 대분류인 경우, 치킨 섹션에서도 정확히 일치하는지 확인
+        if chicken_mapping:
+            for simplified, originals in chicken_mapping.items():
+                if middle_category in originals:
+                    return simplified
+
+        # 부분 일치 확인 (키워드 포함) - 현재 대분류
         for simplified, originals in large_mapping.items():
             for original in originals:
                 if (
@@ -128,12 +139,9 @@ class MiddleCategorySimplifier:
                 ):
                     return simplified
 
-        # 현재 대분류에서 찾지 못한 경우, 모든 대분류의 매핑에서 찾기
-        # (원본 데이터의 대분류가 잘못된 경우 대비)
-        for cat, cat_mapping in self.simplify_mapping.items():
-            if cat == large_category:
-                continue  # 이미 확인했음
-            for simplified, originals in cat_mapping.items():
+        # 양식 대분류인 경우, 치킨 섹션에서도 부분 일치 확인
+        if chicken_mapping:
+            for simplified, originals in chicken_mapping.items():
                 for original in originals:
                     if (
                         original.lower() in str(middle_category).lower()
@@ -141,7 +149,8 @@ class MiddleCategorySimplifier:
                     ):
                         return simplified
 
-        # 매핑되지 않으면 원본 반환
+        # YAML이 기준이므로, 현재 대분류의 매핑에서만 찾고
+        # 매핑되지 않으면 원본 반환 (다른 대분류의 매핑을 확인하지 않음)
         return middle_category
 
     def process(
@@ -165,14 +174,12 @@ class MiddleCategorySimplifier:
         else:
             category_df = category_df.copy() if not inplace else category_df
 
-        original_values = category_df["diner_category_middle"].copy()
-
         self.logger.info(f"Original category_df shape: {category_df.shape}")
         self.logger.info(
             f"Null middle categories: {category_df['diner_category_middle'].isna().sum()}"
         )
 
-        # 대분류가 "간식"이고 중분류가 "닭강정"인 경우 "치킨" > "닭강정"으로 변경 (간소화 전에 처리)
+        # 간식 대분류의 "닭강정"을 치킨 대분류로 변경
         chicken_gangjeong_mask = (category_df["diner_category_large"] == "간식") & (
             category_df["diner_category_middle"] == "닭강정"
         )
@@ -183,6 +190,31 @@ class MiddleCategorySimplifier:
                 f"with middle category '닭강정' (before simplification)"
             )
 
+        # 한식 대분류의 "분식" 중분류를 "분식" 대분류로 이동 (간소화 전에 처리)
+        # 이때 소분류나 상세분류를 확인해서 원본 중분류를 더 구체적인 값으로 변경
+        bunsik_before_mask = (category_df["diner_category_large"] == "한식") & (
+            category_df["diner_category_middle"] == "분식"
+        )
+        if bunsik_before_mask.any():
+            category_df.loc[bunsik_before_mask, "diner_category_large"] = "분식"
+            # 소분류나 상세분류를 확인해서 원본 중분류를 더 구체적인 값으로 변경
+            bunsik_indices = category_df[bunsik_before_mask].index
+            for idx in bunsik_indices:
+                small_category = category_df.loc[idx, "diner_category_small"]
+                detail_category = category_df.loc[idx, "diner_category_detail"]
+
+                # 소분류나 상세분류가 있으면 그것을 중분류로 사용
+                if pd.notna(small_category) and small_category != "":
+                    category_df.loc[idx, "diner_category_middle"] = small_category
+                elif pd.notna(detail_category) and detail_category != "":
+                    category_df.loc[idx, "diner_category_middle"] = detail_category
+                # 둘 다 없으면 "분식" 그대로 유지 (나중에 간소화에서 처리)
+
+            self.logger.info(
+                f"Changed large category from '한식' to '분식' for {bunsik_before_mask.sum()} rows "
+                f"and updated middle category using small/detail categories (before simplification)"
+            )
+
         # 간소화 적용 - 원본 컬럼을 직접 변경
         category_df["diner_category_middle"] = category_df.apply(
             lambda row: self.simplify_middle_category(
@@ -191,34 +223,66 @@ class MiddleCategorySimplifier:
             axis=1,
         )
 
-        # 대분류가 "치킨"이고 간소화 후 중분류가 "디저트"가 된 경우 (원본이 "닭강정"이었을 수 있음)
-        # 중분류를 "닭강정"으로 복원
-        chicken_dessert_mask = (category_df["diner_category_large"] == "치킨") & (
-            category_df["diner_category_middle"] == "디저트"
+        # 분식 대분류의 중분류가 여전히 "분식"인 경우, 소분류/상세분류를 확인해서 매핑 재적용
+        bunsik_still_bunsik_mask = (category_df["diner_category_large"] == "분식") & (
+            category_df["diner_category_middle"] == "분식"
         )
-        # 원본이 "닭강정"이었던 경우만 처리
-        original_chicken_gangjeong = original_values == "닭강정"
-        chicken_gangjeong_restore_mask = (
-            chicken_dessert_mask & original_chicken_gangjeong
-        )
-        if chicken_gangjeong_restore_mask.any():
-            category_df.loc[chicken_gangjeong_restore_mask, "diner_category_middle"] = (
-                "닭강정"
-            )
+        if bunsik_still_bunsik_mask.any():
+            bunsik_indices = category_df[bunsik_still_bunsik_mask].index
+            for idx in bunsik_indices:
+                # 소분류나 상세분류를 확인하여 분식 섹션의 매핑 적용
+                small_category = category_df.loc[idx, "diner_category_small"]
+                detail_category = category_df.loc[idx, "diner_category_detail"]
+
+                # 소분류나 상세분류를 중분류로 사용하여 매핑 시도
+                target_middle = None
+                if pd.notna(small_category) and small_category != "":
+                    target_middle = self.simplify_middle_category(
+                        "분식", small_category
+                    )
+                    # 매핑이 적용되었으면 사용
+                    if target_middle != small_category:
+                        category_df.loc[idx, "diner_category_middle"] = target_middle
+                        continue
+
+                if pd.notna(detail_category) and detail_category != "":
+                    target_middle = self.simplify_middle_category(
+                        "분식", detail_category
+                    )
+                    # 매핑이 적용되었으면 사용
+                    if target_middle != detail_category:
+                        category_df.loc[idx, "diner_category_middle"] = target_middle
+                        continue
+
+                # 소분류나 상세분류도 매핑되지 않으면 그대로 유지 (나중에 KNN으로 처리)
+
             self.logger.info(
-                f"Restored middle category to '닭강정' for {chicken_gangjeong_restore_mask.sum()} rows "
-                f"with large category '치킨' (originally was '닭강정')"
+                f"Reapplied simplify_mapping for {bunsik_still_bunsik_mask.sum()} rows "
+                f"with '분식' middle category using small/detail categories"
             )
 
-        # 샤브샤브, 칼국수인 경우 대분류를 한식으로 변경
-        shabu_shabu_mask = category_df["diner_category_middle"].isin(
-            ["샤브샤브", "칼국수"]
-        )
-        if shabu_shabu_mask.any():
-            category_df.loc[shabu_shabu_mask, "diner_category_large"] = "한식"
+        # 간식 대분류의 "닭강정"이 간소화 후에도 남아있는 경우 치킨 대분류로 변경하고 중분류를 "닭강정"으로 유지
+        chicken_gangjeong_after_mask = (
+            category_df["diner_category_large"] == "간식"
+        ) & (category_df["diner_category_middle"] == "닭강정")
+        if chicken_gangjeong_after_mask.any():
+            category_df.loc[chicken_gangjeong_after_mask, "diner_category_large"] = (
+                "치킨"
+            )
             self.logger.info(
-                f"Changed large category to '한식' for {shabu_shabu_mask.sum()} rows "
-                f"with middle category '샤브샤브' or '칼국수'"
+                f"Changed large category from '간식' to '치킨' for {chicken_gangjeong_after_mask.sum()} rows "
+                f"with middle category '닭강정' (after simplification)"
+            )
+
+        # 한식 대분류의 "일반도시락" 중분류를 "도시락" 대분류로 이동
+        dosirak_mask = (category_df["diner_category_large"] == "한식") & (
+            category_df["diner_category_middle"] == "일반도시락"
+        )
+        if dosirak_mask.any():
+            category_df.loc[dosirak_mask, "diner_category_large"] = "도시락"
+            self.logger.info(
+                f"Changed large category from '한식' to '도시락' for {dosirak_mask.sum()} rows "
+                f"with middle category '일반도시락'"
             )
 
         # 대분류가 "샐러드"인 경우 "양식"으로 변경
@@ -245,6 +309,27 @@ class MiddleCategorySimplifier:
             self.logger.info(
                 f"Changed large category to '양식' for {changed_large_count} rows "
                 f"with middle category '패밀리레스토랑', '스테이크하우스', or '이탈리안'"
+            )
+
+        # 일식 대분류의 "전통일식집"과 "기타" 중분류를 "기타" 대분류로 이동
+        japanese_traditional_mask = (category_df["diner_category_large"] == "일식") & (
+            category_df["diner_category_middle"] == "전통일식집"
+        )
+        if japanese_traditional_mask.any():
+            category_df.loc[japanese_traditional_mask, "diner_category_large"] = "기타"
+            self.logger.info(
+                f"Changed large category from '일식' to '기타' for {japanese_traditional_mask.sum()} rows "
+                f"with middle category '전통일식집'"
+            )
+
+        japanese_etc_mask = (category_df["diner_category_large"] == "일식") & (
+            category_df["diner_category_middle"] == "기타"
+        )
+        if japanese_etc_mask.any():
+            category_df.loc[japanese_etc_mask, "diner_category_large"] = "기타"
+            self.logger.info(
+                f"Changed large category from '일식' to '기타' for {japanese_etc_mask.sum()} rows "
+                f"with middle category '기타'"
             )
 
         return category_df
@@ -568,15 +653,9 @@ class MiddleCategoryKNNImputer:
                 continue
 
             # Train/Test split
-            try:
-                X_train, X_test, y_train, y_test = train_test_split(
-                    X, y, test_size=test_size, random_state=42, stratify=y
-                )
-            except ValueError:
-                # stratify가 실패하면 (데이터가 적은 경우) stratify 없이 split
-                X_train, X_test, y_train, y_test = train_test_split(
-                    X, y, test_size=test_size, random_state=42
-                )
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size, random_state=42, stratify=y
+            )
 
             if len(X_train) == 0:
                 self.logger.warning(
@@ -628,7 +707,11 @@ class MiddleCategoryKNNImputer:
                 self.logger.info(
                     f"Number of neighbors: {min(self.n_neighbors, len(X_train))}"
                 )
+                unique_middle_list = sorted(
+                    large_cat_df["diner_category_middle"].unique()
+                )
                 self.logger.info(f"Unique middle categories: {unique_middles}")
+                self.logger.info(f"  Categories: {', '.join(unique_middle_list)}")
                 self.logger.info("-" * 60)
                 self.logger.info("Metrics (Macro Average):")
                 self.logger.info(f"  Accuracy:  {metrics['accuracy']:.4f}")
@@ -940,8 +1023,8 @@ class CategoryProcessor:
         grilled_chicken: List[str] = chicken_config["구이"]
         is_grilled: pd.Series = self.df["diner_category_middle"].isin(grilled_chicken)
 
-        self.df.loc[target_rows & is_grilled, "diner_category_middle"] = "구이"
-        self.df.loc[target_rows & ~is_grilled, "diner_category_middle"] = "프라이드"
+        self.df.loc[target_rows & is_grilled, "diner_category_middle"] = "숯불치킨"
+        self.df.loc[target_rows & ~is_grilled, "diner_category_middle"] = "치킨전문점"
 
     def integrate_diner_category_middle(self) -> None:
         """
