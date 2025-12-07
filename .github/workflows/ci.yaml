@@ -80,11 +80,11 @@ jobs:
         with:
           poetry-version: "2.1.1"
 
-      - name: Install dependencies (NO CACHE)
+      - name: Install dependencies
         run: |
           poetry config virtualenvs.in-project true
           poetry install --no-root --no-interaction
 
-      - name: Run pytest (Safe Mode)
+      - name: Run pytest
         run: |
-          poetry run pytest -q --disable-warnings --maxfail=1 --cache-clear
+          poetry run pytest
