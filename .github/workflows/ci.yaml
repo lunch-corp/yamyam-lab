@@ -50,6 +50,21 @@ jobs:
       DATA_FOLDER_ID: ${{ secrets.DATA_FOLDER_ID }}
       KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
     steps:
+      - name: Free up disk space
+        run: |
+          echo "=== Initial Disk Usage ==="
+          df -h
+          echo ""
+          echo "=== Cleaning up preinstalled software ==="
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          docker system prune -af --volumes
+          echo ""
+          echo "=== After cleanup ==="
+          df -h
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -59,6 +74,11 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+
+      - name: Check disk after Python setup
+        run: |
+          echo "=== Disk after Python setup ==="
+          df -h
 
       - name: Set up poetry
         uses: abatilo/actions-poetry@v2
@@ -72,8 +92,21 @@ jobs:
           key: venv-${{ hashFiles('poetry.lock') }}
 
       - name: Install the project dependencies
-        run: poetry install
+        run: |
+          poetry install
+          echo ""
+          echo "=== After poetry install ==="
+          df -h
+          echo ""
+          echo "=== Poetry cache size ==="
+          du -sh ~/.cache/pypoetry 2>/dev/null || echo "No poetry cache"
 
       - name: Run pytest
         run: |
           poetry run pytest
+
+      - name: Final disk check
+        if: always()
+        run: |
+          echo "=== Final Disk Usage ==="
+          df -h
