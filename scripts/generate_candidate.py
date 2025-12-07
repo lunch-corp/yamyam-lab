@@ -58,9 +58,10 @@ def main(args):
     checkpoint = torch.load(args.model_pt_path, map_location="cpu")
     config = checkpoint["config"]
     config.inference = True  # inference mode, not training
+    config.device = "cpu"  # force cpu mode even if originally set to cuda
 
     # Initialize model with config
-    model = model_module(config=config)
+    model = model_module(config=config).to("cpu")
 
     # Load model state
     model.load_state_dict(checkpoint["model_state_dict"])
