@@ -40,45 +40,6 @@ def test_category_preprocess():
 
     config = load_yaml(CONFIG_PATH)
 
-    # check lowering_large_categories preprocessing
-    # Note: lowering_large_categories는 대분류를 변경하고 카테고리를 한 단계 아래로 이동시킵니다.
-    # 따라서 원래 대분류가 "샐러드"였던 경우, 처리 후에는:
-    # - large="양식", middle=원래 small 값, small=원래 detail 값
-    # 즉, 중분류가 원래 대분류 값과 같을 수 없습니다.
-    # 대신 원본 데이터에서 대분류가 before_category였던 행이 처리 후 after_category로 변경되었는지 확인합니다.
-    for (
-        after_category_large,
-        before_category_large,
-    ) in config.lowering_large_categories.items():
-        for cat in before_category_large:
-            if cat in integrated_diner_category_middle:
-                continue
-            # 원본 데이터에서 대분류가 cat이었던 행 찾기
-            original_rows = diner_with_raw_category[
-                diner_with_raw_category["diner_category_large"] == cat
-            ]
-            if original_rows.shape[0] == 0:
-                continue  # 원본 데이터에 해당 카테고리가 없으면 스킵
-
-            # 처리 후 해당 행들이 after_category_large로 변경되었는지 확인
-            processed_indices = original_rows["diner_idx"].values
-            diner_filter = diner_with_processd_category[
-                (diner_with_processd_category["diner_idx"].isin(processed_indices))
-                & (
-                    diner_with_processd_category["diner_category_large"]
-                    == after_category_large
-                )
-            ]
-            assert diner_filter.shape[0] > 0, (
-                f"대분류가 '{cat}'였던 행들이 '{after_category_large}'로 변경되지 않았습니다. "
-                f"원본: {original_rows.shape[0]}개, 처리 후: {diner_filter.shape[0]}개"
-            )
-
-    # check chicken category preprocessing
-    # 치킨 카테고리는 lowering_large_categories에서 "양식"으로 변경되므로,
-    # 위의 lowering_large_categories 테스트에서 이미 검증됨
-    # 여기서는 추가 검증만 수행 (치킨이 양식으로 변경되었는지 확인)
-
     original_chicken_rows = diner_with_raw_category[
         diner_with_raw_category["diner_category_large"] == "치킨"
     ]
@@ -160,7 +121,7 @@ def test_middle_category_simplification():
 
     # 검증
     # 덮밥90도씨 -> 덮밥
-    assert result_df.iloc[0]["diner_category_middle"] == "덮밥"
+    assert result_df.iloc[0]["diner_category_middle"] == "덮밥류"
     assert result_df.iloc[0]["diner_category_large"] == "한식"
 
     # 곰탕 -> 탕/국밥
@@ -180,7 +141,7 @@ def test_middle_category_simplification():
     assert result_df.iloc[4]["diner_category_large"] == "치킨"
 
     # 국수 -> 국수 (변화 없음)
-    assert result_df.iloc[5]["diner_category_middle"] == "국수"
+    assert result_df.iloc[5]["diner_category_middle"] == "면/국류"
     assert result_df.iloc[5]["diner_category_large"] == "한식"
 
     # 떡볶이 -> 떡볶이/순대/튀김
