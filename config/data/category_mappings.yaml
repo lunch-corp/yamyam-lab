@@ -15,6 +15,7 @@ lowering_large_categories:
   양식:
     - 샐러드
     - 패밀리레스토랑
+
   한식:
     - 도시락
     - 샤브샤브
