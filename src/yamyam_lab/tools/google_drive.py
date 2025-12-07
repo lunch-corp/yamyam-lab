@@ -27,7 +27,7 @@ except ModuleNotFoundError:
 
 ABS_PATH = Path(__file__).resolve().parents[3]
 data_dir = os.path.join(ABS_PATH, "data")
-ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
+ROOT_PATH = os.path.join(os.path.dirname(__file__), "../../..")
 
 
 def get_env_var(var_name: str) -> str:

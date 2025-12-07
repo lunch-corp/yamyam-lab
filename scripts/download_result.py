@@ -3,7 +3,7 @@ import os
 import sys
 from argparse import ArgumentParser
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.yamyam_lab.tools.google_drive import GoogleDriveManager
 
@@ -11,7 +11,9 @@ from src.yamyam_lab.tools.google_drive import GoogleDriveManager
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_name", type=str, choices=["node2vec", "metapath2vec", "graphsage"]
+        "--model_name",
+        type=str,
+        choices=["node2vec", "metapath2vec", "graphsage", "lightgcn"],
     )
     parser.add_argument(
         "--download_file_type", type=str, choices=["candidates", "models"]

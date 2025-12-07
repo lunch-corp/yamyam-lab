@@ -56,6 +56,21 @@ jobs:
       TORCH_HOME: /tmp/torch
 
     steps:
+      - name: Free up disk space
+        run: |
+          echo "=== Initial Disk Usage ==="
+          df -h
+          echo ""
+          echo "=== Cleaning up preinstalled software ==="
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          docker system prune -af --volumes
+          echo ""
+          echo "=== After cleanup ==="
+          df -h
+
       - name: Safe Disk Cleanup
         run: |
           df -h
@@ -75,16 +90,38 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Check disk after Python setup
+        run: |
+          echo "=== Disk after Python setup ==="
+          df -h
+
       - name: Set up poetry
         uses: abatilo/actions-poetry@v2
         with:
           poetry-version: "2.1.1"
 
-      - name: Install dependencies (NO CACHE)
+      - uses: actions/cache@v3
+        name: Define a cache for the virtual environment based on the dependencies lock file
+        with:
+          path: ./.venv
+          key: venv-${{ hashFiles('poetry.lock') }}
+
+      - name: Install the project dependencies
         run: |
-          poetry config virtualenvs.in-project true
-          poetry install --no-root --no-interaction
+          poetry install
+          echo ""
+          echo "=== After poetry install ==="
+          df -h
+          echo ""
+          echo "=== Poetry cache size ==="
+          du -sh ~/.cache/pypoetry 2>/dev/null || echo "No poetry cache"
 
       - name: Run pytest (Safe Mode)
         run: |
-          poetry run pytest -q --disable-warnings --maxfail=1 --cache-clear
+          poetry run pytest
+
+      - name: Final disk check
+        if: always()
+        run: |
+          echo "=== Final Disk Usage ==="
+          df -h
