@@ -107,7 +107,7 @@ jobs:
           echo "=== Poetry cache size ==="
           du -sh ~/.cache/pypoetry 2>/dev/null || echo "No poetry cache"
 
-      - name: Run pytest
+      - name: Run pytest (Safe Mode)
         run: |
           poetry run pytest
 
