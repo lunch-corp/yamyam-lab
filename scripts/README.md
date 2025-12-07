@@ -78,28 +78,20 @@ Refer to description of each parameter.
 
 | Parameter name                     | Description                                                                     |
 |------------------------------------|---------------------------------------------------------------------------------|
-| `model`                            | Name of embedding model (`node2vec` / `metapath2vec` / `graphsage` are allowed) |
-| `embedding_dim`                    | Embedding dimension for trained model                                           |
+| `model`                            | Name of embedding model (`node2vec` / `metapath2vec` / `graphsage` / `lightgcn` are allowed) |
 | `data_obj_path`                    | Path to data_object.pkl                                                         |
 | `model_pt_path`                    | Path to weight.pt                                                               |
-| `weighted_edge`                    | Indicator for weighted edge                                                     |
 | `candidate_top_k`                  | Number of candidates to generate                                                |
 | `reusable_token_path`              | Path to reusable token path                                                     |
-| `use_metadata`                     | Indicator for using metadata                                                    |
-| `num_sage_layers`                  | Number of sage layers                                                           |
 | `upload_candidate_to_google_drive` | Indicator value whether to upload generated candidates to google drive or not   |
-
-Note: `weighted_edge`, `use_metadata` arguments are temporarily used. They will not be required once training main script is updated.
 
 ### node2vec
 
 ```bash
 $ poetry run python3 scripts/generate_candidate.py \
   --model node2vec \
-  --embedding_dim 32 \
   --data_obj_path /PATH/TO/NODE2VEC/data_object.pkl \
   --model_pt_path /PATH/TO/NODE2VEC/weight.pt \
-  --weighted_edge \
   --candidate_top_k 100 \
   --reusable_token_path PATH/TO/token.json
 ```
@@ -108,11 +100,8 @@ $ poetry run python3 scripts/generate_candidate.py \
 ```bash
 $ poetry run python3 scripts/generate_candidate.py \
   --model metapath2vec \
-  --embedding_dim 32 \
   --data_obj_path /PATH/TO/METAPATH2VEC/data_object.pkl \
   --model_pt_path /PATH/TO/METAPATH2VEC/weight.pt \
-  --weighted_edge \
-  --use_metadata \
   --candidate_top_k 100 \
   --reusable_token_path PATH/TO/token.json
 ```
@@ -123,11 +112,8 @@ $ poetry run python3 scripts/generate_candidate.py \
 ```bash
 $ poetry run python3 scripts/generate_candidate.py \
   --model graphsage \
-  --embedding_dim 32 \
   --data_obj_path /PATH/TO/GRAPHSAGE/data_object.pkl \
   --model_pt_path /PATH/TO/GRAPHSAGE/weight.pkl \
-  --weighted_edge \
-  --num_sage_layers 2 \
   --candidate_top_k 100 \
   --reusable_token_path PATH/TO/token.json
 ```
