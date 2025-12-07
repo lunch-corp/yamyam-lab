@@ -46,10 +46,25 @@ jobs:
   test:
     name: Run tests
     runs-on: ubuntu-latest
+
     env:
       DATA_FOLDER_ID: ${{ secrets.DATA_FOLDER_ID }}
       KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+      PIP_CACHE_DIR: /tmp/pip
+      POETRY_CACHE_DIR: /tmp/poetry
+      HF_HOME: /tmp/hf
+      TORCH_HOME: /tmp/torch
+
     steps:
+      - name: Safe Disk Cleanup
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /home/runner/.cache
+          df -h
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -65,15 +80,11 @@ jobs:
         with:
           poetry-version: "2.1.1"
 
-      - uses: actions/cache@v3
-        name: Define a cache for the virtual environment based on the dependencies lock file
-        with:
-          path: ./.venv
-          key: venv-${{ hashFiles('poetry.lock') }}
-
-      - name: Install the project dependencies
-        run: poetry install
-
-      - name: Run pytest
+      - name: Install dependencies (NO CACHE)
         run: |
-          poetry run pytest
+          poetry config virtualenvs.in-project true
+          poetry install --no-root --no-interaction
+
+      - name: Run pytest (Safe Mode)
+        run: |
+          poetry run pytest -q --disable-warnings --maxfail=1 --cache-clear
