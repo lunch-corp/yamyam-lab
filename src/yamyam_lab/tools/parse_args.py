@@ -110,6 +110,7 @@ def parse_args_als():
     parser.add_argument("--calculate_training_loss", action="store_true")
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--postfix", type=str, default=None)
+    parser.add_argument("--config_root_path", type=str, default=None)
 
     # candidate generation parameter for two-stage reco
     parser.add_argument("--save_candidate", action="store_true", required=False)
