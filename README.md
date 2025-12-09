@@ -108,23 +108,52 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
 3. Data Description:
    For detailed descriptions of the data (e.g., column names, data types, and content), refer to the [data/README.md file](data/README.md). This file provides comprehensive information about each dataset included in the project.
 
+4. Requesting Data Access:
+   If you are interested in running the code and need access to the data, please contact us at [leewook94@gmail.com](mailto:leewook94@gmail.com). We can provide the `DATA_FOLDER_ID` for the Google Drive folder containing the datasets.
+
 ---
 
 ## Implemented models
 
-| Type                 | Algorithm       | Main script to run        |
-|----------------------|-----------------|---------------------------|
-| Baseline model       | Most Popular    | src/train_most_popular.py |
-| Baseline model       | ALS             | src/train_als.py          |
-| Baseline model       | SVD_Bias        | src/train_torch.py        |
-| Candidate generation | node2vec        | src/train_graph.py        |
-| Candidate generation | metapath2vec    | src/train_graph.py        |
-| Candidate generation | graphsage       | src/train_graph.py        |
-| Reranker             | lightgbm ranker | src/train_ranker.py       |
-| Reranker             | xgboost ranker  | src/train_ranker.py       |
+| Type                 | Algorithm       | 
+|----------------------|-----------------|
+| Baseline model       | Most Popular    |
+| Baseline model       | ALS             |
+| Baseline model       | SVD_Bias        |
+| Candidate generation | node2vec        |
+| Candidate generation | metapath2vec    |
+| Candidate generation | graphsage       |
+| Reranker             | lightgbm ranker |
+| Reranker             | xgboost ranker  |
 
 We are planning to generate candidate diners of each user using `candidate generation model` and rerank them using `reranker model`. Also, we will compare two-stage model results with baseline models.
 
+
+---
+
+## How to run training
+
+Run from repo root (after `poetry install` and `.env` with `DATA_FOLDER_ID`):
+
+```shell
+# general form
+poetry run python -m yamyam_lab.train --model <model_name> [options]
+```
+
+Quick examples:
+- SVD_Bias: `poetry run python -m yamyam_lab.train --model svd_bias --epochs 10 --device cpu`
+
+- ALS: `poetry run python -m yamyam_lab.train --model als --factors 100 --iterations 15`
+
+- Node2Vec: `poetry run python -m yamyam_lab.train --model node2vec --epochs 10 --walk_length 20 --p 1 --q 1 --device cpu`
+
+- GraphSAGE: `poetry run python -m yamyam_lab.train --model graphsage --num_sage_layers 2 --num_neighbor_samples 3`
+
+- LightGCN: `poetry run python -m yamyam_lab.train --model lightgcn --num_lightgcn_layers 3 --drop_ratio 0.1`
+
+- LightGBM Ranker: `poetry run python -m yamyam_lab.rerank models/ranker=lightgbm`
+
+Note: `--model` is required. Supported values: `svd_bias`, `als`, `node2vec`, `metapath2vec`, `graphsage`, `lightgcn`. See `src/yamyam_lab/tools/parse_args.py` for all available flags (e.g., `--batch_size`, `--lr`, `--save_candidate`, `--config_root_path`, etc.).
 
 ---
 
@@ -142,21 +171,6 @@ We evaluate model results in two aspects.
 For detail description of each metric, please refer to [discussion](https://github.com/LearningnRunning/yamyam-lab/discussions/74).
 
 For detail experiment results, please refer to [discussion](https://github.com/lunch-corp/yamyam-lab/discussions/173).
-
-## Commit Guide
-- feat: Add a new feature
-- fix: Fix a bug
-- docs: Update documentation
-- style: Change code style (e.g., formatting, missing semicolons)
-- design: Modify user interface design (e.g., CSS changes)
-- test: Add or refactor test code
-- refactor: Refactor production code
-- build: Modify build files
-- ci: Update CI configuration files
-- perf: Improve performance
-- chore: Minor updates or build maintenance
-- rename: Rename files or folders only
-- remove: Delete files only
 
 ---
 
