@@ -50,7 +50,7 @@ def download_from_drive_and_return_paths() -> Dict[str, str]:
     """
     folder_id_var = "DATA_FOLDER_ID"
     zip_path = os.path.join(data_dir, "dataset.zip")
-    google_save_dir = os.path.join(data_dir, "google_save_dir")
+    google_save_dir = os.path.join(data_dir, "yamyam_2512")
 
     # data 디렉토리 생성
     os.makedirs(data_dir, exist_ok=True)
