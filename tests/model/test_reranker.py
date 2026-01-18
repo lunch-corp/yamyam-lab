@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from yamyam_lab.rerank import main
@@ -20,5 +22,9 @@ from yamyam_lab.rerank import main
     ],
     indirect=["setup_ranker_config"],
 )
-def test_run_ranker(setup_ranker_config):
-    main(setup_ranker_config)
+def test_run_ranker(setup_ranker_config, mock_load_dataset):
+    with patch(
+        "yamyam_lab.data.base.BaseDatasetLoader.load_dataset",
+        return_value=mock_load_dataset,
+    ):
+        main(setup_ranker_config)
