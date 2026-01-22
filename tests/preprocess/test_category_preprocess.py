@@ -11,19 +11,17 @@ from yamyam_lab.preprocess.diner_transform import (
     MiddleCategorySimplifier,
 )
 from yamyam_lab.tools.config import load_yaml
-from yamyam_lab.tools.google_drive import check_data_and_return_paths
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), "../..")
 CONFIG_DIR = os.path.join(ROOT_PATH, "config")
 CONFIG_PATH = os.path.join(ROOT_PATH, "./config/data/category_mappings.yaml")
 
 
-def test_category_preprocess():
+def test_category_preprocess(mock_diner_with_raw_category):
     """
     Test if category preprocessing is correctly done or not.
     """
-    data_paths = check_data_and_return_paths()
-    diner_with_raw_category = pd.read_csv(data_paths["category"])
+    diner_with_raw_category = mock_diner_with_raw_category.copy()
 
     processor = CategoryProcessor(
         df=diner_with_raw_category,
@@ -72,7 +70,7 @@ def test_category_preprocess():
     )
 
 
-def test_middle_category_simplification():
+def test_middle_category_simplification(mock_diner_with_raw_category):
     """
     Test if middle category simplification is correctly done or not.
     """

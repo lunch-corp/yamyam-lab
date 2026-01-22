@@ -48,8 +48,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      DATA_FOLDER_ID: ${{ secrets.DATA_FOLDER_ID }}
-      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
       PIP_CACHE_DIR: /tmp/pip
       POETRY_CACHE_DIR: /tmp/poetry
       HF_HOME: /tmp/hf
