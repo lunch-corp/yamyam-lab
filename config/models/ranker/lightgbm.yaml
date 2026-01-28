@@ -3,6 +3,7 @@ _target_: yamyam_lab.model.rank.boosting.LightGBMTrainer
 model_path: result/lightgbm/
 results: lgb_ranker
 
+# score: 후보 생성 모델(ALS/Node2Vec 등)의 (user, diner) 유사도/점수. candidate.parquet의 score 컬럼.
 features:
   - diner_review_cnt_category
   - min_price

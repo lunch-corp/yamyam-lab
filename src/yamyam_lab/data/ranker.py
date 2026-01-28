@@ -1,4 +1,4 @@
-from typing import Any, Dict, Self, Tuple
+from typing import Any, Dict, Optional, Self, Tuple
 
 import numpy as np
 import pandas as pd
@@ -6,7 +6,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from yamyam_lab.data.base import BaseDatasetLoader
-from yamyam_lab.data.config import DataConfig
+from yamyam_lab.data.config import DataConfig, DataSource
 from yamyam_lab.tools.utils import reduce_mem_usage
 
 
@@ -20,7 +20,7 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
     def prepare_ranker_dataset(
         self: Self,
-        filter_config: Dict[str, Any] = None,
+        filter_config: Optional[Dict[str, Any]] = None,
         is_rank: bool = True,
         is_csr: bool = False,
         **kwargs,
@@ -100,6 +100,11 @@ class RankerDatasetLoader(BaseDatasetLoader):
         test_cold_start_user = test_cold_start_user.sort_values(by=["reviewer_id"])
         test_warm_start_user = test_warm_start_user.sort_values(by=["reviewer_id"])
 
+        # 후보 데이터 먼저 로드 (candidate score를 ranker feature로 쓸 수 있도록)
+        candidates, candidate_user_mapping, candidate_diner_mapping = (
+            self.load_candidate_dataset(user_feature, diner_feature)
+        )
+
         # 순위 관련 특성 병합
         train = self.merge_rank_features(train, user_feature, diner_feature)
         val = self.merge_rank_features(val, user_feature, diner_feature)
@@ -111,12 +116,29 @@ class RankerDatasetLoader(BaseDatasetLoader):
         )
         test = self.merge_rank_features(test, user_feature, diner_feature)
 
+        # candidate의 score를 ranker feature로 사용: train/val/test에 (reviewer_id, diner_idx) 기준으로 left join
+        # candidate에 없는 (user, diner) 쌍은 0으로 채움 (retrieval 단계에서 나오지 않은 쌍)
+        (
+            train,
+            val,
+            val_cold_start_user,
+            val_warm_start_user,
+            test,
+            test_cold_start_user,
+            test_warm_start_user,
+        ) = self._merge_candidate_score(
+            train,
+            val,
+            val_cold_start_user,
+            val_warm_start_user,
+            test,
+            test_cold_start_user,
+            test_warm_start_user,
+            candidates,
+        )
+
         user_mapping = mapped_res["user_mapping"]
         diner_mapping = mapped_res["diner_mapping"]
-
-        candidates, candidate_user_mapping, candidate_diner_mapping = (
-            self.load_candidate_dataset(user_feature, diner_feature)
-        )
 
         # 후보군 생성 모델과 재순위화 모델의 사용자 ID 매핑 검증
         self._validate_user_mappings(
@@ -224,6 +246,91 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
         return df
 
+    def merge_candidate_score_into_df(
+        self: Self, df: pd.DataFrame, score_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """(reviewer_id, diner_idx) 기준으로 score_df를 df에 left join하고, NaN은 0으로 채운다."""
+        out = df.merge(score_df, on=["reviewer_id", "diner_idx"], how="left")
+        out["score"] = out["score"].fillna(0.0)
+        return out
+
+    def _merge_candidate_score(
+        self: Self,
+        train: pd.DataFrame,
+        val: pd.DataFrame,
+        val_cold_start_user: pd.DataFrame,
+        val_warm_start_user: pd.DataFrame,
+        test: pd.DataFrame,
+        test_cold_start_user: pd.DataFrame,
+        test_warm_start_user: pd.DataFrame,
+        candidates: pd.DataFrame,
+    ) -> Tuple[
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame,
+    ]:
+        """
+        (reviewer_id, diner_idx) 기준으로 candidate의 score를 train/val/test에 left join.
+        candidate에 없는 쌍은 0으로 채움. candidate에 'score' 컬럼이 없으면 아무 변경 없이 반환.
+        """
+        if "score" not in candidates.columns:
+            # candidate에 score가 없으면 0으로 채운 컬럼 추가 (ranker features에 'score'를 쓸 수 있게)
+            for df in (
+                train,
+                val,
+                val_cold_start_user,
+                val_warm_start_user,
+                test,
+                test_cold_start_user,
+                test_warm_start_user,
+            ):
+                df["score"] = 0.0
+            return (
+                train,
+                val,
+                val_cold_start_user,
+                val_warm_start_user,
+                test,
+                test_cold_start_user,
+                test_warm_start_user,
+            )
+
+        score_df = (
+            candidates[["reviewer_id", "diner_idx", "score"]]
+            .drop_duplicates(subset=["reviewer_id", "diner_idx"])
+            .copy()
+        )
+
+        train = self.merge_candidate_score_into_df(train, score_df)
+        val = self.merge_candidate_score_into_df(val, score_df)
+        val_cold_start_user = self.merge_candidate_score_into_df(
+            val_cold_start_user, score_df
+        )
+        val_warm_start_user = self.merge_candidate_score_into_df(
+            val_warm_start_user, score_df
+        )
+        test = self.merge_candidate_score_into_df(test, score_df)
+        test_cold_start_user = self.merge_candidate_score_into_df(
+            test_cold_start_user, score_df
+        )
+        test_warm_start_user = self.merge_candidate_score_into_df(
+            test_warm_start_user, score_df
+        )
+
+        return (
+            train,
+            val,
+            val_cold_start_user,
+            val_warm_start_user,
+            test,
+            test_cold_start_user,
+            test_warm_start_user,
+        )
+
     def negative_sampling(
         self: Self,
         sampling_type: str,
@@ -262,8 +369,14 @@ class RankerDatasetLoader(BaseDatasetLoader):
         neg_samples_list = []
         batch_size = 1000
 
-        # load diner category
-        diner_category = pd.read_csv(self.data_paths["category"])
+        # load diner category (LOCAL 데이터 소스일 경우 data_config 사용)
+        if (
+            self.data_source == DataSource.LOCAL
+            and self.data_config.category is not None
+        ):
+            diner_category = self.data_config.category.copy()
+        else:
+            diner_category = pd.read_csv(self.data_paths["category"])
         diner_category = diner_category[
             diner_category["diner_category_large"].isin(
                 ["한식", "중식", "양식", "일식", "아시안", "패스트푸드", "치킨", "술집"]
@@ -569,17 +682,29 @@ def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
         else:
             mapped_reviewer_id = 0  # 가짜 유저 ID 생성
 
-    # load data
-    diner = pd.read_csv(data_loader.data_paths["diner"], low_memory=False)
-    diner_with_raw_category = pd.read_csv(data_loader.data_paths["category"])
+    # load data (LOCAL 데이터 소스일 경우 data_config 사용)
+    if (
+        data_loader.data_source == DataSource.LOCAL
+        and data_loader.data_config.diner is not None
+    ):
+        diner = data_loader.data_config.diner.copy()
+        diner_with_raw_category = (
+            data_loader.data_config.category.copy()
+            if data_loader.data_config.category is not None
+            else pd.DataFrame()
+        )
+    else:
+        diner = pd.read_csv(data_loader.data_paths["diner"], low_memory=False)
+        diner_with_raw_category = pd.read_csv(data_loader.data_paths["category"])
 
     # merge category column
-    diner = pd.merge(
-        left=diner,
-        right=diner_with_raw_category,
-        how="left",
-        on="diner_idx",
-    )
+    if not diner_with_raw_category.empty:
+        diner = pd.merge(
+            left=diner,
+            right=diner_with_raw_category,
+            how="left",
+            on="diner_idx",
+        )
 
     # diner_mapping을 사용하여 diner_idx를 mapping된 ID로 변환
     # 원본 diner_idx를 mapping된 ID로 변환
@@ -625,15 +750,5 @@ def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
 
     # reduce memory usage
     test = reduce_mem_usage(test)
-    # Add diner columns
-    diner_cols = [
-        "diner_name",
-        "diner_lat",
-        "diner_lon",
-        "diner_category_large",
-        "diner_category_middle",
-    ]
-    for col in diner_cols:
-        test[col] = diner[col].loc[diner["mapped_diner_idx"].isin(candidates)]
 
     return test
