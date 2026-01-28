@@ -246,6 +246,14 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
         return df
 
+    def merge_candidate_score_into_df(
+        self: Self, df: pd.DataFrame, score_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """(reviewer_id, diner_idx) 기준으로 score_df를 df에 left join하고, NaN은 0으로 채운다."""
+        out = df.merge(score_df, on=["reviewer_id", "diner_idx"], how="left")
+        out["score"] = out["score"].fillna(0.0)
+        return out
+
     def _merge_candidate_score(
         self: Self,
         train: pd.DataFrame,
@@ -297,18 +305,13 @@ class RankerDatasetLoader(BaseDatasetLoader):
             .copy()
         )
 
-        def _merge_score(df: pd.DataFrame) -> pd.DataFrame:
-            out = df.merge(score_df, on=["reviewer_id", "diner_idx"], how="left")
-            out["score"] = out["score"].fillna(0.0)
-            return out
-
-        train = _merge_score(train)
-        val = _merge_score(val)
-        val_cold_start_user = _merge_score(val_cold_start_user)
-        val_warm_start_user = _merge_score(val_warm_start_user)
-        test = _merge_score(test)
-        test_cold_start_user = _merge_score(test_cold_start_user)
-        test_warm_start_user = _merge_score(test_warm_start_user)
+        train = self.merge_candidate_score_into_df(train, score_df)
+        val = self.merge_candidate_score_into_df(val, score_df)
+        val_cold_start_user = self.merge_candidate_score_into_df(val_cold_start_user, score_df)
+        val_warm_start_user = self.merge_candidate_score_into_df(val_warm_start_user, score_df)
+        test = self.merge_candidate_score_into_df(test, score_df)
+        test_cold_start_user = self.merge_candidate_score_into_df(test_cold_start_user, score_df)
+        test_warm_start_user = self.merge_candidate_score_into_df(test_warm_start_user, score_df)
 
         return (
             train,

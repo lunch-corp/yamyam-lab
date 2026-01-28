@@ -45,10 +45,6 @@ def main(cfg: DictConfig):
             data["X_test_cold_start_user"],
             data["X_test_warm_start_user"],
         )
-        print(X_train.head())
-        print(X_valid.head())
-        print(X_test_cold_users.head())
-        print(X_test_warm_users.head())
         trainer = hydra.utils.instantiate(
             cfg.models.ranker,
             recommend_batch_size=cfg.training.evaluation.recommend_batch_size,
