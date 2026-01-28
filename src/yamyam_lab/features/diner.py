@@ -176,7 +176,9 @@ class DinerFeatureStore(BaseFeatureStore):
             menu_df = pd.read_csv(menu_path)
             if "price" not in menu_df.columns:
                 n = len(self.diner)
-                self.diner[price_cols] = np.zeros((n, len(price_cols)), dtype=np.float64)
+                self.diner[price_cols] = np.zeros(
+                    (n, len(price_cols)), dtype=np.float64
+                )
             else:
                 menu_df["price"] = pd.to_numeric(menu_df["price"], errors="coerce")
                 valid = menu_df["price"].notna() & (menu_df["price"] > 0)
