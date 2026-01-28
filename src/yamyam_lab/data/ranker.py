@@ -307,11 +307,19 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
         train = self.merge_candidate_score_into_df(train, score_df)
         val = self.merge_candidate_score_into_df(val, score_df)
-        val_cold_start_user = self.merge_candidate_score_into_df(val_cold_start_user, score_df)
-        val_warm_start_user = self.merge_candidate_score_into_df(val_warm_start_user, score_df)
+        val_cold_start_user = self.merge_candidate_score_into_df(
+            val_cold_start_user, score_df
+        )
+        val_warm_start_user = self.merge_candidate_score_into_df(
+            val_warm_start_user, score_df
+        )
         test = self.merge_candidate_score_into_df(test, score_df)
-        test_cold_start_user = self.merge_candidate_score_into_df(test_cold_start_user, score_df)
-        test_warm_start_user = self.merge_candidate_score_into_df(test_warm_start_user, score_df)
+        test_cold_start_user = self.merge_candidate_score_into_df(
+            test_cold_start_user, score_df
+        )
+        test_warm_start_user = self.merge_candidate_score_into_df(
+            test_warm_start_user, score_df
+        )
 
         return (
             train,
