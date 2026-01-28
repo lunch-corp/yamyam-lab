@@ -113,6 +113,9 @@ class DinerFeatureStore(BaseFeatureStore):
     def calculate_diner_score(self: Self, **kwargs) -> None:
         """
         Add categorical and statistical features to the diner dataset.
+
+        diner_review_tags가 없는 경우 taste/kind/mood/chip/parking 컬럼은 0으로 채웁니다.
+        (diner.csv, kakao_diner_open_hours.csv, menu_df.csv 만 있을 때 대응)
         """
         bins = [-1, 0, 10, 50, 200, float("inf")]
         self.diner["diner_review_cnt_category"] = (
@@ -121,46 +124,81 @@ class DinerFeatureStore(BaseFeatureStore):
             .astype(int)
         )
 
-        # Categories for extracting scores
-        tag_categories = [
-            ("맛", "taste"),
-            ("친절", "kind"),
-            ("분위기", "mood"),
-            ("가성비", "chip"),
-            ("주차", "parking"),
-        ]
+        # diner_review_tags 컬럼이 있으면 태그 점수 추출, 없으면 0으로 채움
+        tag_cols = ["taste", "kind", "mood", "chip", "parking"]
+        if "diner_review_tags" in self.diner.columns:
+            tag_categories = [
+                ("맛", "taste"),
+                ("친절", "kind"),
+                ("분위기", "mood"),
+                ("가성비", "chip"),
+                ("주차", "parking"),
+            ]
+            scores = self._extract_scores_array(
+                self.diner["diner_review_tags"].to_list(), tag_categories
+            )
+            self.diner[tag_cols] = scores
+        else:
+            n = len(self.diner)
+            self.diner[tag_cols] = np.zeros((n, len(tag_cols)), dtype=np.int64)
 
-        scores = self._extract_scores_array(
-            self.diner["diner_review_tags"].to_list(), tag_categories
-        )
-
-        # 결과를 DataFrame으로 변환 및 병합
-        self.diner[["taste", "kind", "mood", "chip", "parking"]] = scores
         self.engineered_feature_names.extend(
             ["diner_review_cnt_category", "taste", "kind", "mood", "chip", "parking"]
         )
 
-    def calculate_diner_price(self: Self, **kwargs) -> None:
+    def calculate_diner_price(
+        self: Self,
+        menu_path: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Add statistical features to the diner dataset.
-        """
-        # 새 컬럼으로 추가 (최소값, 최대값, 평균, 중앙값, 항목 수)
-        self.diner[
-            ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
-        ] = self.diner["diner_menu_price"].apply(lambda x: self._extract_statistics(x))
 
-        for col in [
+        - diner_menu_price 컬럼이 있으면: 기존처럼 리스트 기반 통계 사용
+        - 없고 menu_path가 주어지면: menu_df.csv(diner_idx, price)에서 diner별 min/max/mean/median/count 계산
+        - 둘 다 없으면: 0으로 채움
+        """
+        price_cols = [
             "min_price",
             "max_price",
             "mean_price",
             "median_price",
             "menu_count",
-        ]:
-            self.diner[col] = self.diner[col].fillna(self.diner[col].median())
+        ]
+        if "diner_menu_price" in self.diner.columns:
+            self.diner[price_cols] = self.diner["diner_menu_price"].apply(
+                lambda x: self._extract_statistics(x)
+            )
+            for col in price_cols:
+                self.diner[col] = self.diner[col].fillna(self.diner[col].median())
+        elif menu_path and os.path.isfile(menu_path):
+            # menu_df.csv(diner_idx, price)에서 diner별 가격 통계 계산
+            menu_df = pd.read_csv(menu_path)
+            if "price" not in menu_df.columns:
+                n = len(self.diner)
+                self.diner[price_cols] = np.zeros((n, len(price_cols)), dtype=np.float64)
+            else:
+                menu_df["price"] = pd.to_numeric(menu_df["price"], errors="coerce")
+                valid = menu_df["price"].notna() & (menu_df["price"] > 0)
+                agg = (
+                    menu_df.loc[valid]
+                    .groupby("diner_idx")["price"]
+                    .agg(
+                        min_price="min",
+                        max_price="max",
+                        mean_price="mean",
+                        median_price="median",
+                        menu_count="count",
+                    )
+                    .reset_index()
+                )
+                self.diner = self.diner.merge(agg, on="diner_idx", how="left")
+                self.diner[price_cols] = self.diner[price_cols].fillna(0)
+        else:
+            n = len(self.diner)
+            self.diner[price_cols] = np.zeros((n, len(price_cols)), dtype=np.float64)
 
-        self.engineered_feature_names.extend(
-            ["min_price", "max_price", "mean_price", "median_price", "menu_count"]
-        )
+        self.engineered_feature_names.extend(price_cols)
 
     def calculate_diner_mean_review_score(self: Self, **kwargs) -> None:
         """

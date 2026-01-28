@@ -14,9 +14,11 @@ user_engineered_feature_names:
 diner_engineered_feature_names:
   all_review_cnt: {}
   diner_review_tags: {}
-  diner_menu_price: {}
+  # diner에 diner_menu_price가 없으면 menu_path로 menu_df.csv 로드 후 diner별 가격 통계 계산
+  diner_menu_price:
+    menu_path: data/menu_df.csv
 
-num_neg_samples: 100
+num_neg_samples: 0
 sampling_type: random
 is_timeseries_by_users: false
 is_timeseries_by_time_point: true
