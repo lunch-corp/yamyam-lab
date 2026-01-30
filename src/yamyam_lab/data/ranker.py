@@ -6,7 +6,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from yamyam_lab.data.base import BaseDatasetLoader
-from yamyam_lab.data.config import DataConfig, DataSource
+from yamyam_lab.data.config import DataConfig
 from yamyam_lab.tools.utils import reduce_mem_usage
 
 
@@ -299,13 +299,7 @@ class RankerDatasetLoader(BaseDatasetLoader):
         batch_size = 1000
 
         # load diner category (LOCAL 데이터 소스일 경우 data_config 사용)
-        if (
-            self.data_source == DataSource.LOCAL
-            and self.data_config.category is not None
-        ):
-            diner_category = self.data_config.category.copy()
-        else:
-            diner_category = pd.read_csv(self.data_paths["category"])
+        diner_category = pd.read_csv(self.data_paths["category"])
         diner_category = diner_category[
             diner_category["diner_category_large"].isin(
                 ["한식", "중식", "양식", "일식", "아시안", "패스트푸드", "치킨", "술집"]
@@ -611,29 +605,13 @@ def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
         else:
             mapped_reviewer_id = 0  # 가짜 유저 ID 생성
 
-    # load data (LOCAL 데이터 소스일 경우 data_config 사용)
-    if (
-        data_loader.data_source == DataSource.LOCAL
-        and data_loader.data_config.diner is not None
-    ):
-        diner = data_loader.data_config.diner.copy()
-        diner_with_raw_category = (
-            data_loader.data_config.category.copy()
-            if data_loader.data_config.category is not None
-            else pd.DataFrame()
-        )
-    else:
-        diner = pd.read_csv(data_loader.data_paths["diner"], low_memory=False)
-        diner_with_raw_category = pd.read_csv(data_loader.data_paths["category"])
+    diner = pd.read_csv(data_loader.data_paths["diner"], low_memory=False)
+    diner_with_raw_category = pd.read_csv(data_loader.data_paths["category"])
 
     # merge category column
-    if not diner_with_raw_category.empty:
-        diner = pd.merge(
-            left=diner,
-            right=diner_with_raw_category,
-            how="left",
-            on="diner_idx",
-        )
+    diner = pd.merge(
+        left=diner, right=diner_with_raw_category, how="left", on="diner_idx"
+    )
 
     # diner_mapping을 사용하여 diner_idx를 mapping된 ID로 변환
     # 원본 diner_idx를 mapping된 ID로 변환
