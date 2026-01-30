@@ -15,17 +15,9 @@ class TestSimilarityFunctions:
     """Test similarity.py main functions."""
 
     @pytest.fixture(scope="function")
-    def valid_item_id(self, mock_load_dataset):
-        """Get a valid item ID for testing."""
-        with patch(
-            "yamyam_lab.data.base.BaseDatasetLoader.load_dataset",
-            return_value=mock_load_dataset,
-        ):
-            model, _, counts = load_model_for_inference()
-            valid_indices = np.where(counts >= 1)[0]
-            if len(valid_indices) > 0:
-                return model.idx_to_item[valid_indices[0]]
-            return list(model.item_mapping.keys())[0]
+    def valid_item_id(self):
+        # Return a fixed valid item ID for testing
+        return 1244228762
 
     def test_load_model_for_inference(self, mock_load_dataset):
         """Test that load_model_for_inference works."""
