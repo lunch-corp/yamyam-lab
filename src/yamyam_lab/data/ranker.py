@@ -605,6 +605,7 @@ def load_test_dataset(cfg: DictConfig) -> pd.DataFrame:
         else:
             mapped_reviewer_id = 0  # 가짜 유저 ID 생성
 
+    # load data
     diner = pd.read_csv(data_loader.data_paths["diner"], low_memory=False)
     diner_with_raw_category = pd.read_csv(data_loader.data_paths["category"])
 
