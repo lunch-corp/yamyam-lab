@@ -298,7 +298,7 @@ class RankerDatasetLoader(BaseDatasetLoader):
         neg_samples_list = []
         batch_size = 1000
 
-        # load diner category (LOCAL 데이터 소스일 경우 data_config 사용)
+        # load diner category
         diner_category = pd.read_csv(self.data_paths["category"])
         diner_category = diner_category[
             diner_category["diner_category_large"].isin(
