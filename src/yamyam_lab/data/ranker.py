@@ -118,24 +118,7 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
         # candidate의 score를 ranker feature로 사용: train/val/test에 (reviewer_id, diner_idx) 기준으로 left join
         # candidate에 없는 (user, diner) 쌍은 0으로 채움 (retrieval 단계에서 나오지 않은 쌍)
-        (
-            train,
-            val,
-            val_cold_start_user,
-            val_warm_start_user,
-            test,
-            test_cold_start_user,
-            test_warm_start_user,
-        ) = self._merge_candidate_score(
-            train,
-            val,
-            val_cold_start_user,
-            val_warm_start_user,
-            test,
-            test_cold_start_user,
-            test_warm_start_user,
-            candidates,
-        )
+        train, val, test = self._merge_candidate_score(train, val, test, candidates)
 
         user_mapping = mapped_res["user_mapping"]
         diner_mapping = mapped_res["diner_mapping"]
@@ -258,47 +241,13 @@ class RankerDatasetLoader(BaseDatasetLoader):
         self: Self,
         train: pd.DataFrame,
         val: pd.DataFrame,
-        val_cold_start_user: pd.DataFrame,
-        val_warm_start_user: pd.DataFrame,
         test: pd.DataFrame,
-        test_cold_start_user: pd.DataFrame,
-        test_warm_start_user: pd.DataFrame,
         candidates: pd.DataFrame,
-    ) -> Tuple[
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-    ]:
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         (reviewer_id, diner_idx) 기준으로 candidate의 score를 train/val/test에 left join.
         candidate에 없는 쌍은 0으로 채움. candidate에 'score' 컬럼이 없으면 아무 변경 없이 반환.
         """
-        if "score" not in candidates.columns:
-            # candidate에 score가 없으면 0으로 채운 컬럼 추가 (ranker features에 'score'를 쓸 수 있게)
-            for df in (
-                train,
-                val,
-                val_cold_start_user,
-                val_warm_start_user,
-                test,
-                test_cold_start_user,
-                test_warm_start_user,
-            ):
-                df["score"] = 0.0
-            return (
-                train,
-                val,
-                val_cold_start_user,
-                val_warm_start_user,
-                test,
-                test_cold_start_user,
-                test_warm_start_user,
-            )
-
         score_df = (
             candidates[["reviewer_id", "diner_idx", "score"]]
             .drop_duplicates(subset=["reviewer_id", "diner_idx"])
@@ -307,29 +256,9 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
         train = self.merge_candidate_score_into_df(train, score_df)
         val = self.merge_candidate_score_into_df(val, score_df)
-        val_cold_start_user = self.merge_candidate_score_into_df(
-            val_cold_start_user, score_df
-        )
-        val_warm_start_user = self.merge_candidate_score_into_df(
-            val_warm_start_user, score_df
-        )
         test = self.merge_candidate_score_into_df(test, score_df)
-        test_cold_start_user = self.merge_candidate_score_into_df(
-            test_cold_start_user, score_df
-        )
-        test_warm_start_user = self.merge_candidate_score_into_df(
-            test_warm_start_user, score_df
-        )
 
-        return (
-            train,
-            val,
-            val_cold_start_user,
-            val_warm_start_user,
-            test,
-            test_cold_start_user,
-            test_warm_start_user,
-        )
+        return (train, val, test)
 
     def negative_sampling(
         self: Self,
