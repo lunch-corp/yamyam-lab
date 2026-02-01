@@ -5,7 +5,6 @@ results: catboost_ranker
 
 # score: 후보 생성 모델(ALS/Node2Vec 등)의 (user, diner) 유사도/점수. candidate.parquet의 score 컬럼.
 features:
-  - score
   - min_price
   - max_price
   - mean_price
@@ -39,6 +38,5 @@ params:
   allow_writing_files: False
 
 early_stopping_rounds: 100
-num_boost_round: 10000
 verbose_eval: 100
 seed: 42
