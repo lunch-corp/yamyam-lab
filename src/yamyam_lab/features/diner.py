@@ -178,6 +178,7 @@ class DinerFeatureStore(BaseFeatureStore):
         all_price_cols = price_cols + ["menu_count"]
 
         if "diner_menu_price" in self.diner.columns:
+
             def _stats_from_list(val: Any) -> tuple[float, float, float, float, int]:
                 if val is None:
                     return (-1.0, -1.0, -1.0, -1.0, 0)
