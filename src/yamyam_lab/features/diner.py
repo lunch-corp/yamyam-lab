@@ -179,7 +179,9 @@ class DinerFeatureStore(BaseFeatureStore):
 
         if "diner_menu_price" in self.diner.columns:
             def _stats_from_list(val: Any) -> tuple[float, float, float, float, int]:
-                if pd.isna(val):
+                if val is None:
+                    return (-1.0, -1.0, -1.0, -1.0, 0)
+                if not isinstance(val, (list, tuple)) and pd.isna(val):
                     return (-1.0, -1.0, -1.0, -1.0, 0)
                 if isinstance(val, str):
                     try:
@@ -217,7 +219,7 @@ class DinerFeatureStore(BaseFeatureStore):
 
         if self.menu_path and os.path.exists(self.menu_path):
             menu_df = pd.read_csv(self.menu_path)
-            menu_df = self._normalize_external_diner_idx(menu_df)
+            menu_df = self._map_external_diner_idx(menu_df)
             menu_df["price"] = pd.to_numeric(menu_df["price"], errors="coerce")
             valid = menu_df["price"].notna() & (menu_df["price"] > 0)
             agg = (
@@ -344,7 +346,7 @@ class DinerFeatureStore(BaseFeatureStore):
             ["metadata_id", "metadata_id_neighbors"]
         )
 
-    def _normalize_external_diner_idx(self: Self, df: pd.DataFrame) -> pd.DataFrame:
+    def _map_external_diner_idx(self: Self, df: pd.DataFrame) -> pd.DataFrame:
         """
         외부 CSV의 diner_idx를 self.diner와 동일한 체계(0,1,2,...)로 변환.
 
@@ -410,7 +412,7 @@ class DinerFeatureStore(BaseFeatureStore):
             weekend_days = [5, 6]
 
         df = pd.read_csv(self.open_hours_path, low_memory=False)
-        df = self._normalize_external_diner_idx(df)
+        df = self._map_external_diner_idx(df)
         df["is_open"] = df["is_open"].map(
             lambda x: x is True or (isinstance(x, str) and x.strip().lower() == "true")
         )

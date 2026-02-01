@@ -23,11 +23,6 @@ features:
 cat_features:
   - open_days_per_week
   - is_open_weekend
-  - asian
-  - japanese
-  - chinese
-  - korean
-  - western
 
 params:
   loss_function: YetiRank
