@@ -167,7 +167,7 @@ class DinerFeatureStore(BaseFeatureStore):
 
         - diner_menu_price 컬럼이 있으면: 기존처럼 리스트 기반 통계 사용
         - 없고 menu_path가 주어지면: menu_df.csv(diner_idx, price)에서 diner별 min/max/mean/median/count 계산
-        - 둘 다 없으면: 0으로 채움
+        - 둘 다 없으면: -1로 채움
         """
         price_cols = [
             "min_price",
@@ -175,26 +175,74 @@ class DinerFeatureStore(BaseFeatureStore):
             "mean_price",
             "median_price",
         ]
-        menu_df = pd.read_csv(self.menu_path)
-        menu_df = self._normalize_external_diner_idx(menu_df)
-        menu_df["price"] = pd.to_numeric(menu_df["price"], errors="coerce")
-        valid = menu_df["price"].notna() & (menu_df["price"] > 0)
-        agg = (
-            menu_df.loc[valid]
-            .groupby("diner_idx")["price"]
-            .agg(
-                min_price="min",
-                max_price="max",
-                mean_price="mean",
-                median_price="median",
-                menu_count="count",
-            )
-            .reset_index()
-        )
-        self.diner = self.diner.merge(agg, on="diner_idx", how="left")
-        self.diner[price_cols] = self.diner[price_cols].fillna(-1)
+        all_price_cols = price_cols + ["menu_count"]
 
-        self.engineered_feature_names.extend(price_cols)
+        if "diner_menu_price" in self.diner.columns:
+            def _stats_from_list(val: Any) -> tuple[float, float, float, float, int]:
+                if pd.isna(val):
+                    return (-1.0, -1.0, -1.0, -1.0, 0)
+                if isinstance(val, str):
+                    try:
+                        val = ast.literal_eval(val)
+                    except (ValueError, SyntaxError):
+                        return (-1.0, -1.0, -1.0, -1.0, 0)
+                if not isinstance(val, (list, tuple)) or len(val) == 0:
+                    return (-1.0, -1.0, -1.0, -1.0, 0)
+                nums = []
+                for x in val:
+                    try:
+                        v = float(x)
+                        if v > 0:
+                            nums.append(v)
+                    except (TypeError, ValueError):
+                        continue
+                if not nums:
+                    return (-1.0, -1.0, -1.0, -1.0, 0)
+                return (
+                    float(min(nums)),
+                    float(max(nums)),
+                    float(np.mean(nums)),
+                    float(np.median(nums)),
+                    len(nums),
+                )
+
+            rows = self.diner["diner_menu_price"].map(_stats_from_list)
+            self.diner["min_price"] = [r[0] for r in rows]
+            self.diner["max_price"] = [r[1] for r in rows]
+            self.diner["mean_price"] = [r[2] for r in rows]
+            self.diner["median_price"] = [r[3] for r in rows]
+            self.diner["menu_count"] = [r[4] for r in rows]
+            self.engineered_feature_names.extend(all_price_cols)
+            return
+
+        if self.menu_path and os.path.exists(self.menu_path):
+            menu_df = pd.read_csv(self.menu_path)
+            menu_df = self._normalize_external_diner_idx(menu_df)
+            menu_df["price"] = pd.to_numeric(menu_df["price"], errors="coerce")
+            valid = menu_df["price"].notna() & (menu_df["price"] > 0)
+            agg = (
+                menu_df.loc[valid]
+                .groupby("diner_idx")["price"]
+                .agg(
+                    min_price="min",
+                    max_price="max",
+                    mean_price="mean",
+                    median_price="median",
+                    menu_count="count",
+                )
+                .reset_index()
+            )
+            self.diner = self.diner.merge(agg, on="diner_idx", how="left")
+            self.diner[price_cols] = self.diner[price_cols].fillna(-1)
+            if "menu_count" in self.diner.columns:
+                self.diner["menu_count"] = self.diner["menu_count"].fillna(0)
+            self.engineered_feature_names.extend(all_price_cols)
+            return
+
+        # 둘 다 없으면 -1로 채움
+        for col in all_price_cols:
+            self.diner[col] = -1 if col != "menu_count" else 0
+        self.engineered_feature_names.extend(all_price_cols)
 
     def calculate_diner_mean_review_score(self: Self, **kwargs) -> None:
         """
