@@ -17,6 +17,7 @@ def build_feature(
     user_engineered_feature_names: Dict[str, Dict[str, Any]],
     diner_engineered_feature_names: Dict[str, Dict[str, Any]],
     config_root_path: str,
+    diner_mapping: Dict[int, int] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Build features for user and diner.
@@ -43,13 +44,14 @@ def build_feature(
     user_fs.make_features()
     user_feature = user_fs.engineered_features
 
-    # diner feature engineering
+    # diner feature engineering (diner_mapping: 원본 diner_id -> 0,1,2,... 로 외부 데이터 매칭용)
     diner_fs = DinerFeatureStore(
         review=review,
         diner=diner,
         all_diner_ids=all_diner_ids,
         feature_param_pair=diner_engineered_feature_names,
         config_root_path=config_root_path,
+        diner_mapping=diner_mapping,
     )
     diner_fs.make_features()
     diner_feature = diner_fs.engineered_features

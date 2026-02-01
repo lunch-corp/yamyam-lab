@@ -17,13 +17,17 @@ diner_engineered_feature_names:
   # diner에 diner_menu_price가 없으면 menu_path로 menu_df.csv 로드 후 diner별 가격 통계 계산
   diner_menu_price:
     menu_path: data/menu_df.csv
+  # kakao_diner_open_hours.csv 기반: 영업일 수, 주말 영업 여부, 평균/주간 영업시간
+  diner_open_hours:
+    open_hours_path: data/kakao_diner_open_hours.csv
 
-num_neg_samples: 0
+# negative sampling 시 user별 candidate에서만 샘플링 → candidate score 사용 가능
+num_neg_samples: 100
 sampling_type: random
 is_timeseries_by_users: false
 is_timeseries_by_time_point: true
-train_time_point: "2023-08-01"
-val_time_point: "2024-08-01"
-test_time_point: "2024-11-01"
-end_time_point: "2025-02-01"
+train_time_point: "2024-06-01"
+val_time_point: "2025-06-01"
+test_time_point: "2025-09-01"
+end_time_point: "2025-12-01"
 candidate_type: node2vec
