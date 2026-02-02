@@ -26,9 +26,7 @@ cat_features:
 params:
   loss_function: YetiRank
   eval_metric: NDCG:top=20
-  iterations: 10000
   learning_rate: 0.01
-  depth: 10
   l2_leaf_reg: 3
   border_count: 32
   random_strength: 1
@@ -38,5 +36,6 @@ params:
   allow_writing_files: False
 
 early_stopping_rounds: 100
+num_boost_round: 10000
 verbose_eval: 100
 seed: 42

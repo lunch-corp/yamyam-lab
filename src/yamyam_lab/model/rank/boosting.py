@@ -162,6 +162,8 @@ class CatBoostRankerTrainer(BaseModel):
     ) -> CatBoostRanker:
         params = OmegaConf.to_container(self.params)
         params["random_seed"] = self.seed
+        params["iterations"] = self.num_boost_round
+
         train_groups = self._get_groups(X_train)
         valid_groups = self._get_groups(X_valid)
         X_train = self._prepare_cat_features(X_train)
