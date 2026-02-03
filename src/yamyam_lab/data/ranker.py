@@ -453,6 +453,14 @@ class RankerDatasetLoader(BaseDatasetLoader):
         Returns (Dict[str, Any]):
             A dictionary containing the training and validation sets.
         """
+        train = train.sort_values(by=["reviewer_id"])
+        val = val.sort_values(by=["reviewer_id"])
+        test = test.sort_values(by=["reviewer_id"])
+        val_cold_start_user = val_cold_start_user.sort_values(by=["reviewer_id"])
+        val_warm_start_user = val_warm_start_user.sort_values(by=["reviewer_id"])
+        test_cold_start_user = test_cold_start_user.sort_values(by=["reviewer_id"])
+        test_warm_start_user = test_warm_start_user.sort_values(by=["reviewer_id"])
+
         return {
             "X_train": train.drop(columns=["target"]),
             "y_train": train["target"],

@@ -609,7 +609,7 @@ class BaseDatasetLoader(ABC):
             )
         )
 
-        # Feature engineering
+        # Feature engineering (diner_mapping으로 menu/open_hours 등 외부 데이터 diner_idx 매칭)
         user_feature, diner_feature, diner_meta_feature = build_feature(
             review=train,
             diner=diner,
@@ -618,6 +618,7 @@ class BaseDatasetLoader(ABC):
             user_engineered_feature_names=self.user_engineered_feature_names,
             diner_engineered_feature_names=self.diner_engineered_feature_names,
             config_root_path=self.data_config.config_root_path,
+            diner_mapping=mapped_res["diner_mapping"],
         )
 
         return {

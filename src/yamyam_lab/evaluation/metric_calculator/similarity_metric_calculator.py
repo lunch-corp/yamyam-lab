@@ -47,7 +47,13 @@ class ItemBasedMetricCalculator(BaseMetricCalculator):
             rec_items = self.model.recommend_for_user(user_id=user_id, top_k=top_k)
             top_k_recs.append(rec_items)
 
-        return np.array(top_k_recs)
+        # Pad arrays to same length
+        max_len = max(len(arr) for arr in top_k_recs)
+        padded_recs = [
+            np.pad(arr, (0, max_len - len(arr)), mode="constant", constant_values=-1)
+            for arr in top_k_recs
+        ]
+        return np.array(padded_recs)
 
     # ---------------- 평가 ----------------
     def evaluate(self) -> Dict[str, float]:

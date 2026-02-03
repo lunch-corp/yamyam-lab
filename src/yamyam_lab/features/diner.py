@@ -2,7 +2,7 @@ import ast
 import os
 import re
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Self
+from typing import Any, Dict, List, Optional, Self
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,7 @@ class DinerFeatureStore(BaseFeatureStore):
         all_diner_ids: List[int],
         feature_param_pair: Dict[str, Dict[str, Any]],
         config_root_path: str,
+        diner_mapping: Optional[Dict[int, int]] = None,
     ) -> None:
         """
         Feature engineering on diner data.
@@ -36,14 +37,12 @@ class DinerFeatureStore(BaseFeatureStore):
 
         Args:
             review: Review data which will be used as train dataset.
-            diner: Diner (restaurant) data.
+            diner: Diner (restaurant) data. diner_idx는 이미 0,1,2,... 로 매핑된 상태.
             all_diner_ids: Diner IDs from all review data (train, val, test).
             feature_param_pair: Dictionary mapping feature names to their parameters.
                 Keys are feature names, values are parameter dictionaries.
             config_root_path: Root path for config.
-
-        Raises:
-            ValueError: If a feature name in feature_param_pair is not implemented.
+            diner_mapping: 원본 diner_id -> 0,1,2,... 매핑. menu/open_hours 등 외부 CSV의 diner_idx 매칭용.
         """
         super().__init__(
             review=review,
@@ -52,7 +51,11 @@ class DinerFeatureStore(BaseFeatureStore):
         )
         self.all_diner_ids = all_diner_ids
         self.config_root_path = config_root_path
-
+        self.diner_mapping = diner_mapping
+        self.menu_path = os.path.abspath(os.path.join(os.getcwd(), "data/menu_df.csv"))
+        self.open_hours_path = os.path.abspath(
+            os.path.join(os.getcwd(), "data/kakao_diner_open_hours.csv")
+        )
         self.feature_methods = {
             "all_review_cnt": self.calculate_all_review_cnt,
             "diner_review_tags": self.calculate_diner_score,
@@ -61,6 +64,7 @@ class DinerFeatureStore(BaseFeatureStore):
             "one_hot_encoding_categorical_features": self.one_hot_encoding_categorical_features,
             "diner_category_meta_combined_with_h3": self.make_diner_category_meta_combined_with_h3,
             "valid_menu_names": self.generate_valid_menus_by_freq,
+            "diner_open_hours": self.add_open_hours_features,
             # "bayesian_score": self.calculate_bayesian_score,
         }
 
@@ -103,11 +107,22 @@ class DinerFeatureStore(BaseFeatureStore):
     def calculate_all_review_cnt(self: Self, **kwargs) -> None:
         """
         Calculate number of review counts for each diner.
+
+        Review 데이터 기준으로 diner별 리뷰 수를 계산하고, diner에
+        `diner_review_cnt` 컬럼이 있으면 NaN인 행은 해당 값으로 채운다
+        (ranker 등에서 CSV 기반 리뷰 수를 활용할 때 유용).
         """
         diner_idx2review_cnt = self.review["diner_idx"].value_counts().to_dict()
-        self.diner["all_review_cnt"] = (
-            self.diner["diner_idx"].map(diner_idx2review_cnt).fillna(0)
-        )
+        self.diner["all_review_cnt"] = self.diner["diner_idx"].map(diner_idx2review_cnt)
+        if "diner_review_cnt" in self.diner.columns:
+            self.diner["all_review_cnt"] = (
+                self.diner["all_review_cnt"]
+                .fillna(self.diner["diner_review_cnt"])
+                .fillna(0)
+            )
+        else:
+            self.diner["all_review_cnt"] = self.diner["all_review_cnt"].fillna(0)
+        self.diner["all_review_cnt"] = self.diner["all_review_cnt"].astype(np.int64)
         self.engineered_feature_names.append("all_review_cnt")
 
     def calculate_diner_score(self: Self, **kwargs) -> None:
@@ -146,61 +161,91 @@ class DinerFeatureStore(BaseFeatureStore):
             ["diner_review_cnt_category", "taste", "kind", "mood", "chip", "parking"]
         )
 
-    def calculate_diner_price(
-        self: Self,
-        menu_path: str | None = None,
-        **kwargs: Any,
-    ) -> None:
+    def calculate_diner_price(self: Self, **kwargs: Any) -> None:
         """
         Add statistical features to the diner dataset.
 
         - diner_menu_price 컬럼이 있으면: 기존처럼 리스트 기반 통계 사용
         - 없고 menu_path가 주어지면: menu_df.csv(diner_idx, price)에서 diner별 min/max/mean/median/count 계산
-        - 둘 다 없으면: 0으로 채움
+        - 둘 다 없으면: -1로 채움
         """
         price_cols = [
             "min_price",
             "max_price",
             "mean_price",
             "median_price",
-            "menu_count",
         ]
-        if "diner_menu_price" in self.diner.columns:
-            self.diner[price_cols] = self.diner["diner_menu_price"].apply(
-                lambda x: self._extract_statistics(x)
-            )
-            for col in price_cols:
-                self.diner[col] = self.diner[col].fillna(self.diner[col].median())
-        elif menu_path and os.path.isfile(menu_path):
-            # menu_df.csv(diner_idx, price)에서 diner별 가격 통계 계산
-            menu_df = pd.read_csv(menu_path)
-            if "price" not in menu_df.columns:
-                n = len(self.diner)
-                self.diner[price_cols] = np.zeros(
-                    (n, len(price_cols)), dtype=np.float64
-                )
-            else:
-                menu_df["price"] = pd.to_numeric(menu_df["price"], errors="coerce")
-                valid = menu_df["price"].notna() & (menu_df["price"] > 0)
-                agg = (
-                    menu_df.loc[valid]
-                    .groupby("diner_idx")["price"]
-                    .agg(
-                        min_price="min",
-                        max_price="max",
-                        mean_price="mean",
-                        median_price="median",
-                        menu_count="count",
-                    )
-                    .reset_index()
-                )
-                self.diner = self.diner.merge(agg, on="diner_idx", how="left")
-                self.diner[price_cols] = self.diner[price_cols].fillna(0)
-        else:
-            n = len(self.diner)
-            self.diner[price_cols] = np.zeros((n, len(price_cols)), dtype=np.float64)
+        all_price_cols = price_cols + ["menu_count"]
 
-        self.engineered_feature_names.extend(price_cols)
+        if "diner_menu_price" in self.diner.columns:
+
+            def _stats_from_list(val: Any) -> tuple[float, float, float, float, int]:
+                if val is None:
+                    return (-1.0, -1.0, -1.0, -1.0, 0)
+                if not isinstance(val, (list, tuple)) and pd.isna(val):
+                    return (-1.0, -1.0, -1.0, -1.0, 0)
+                if isinstance(val, str):
+                    try:
+                        val = ast.literal_eval(val)
+                    except (ValueError, SyntaxError):
+                        return (-1.0, -1.0, -1.0, -1.0, 0)
+                if not isinstance(val, (list, tuple)) or len(val) == 0:
+                    return (-1.0, -1.0, -1.0, -1.0, 0)
+                nums = []
+                for x in val:
+                    try:
+                        v = float(x)
+                        if v > 0:
+                            nums.append(v)
+                    except (TypeError, ValueError):
+                        continue
+                if not nums:
+                    return (-1.0, -1.0, -1.0, -1.0, 0)
+                return (
+                    float(min(nums)),
+                    float(max(nums)),
+                    float(np.mean(nums)),
+                    float(np.median(nums)),
+                    len(nums),
+                )
+
+            rows = self.diner["diner_menu_price"].map(_stats_from_list)
+            self.diner["min_price"] = [r[0] for r in rows]
+            self.diner["max_price"] = [r[1] for r in rows]
+            self.diner["mean_price"] = [r[2] for r in rows]
+            self.diner["median_price"] = [r[3] for r in rows]
+            self.diner["menu_count"] = [r[4] for r in rows]
+            self.engineered_feature_names.extend(all_price_cols)
+            return
+
+        if self.menu_path and os.path.exists(self.menu_path):
+            menu_df = pd.read_csv(self.menu_path)
+            menu_df = self._map_external_diner_idx(menu_df)
+            menu_df["price"] = pd.to_numeric(menu_df["price"], errors="coerce")
+            valid = menu_df["price"].notna() & (menu_df["price"] > 0)
+            agg = (
+                menu_df.loc[valid]
+                .groupby("diner_idx")["price"]
+                .agg(
+                    min_price="min",
+                    max_price="max",
+                    mean_price="mean",
+                    median_price="median",
+                    menu_count="count",
+                )
+                .reset_index()
+            )
+            self.diner = self.diner.merge(agg, on="diner_idx", how="left")
+            self.diner[price_cols] = self.diner[price_cols].fillna(-1)
+            if "menu_count" in self.diner.columns:
+                self.diner["menu_count"] = self.diner["menu_count"].fillna(0)
+            self.engineered_feature_names.extend(all_price_cols)
+            return
+
+        # 둘 다 없으면 -1로 채움
+        for col in all_price_cols:
+            self.diner[col] = -1 if col != "menu_count" else 0
+        self.engineered_feature_names.extend(all_price_cols)
 
     def calculate_diner_mean_review_score(self: Self, **kwargs) -> None:
         """
@@ -301,6 +346,129 @@ class DinerFeatureStore(BaseFeatureStore):
         self.engineered_meta_feature_names.extend(
             ["metadata_id", "metadata_id_neighbors"]
         )
+
+    def _map_external_diner_idx(self: Self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        외부 CSV의 diner_idx를 self.diner와 동일한 체계(0,1,2,...)로 변환.
+
+        - CSV가 원본 diner_id를 사용하면: diner_mapping으로 변환
+        - CSV가 이미 매핑된 diner_idx를 사용하면: 변환 없음
+        - ID 체계는 mapping keys/values와의 overlap으로 자동 감지
+        """
+        if "diner_idx" not in df.columns or not self.diner_mapping:
+            return df
+
+        csv_ids = set(df["diner_idx"].dropna().astype(int).unique())
+        mapping_keys = set(self.diner_mapping.keys())
+        mapping_values = set(self.diner_mapping.values())
+
+        overlap_keys = len(csv_ids & mapping_keys)
+        overlap_values = len(csv_ids & mapping_values)
+
+        # 원본 ID 사용 시에만 매핑 적용 (mapped ID에 잘못 매핑하면 데이터 손실)
+        if overlap_keys > overlap_values:
+            df = df.copy()
+            df["diner_idx"] = pd.to_numeric(df["diner_idx"], errors="coerce")
+            df = df.dropna(subset=["diner_idx"])
+            df["diner_idx"] = df["diner_idx"].astype(int)
+            df["diner_idx"] = df["diner_idx"].map(self.diner_mapping)
+            df = df.dropna(subset=["diner_idx"])
+            df["diner_idx"] = df["diner_idx"].astype(int)
+
+        return df
+
+    @staticmethod
+    def _time_to_hours(s: str) -> float:
+        """HH:MM:SS 형태 문자열을 시간(소수)으로 변환."""
+        if pd.isna(s) or not isinstance(s, str) or not s.strip():
+            return 0.0
+        parts = s.strip().split(":")
+        if len(parts) < 2:
+            return 0.0
+        try:
+            h = int(parts[0])
+            m = int(parts[1]) if len(parts) > 1 else 0
+            sec = int(parts[2]) if len(parts) > 2 else 0
+            return h + m / 60.0 + sec / 3600.0
+        except (ValueError, TypeError):
+            return 0.0
+
+    def add_open_hours_features(
+        self: Self,
+        weekend_days: List[int] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Add features from kakao_diner_open_hours.csv (diner별 영업일·영업시간).
+
+        open_hours_path CSV 컬럼: diner_idx, day_of_week, is_open, start_time, end_time, description.
+        diner별로 다음 피처를 생성해 ranker 등에서 사용할 수 있게 한다.
+
+        Args:
+            open_hours_path: CSV 파일 경로 (예: data/kakao_diner_open_hours.csv).
+            weekend_days: 주말로 볼 요일 인덱스. 기본값 [5, 6] (토·일).
+            **kwargs: 추가 인자.
+        """
+        if weekend_days is None:
+            weekend_days = [5, 6]
+
+        df = pd.read_csv(self.open_hours_path, low_memory=False)
+        df = self._map_external_diner_idx(df)
+        df["is_open"] = df["is_open"].map(
+            lambda x: x is True or (isinstance(x, str) and x.strip().lower() == "true")
+        )
+        df["start_time"] = df["start_time"].fillna("00:00:00")
+        df["end_time"] = df["end_time"].fillna("00:00:00")
+
+        df["hours_open"] = np.where(
+            df["is_open"],
+            df["end_time"].apply(self._time_to_hours)
+            - df["start_time"].apply(self._time_to_hours),
+            0.0,
+        )
+        df["hours_open"] = df["hours_open"].clip(lower=0)
+
+        open_days = (
+            df.groupby("diner_idx")
+            .agg(
+                open_days_per_week=("is_open", "sum"),
+                total_open_hours_per_week=("hours_open", "sum"),
+            )
+            .reset_index()
+        )
+
+        weekend_open = (
+            df[df["day_of_week"].isin(weekend_days) & df["is_open"]]
+            .groupby("diner_idx")
+            .size()
+            .reset_index(name="_weekend_open_days")
+        )
+        open_days = open_days.merge(weekend_open, on="diner_idx", how="left").fillna(0)
+        open_days["is_open_weekend"] = (open_days["_weekend_open_days"] > 0).astype(
+            np.int64
+        )
+        open_days.drop(columns=["_weekend_open_days"], inplace=True)
+
+        open_days["avg_open_hours_per_day"] = np.where(
+            open_days["open_days_per_week"] > 0,
+            open_days["total_open_hours_per_week"] / open_days["open_days_per_week"],
+            0.0,
+        ).astype(np.int8)
+
+        feature_cols = [
+            "open_days_per_week",
+            "is_open_weekend",
+            "avg_open_hours_per_day",
+            "total_open_hours_per_week",
+        ]
+        self.diner = self.diner.merge(
+            open_days[["diner_idx"] + feature_cols], on="diner_idx", how="left"
+        )
+        self.diner[feature_cols] = self.diner[feature_cols].fillna(0)
+        self.diner["open_days_per_week"] = self.diner["open_days_per_week"].astype(
+            np.int64
+        )
+        self.engineered_feature_names.extend(feature_cols)
 
     # NaN 또는 빈 리스트를 처리할 수 있도록 정의
     def _extract_statistics(self: Self, prices: str) -> pd.Series:
