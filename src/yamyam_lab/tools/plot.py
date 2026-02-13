@@ -119,3 +119,77 @@ def plot_metric(
     plt.savefig(save_path)
     plt.show()
     plt.close()
+
+
+def plot_diner_embedding_metrics(
+    tr_loss: List[float],
+    val_metrics_history: Dict[str, List[float]],
+    parent_save_path: str,
+) -> None:
+    """
+    Draw metrics line plots for diner embedding model.
+
+    Plots training loss, recall@k, and MRR metrics over epochs.
+
+    Args:
+        tr_loss: Training loss values per epoch.
+        val_metrics_history: Dictionary mapping metric names to lists of values per epoch.
+            Expected keys: "recall@1", "recall@5", "recall@10", "recall@20", "mrr"
+        parent_save_path: Directory to save plot images.
+    """
+    # Plot training loss
+    if tr_loss:
+        tr_loss_df = pd.DataFrame(
+            {
+                "metric": "tr_loss",
+                "value": tr_loss,
+                "epochs": list(range(len(tr_loss))),
+            }
+        )
+        plot_metric(
+            df=tr_loss_df,
+            metric_name="Training Loss",
+            save_path=os.path.join(parent_save_path, "tr_loss.png"),
+            hue=False,
+        )
+
+    # Plot recall@k metrics
+    recall_keys = [k for k in val_metrics_history.keys() if k.startswith("recall@")]
+    if recall_keys:
+        recall_df = pd.DataFrame()
+        for key in sorted(recall_keys, key=lambda x: int(x.split("@")[1])):
+            values = val_metrics_history[key]
+            k_value = key.split("@")[1]
+            tmp = pd.DataFrame(
+                {
+                    "metric": "recall",
+                    "@k": f"@{k_value}",
+                    "value": values,
+                    "epochs": list(range(len(values))),
+                }
+            )
+            recall_df = pd.concat([recall_df, tmp])
+
+        if not recall_df.empty:
+            plot_metric(
+                df=recall_df,
+                metric_name="Recall",
+                save_path=os.path.join(parent_save_path, "recall.png"),
+                hue=True,
+            )
+
+    # Plot MRR
+    if "mrr" in val_metrics_history and val_metrics_history["mrr"]:
+        mrr_df = pd.DataFrame(
+            {
+                "metric": "mrr",
+                "value": val_metrics_history["mrr"],
+                "epochs": list(range(len(val_metrics_history["mrr"]))),
+            }
+        )
+        plot_metric(
+            df=mrr_df,
+            metric_name="MRR",
+            save_path=os.path.join(parent_save_path, "mrr.png"),
+            hue=False,
+        )

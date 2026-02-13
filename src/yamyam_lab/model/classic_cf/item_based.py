@@ -205,13 +205,7 @@ class ItemBasedCollaborativeFiltering:
         top_idx = np.argpartition(-preds, kth=k - 1)[:k]
         top_idx = top_idx[np.argsort(-preds[top_idx])]
 
-        recs = []
-        for idx in top_idx:
-            item_id = self.idx_to_item.get(int(idx))
-            if item_id is None:
-                continue
-            recs.append({"item_id": int(item_id), "predicted_score": float(preds[idx])})
-        return recs
+        return top_idx
 
     def find_similar_items_hybrid(
         self,

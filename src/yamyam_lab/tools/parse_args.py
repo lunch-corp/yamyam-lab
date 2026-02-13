@@ -37,7 +37,12 @@ def parse_args_graph():
         "--model",
         type=str,
         required=True,
-        choices=["node2vec", "metapath2vec", "graphsage", "lightgcn"],
+        choices=[
+            "node2vec",
+            "metapath2vec",
+            "graphsage",
+            "lightgcn",
+        ],
     )
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--batch_size", type=int, default=128)
@@ -115,6 +120,45 @@ def parse_args_als():
     # candidate generation parameter for two-stage reco
     parser.add_argument("--save_candidate", action="store_true", required=False)
     parser.add_argument("--reusable_token_path", type=str, required=False)
+    return parser.parse_args()
+
+
+def parse_args_multimodal_triplet():
+    """Parse arguments for multimodal triplet embedding model training.
+
+    Most configs are loaded from config/models/embedding/multimodal_triplet.yaml.
+    This parser only includes runtime overrides and experiment controls.
+    """
+    parser = argparse.ArgumentParser()
+
+    # Model selection
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="multimodal_triplet",
+        choices=["multimodal_triplet"],
+    )
+
+    # Runtime settings
+    parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
+    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--random_seed", type=int, default=42)
+
+    # Common experiment overrides (defaults loaded from yaml)
+    parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--lr", type=float, default=None)
+    parser.add_argument("--batch_size", type=int, default=None)
+    parser.add_argument("--patience", type=int, default=None)
+
+    # Output configuration
+    parser.add_argument("--result_path", type=str, default=None)
+    parser.add_argument("--config_root_path", type=str, default=None)
+    parser.add_argument("--postfix", type=str, default=None)
+    parser.add_argument("--test", action="store_true")
+
+    # Candidate generation
+    parser.add_argument("--save_candidate", action="store_true")
+
     return parser.parse_args()
 
 

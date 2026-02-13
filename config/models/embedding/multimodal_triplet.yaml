@@ -1,0 +1,94 @@
+# Multimodal Triplet Embedding Model Configuration
+# Creates 128-d embeddings for diners where dot-product similarity
+# returns semantically similar restaurants.
+# Uses triplet loss with hard negative mining for training.
+
+preprocess:
+  data:
+    is_timeseries_by_time_point: true
+    train_time_point: "2023-08-01"
+    val_time_point: "2024-08-01"
+    test_time_point: "2024-11-01"
+    end_time_point: "2025-02-01"
+  feature_engineering:
+    diner_engineered_feature_names: {}
+    user_engineered_feature_names: {}
+
+# Model architecture hyperparameters
+model:
+  # Embedding dimensions
+  embedding_dim: 128
+  category_dim: 128
+  menu_dim: 256
+  diner_name_dim: 64
+  price_dim: 32
+
+  # Attention fusion
+  num_attention_heads: 4
+
+  # Regularization
+  dropout: 0.1
+
+  # KoBERT configuration
+  kobert_model_name: "klue/bert-base"
+  use_precomputed_menu_embeddings: true
+  use_precomputed_name_embeddings: true
+
+# Training hyperparameters
+training:
+  # Optimizer
+  lr: 0.001
+  weight_decay: 0.00001
+
+  # Batch and epochs
+  batch_size: 256
+  epochs: 100
+  patience: 10
+
+  # Loss function
+  margin: 0.5
+  category_weight: 0.1
+
+  # Gradient clipping
+  gradient_clip: 1.0
+
+  # Hard negative mining
+  num_hard_negatives: 5
+  num_nearby_negatives: 3
+  num_random_negatives: 2
+
+  # Evaluation
+  evaluation:
+    recommend_batch_size: 1000
+    top_k_values_for_pred:
+      - 1
+      - 5
+      - 10
+      - 20
+    top_k_values_for_candidate:
+      - 100
+      - 300
+      - 500
+      - 1000
+
+# Data paths (relative to project root)
+data:
+  features_path: "data/processed/diner_features.parquet"
+  pairs_path: "data/processed/training_pairs.parquet"
+  val_pairs_path: "data/processed/val_pairs.parquet"
+  test_pairs_path: "data/processed/test_pairs.parquet"
+  category_mapping_path: "data/processed/category_mapping.parquet"
+
+# Post-training configuration
+post_training:
+  file_name:
+    log: log.log
+    weight: weight.pt
+    training_loss: training_loss.pkl
+    metric: metric.pkl
+    data_object: data_object.pkl
+    user_mapping: user_mapping.pkl
+    diner_mapping: diner_mapping.pkl
+    candidate: candidate.parquet
+  candidate_generation:
+    top_k: 100

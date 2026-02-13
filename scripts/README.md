@@ -9,6 +9,8 @@
 | `scripts/download_result.py`           | Used when downloading candidate generation or trained model result |
 | `scripts/generate_candidate.py`        | Used when generating candidates from trained model                 |
 | `scripts/build_regions.py`             | Used when generating region cluster                                |
+| `scripts/prepare_diner_embedding_data.py` | Used when preparing data for diner embedding model              |
+| `scripts/evaluate_diner_similarity.py` | Used for qualitative evaluation of diner embedding model           |
 | `scripts/process_category.py`          | Used when processing diner category data                           |
 ## How to download candidate generation or trained model result
 
@@ -254,6 +256,132 @@ nearby_restaurants = restaurants_df[restaurants_df['region_id'] == user_region]
 보다 상세한 배경과 구현 설명은 `src/preprocess/region/README.md`와 `src/preprocess/region/builder.py`를 참고하세요.
 
 
+## Diner Embedding Model
+
+The diner embedding model creates 128-dimensional embeddings for restaurants where dot-product similarity returns semantically similar diners. This section covers data preparation and qualitative evaluation scripts.
+
+### Data Preparation
+
+Use `scripts/prepare_diner_embedding_data.py` to preprocess raw data for training.
+
+```bash
+# Full data preparation
+poetry run python scripts/prepare_diner_embedding_data.py \
+    --local_data_dir data/ \
+    --output_dir data/processed
+
+# Test mode (subset of data for quick testing)
+poetry run python scripts/prepare_diner_embedding_data.py \
+    --local_data_dir data/ \
+    --output_dir data/processed \
+    --test
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `--local_data_dir` | Directory containing raw CSV files (diner.csv, review.csv, menu_df.csv, diner_category.csv) |
+| `--output_dir` | Directory to save processed parquet files |
+| `--kobert_model_name` | HuggingFace model for Korean BERT (default: `klue/bert-base`) |
+| `--test` | Run in test mode with subset of data |
+| `--val_ratio` | Ratio of pairs for validation (default: 0.1) |
+| `--test_ratio` | Ratio of pairs for test (default: 0.1) |
+
+Output files:
+- `diner_features.parquet` - Preprocessed features for all diners
+- `training_pairs.parquet` - Positive training pairs
+- `val_pairs.parquet` - Validation pairs
+- `test_pairs.parquet` - Test pairs
+- `category_mapping.parquet` - Category mapping for hard negative mining
+
+### Training
+
+After data preparation, train the model:
+
+```bash
+poetry run python -m yamyam_lab.train \
+    --model diner_embedding \
+    --epochs 50 \
+    --device cuda
+```
+
+### Qualitative Evaluation
+
+Use `scripts/evaluate_diner_similarity.py` to inspect top-N similar diners for a given anchor diner with names, categories, and similarity scores.
+
+#### Search diners by name
+
+```bash
+poetry run python scripts/evaluate_diner_similarity.py \
+    --model_path result/untest/diner_embedding/<timestamp>/weight.pt \
+    --search "버거"
+```
+
+Output:
+```
+Found 2 diners matching '버거':
+ diner_idx        diner_name
+ 354918976   로우로우 버거샵
+ 183570751  파이브가이즈 용산
+```
+
+#### Show similar diners for a specific diner_idx
+
+```bash
+poetry run python scripts/evaluate_diner_similarity.py \
+    --model_path result/untest/diner_embedding/<timestamp>/weight.pt \
+    --diner_idx 354918976 \
+    --top_n 10
+```
+
+Output:
+```
+================================================================================
+Anchor Diner (idx=354918976):
+  Name: 로우로우 버거샵
+  Category: 양식 > 햄버거 > nan
+================================================================================
+
+Top-10 Similar Diners:
+--------------------------------------------------------------------------------
+ 1. [0.9523] 파이브가이즈 용산
+    Category: 양식 > 햄버거 > nan ✓✓
+ 2. [0.8912] 브루클린버거
+    Category: 양식 > 햄버거 > nan ✓✓
+ ...
+--------------------------------------------------------------------------------
+```
+
+The ✓ marks indicate category matches:
+- ✓ = same large category as anchor
+- ✓✓ = same large AND middle category as anchor
+
+#### Interactive mode
+
+```bash
+poetry run python scripts/evaluate_diner_similarity.py \
+    --model_path result/untest/diner_embedding/<timestamp>/weight.pt \
+    --interactive
+```
+
+Commands in interactive mode:
+- `search <query>` - Search diners by name
+- `show <diner_idx>` - Show similar diners for a diner_idx
+- `quit` - Exit
+
+#### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `--model_path` | Path to trained model weights (.pt file) - **required** |
+| `--features_path` | Path to preprocessed features parquet (default: `data/processed/diner_features.parquet`) |
+| `--diner_csv` | Path to diner.csv (default: `data/diner.csv`) |
+| `--category_csv` | Path to diner_category.csv (default: `data/diner_category.csv`) |
+| `--diner_idx` | Anchor diner index to query |
+| `--search` | Search for diners by name |
+| `--top_n` | Number of similar diners to show (default: 10) |
+| `--device` | Device to use: cpu or cuda (default: cpu) |
+| `--interactive` | Run in interactive mode |
+
 ## How to process diner category data
 
 `scripts/process_category.py`는 음식점 카테고리 데이터를 전처리하는 스크립트입니다. `CategoryProcessor`와 `MiddleCategorySimplifier`를 순차적으로 실행하여 카테고리 데이터를 정제합니다.
@@ -308,3 +436,4 @@ poetry run python scripts/process_category.py \
 
 2. **MiddleCategorySimplifier** (`config/data/category_mappings.yaml`의 `simplify_mapping` 기반)
    - 브랜드/체인점 중심 분류를 음식 종류 중심으로 간소화
+
