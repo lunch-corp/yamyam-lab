@@ -447,14 +447,18 @@ class TestMultimodalTripletTrainer:
 
         config = multimodal_triplet_config
 
-        with patch(
-            "yamyam_lab.engine.base_trainer.load_configs",
-            return_value=(config, EasyDict({})),
-        ), patch(
-            "yamyam_lab.engine.base_trainer.generate_result_path",
-            return_value=result_path,
-        ), patch(
-            "yamyam_lab.tools.parse_args.save_command_to_file",
+        with (
+            patch(
+                "yamyam_lab.engine.base_trainer.load_configs",
+                return_value=(config, EasyDict({})),
+            ),
+            patch(
+                "yamyam_lab.engine.base_trainer.generate_result_path",
+                return_value=result_path,
+            ),
+            patch(
+                "yamyam_lab.tools.parse_args.save_command_to_file",
+            ),
         ):
             trainer = TrainerFactory.create_trainer(args)
             trainer.train()
@@ -488,14 +492,18 @@ class TestMultimodalTripletTrainer:
             save_candidate=False,
         )
 
-        with patch(
-            "yamyam_lab.engine.base_trainer.load_configs",
-            return_value=(config, EasyDict({})),
-        ), patch(
-            "yamyam_lab.engine.base_trainer.generate_result_path",
-            return_value=result_path,
-        ), patch(
-            "yamyam_lab.tools.parse_args.save_command_to_file",
+        with (
+            patch(
+                "yamyam_lab.engine.base_trainer.load_configs",
+                return_value=(config, EasyDict({})),
+            ),
+            patch(
+                "yamyam_lab.engine.base_trainer.generate_result_path",
+                return_value=result_path,
+            ),
+            patch(
+                "yamyam_lab.tools.parse_args.save_command_to_file",
+            ),
         ):
             trainer = TrainerFactory.create_trainer(args)
             trainer.train()

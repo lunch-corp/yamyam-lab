@@ -660,9 +660,7 @@ def multimodal_triplet_parquet_data(tmp_path):
         return pd.DataFrame({"anchor_idx": anchors, "positive_idx": positives})
 
     train_pairs_path = str(tmp_path / "training_pairs.parquet")
-    _make_pairs(NUM_TEST_TRAIN_PAIRS, seed=42).to_parquet(
-        train_pairs_path, index=False
-    )
+    _make_pairs(NUM_TEST_TRAIN_PAIRS, seed=42).to_parquet(train_pairs_path, index=False)
 
     val_pairs_path = str(tmp_path / "val_pairs.parquet")
     _make_pairs(NUM_TEST_VAL_PAIRS, seed=43).to_parquet(val_pairs_path, index=False)
