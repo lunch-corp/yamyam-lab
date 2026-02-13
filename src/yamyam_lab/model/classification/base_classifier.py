@@ -8,9 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy import sparse
 from sklearn.metrics import accuracy_score, classification_report, f1_score
-from sklearn.preprocessing import OneHotEncoder
 
 from yamyam_lab.data.category_loader import CategoryData, CategoryDataLoader
 from yamyam_lab.model.embedding.base_embedder import BaseEmbedder
@@ -68,7 +66,10 @@ class BaseClassifier(ABC):
         self.X_val = None
         self.X_missing = None
         self.model = None
-        self.category_encoder: OneHotEncoder = None
+        self.cat_feature_indices: list[int] = None
+        self._cat_train: np.ndarray = None
+        self._cat_val: np.ndarray = None
+        self._cat_missing: np.ndarray = None
 
     @property
     @abstractmethod
@@ -130,7 +131,7 @@ class BaseClassifier(ABC):
 
                     # Still need to append large category features
                     if self.use_large_category:
-                        self._append_large_category_features()
+                        self._prepare_large_category_features()
 
                     print(f"  Train shape: {self.X_train.shape}")
                     print(f"  Val shape: {self.X_val.shape}")
@@ -156,48 +157,37 @@ class BaseClassifier(ABC):
             self.X_missing = self.embedder.transform(self.data.missing_tokenized)
             self.embedder.save_embeddings(self.X_missing, "missing")
 
-        # Append one-hot encoded large category features
+        # Prepare large category feature (stored separately for CatBoost cat_features)
         if self.use_large_category:
-            self._append_large_category_features()
+            self._prepare_large_category_features()
 
-        print(f"  Train shape: {self.X_train.shape}")
+        print(f"  Embedding shape: {self.X_train.shape}")
         print(f"  Val shape: {self.X_val.shape}")
         if self.X_missing is not None:
             print(f"  Missing shape: {self.X_missing.shape}")
+        if self.cat_feature_indices:
+            print(f"  Cat features: {self.cat_feature_indices}")
 
     def _get_large_categories(self, df: pd.DataFrame) -> np.ndarray:
         """Extract large category column, filling NaN with 'unknown'."""
-        return df["diner_category_large"].fillna("unknown").values.reshape(-1, 1)
+        return df["diner_category_large"].fillna("unknown").values
 
-    def _append_large_category_features(self) -> None:
-        """One-hot encode diner_category_large and hstack with embeddings."""
-        print("Appending large category features...")
+    def _prepare_large_category_features(self) -> None:
+        """Store large category arrays for use as native categorical features."""
+        print("Preparing large category feature...")
 
-        self.category_encoder = OneHotEncoder(
-            sparse_output=True, handle_unknown="ignore"
-        )
-
-        train_cats = self._get_large_categories(self.data.df_train)
-        self.category_encoder.fit(train_cats)
-
-        X_cat_train = self.category_encoder.transform(train_cats)
-        self.X_train = sparse.hstack([self.X_train, X_cat_train], format="csr")
-
-        X_cat_val = self.category_encoder.transform(
-            self._get_large_categories(self.data.df_val)
-        )
-        self.X_val = sparse.hstack([self.X_val, X_cat_val], format="csr")
+        self._cat_train = self._get_large_categories(self.data.df_train)
+        self._cat_val = self._get_large_categories(self.data.df_val)
 
         if self.X_missing is not None and len(self.data.df_missing) > 0:
-            X_cat_missing = self.category_encoder.transform(
-                self._get_large_categories(self.data.df_missing)
-            )
-            self.X_missing = sparse.hstack(
-                [self.X_missing, X_cat_missing], format="csr"
-            )
+            self._cat_missing = self._get_large_categories(self.data.df_missing)
 
-        cat_names = self.category_encoder.get_feature_names_out()
-        print(f"  Added {len(cat_names)} large category features: {list(cat_names)}")
+        self.cat_feature_indices = [self.X_train.shape[1]]
+        unique_cats = sorted(set(self._cat_train))
+        print(
+            f"  Large category feature at index {self.cat_feature_indices[0]}"
+            f" ({len(unique_cats)} classes: {unique_cats})"
+        )
 
     @abstractmethod
     def build_model(self) -> None:
@@ -388,13 +378,6 @@ class BaseClassifier(ABC):
         with open(hierarchy_path, "wb") as f:
             pickle.dump(self.data.hierarchy, f)
         print(f"Hierarchy saved: {hierarchy_path}")
-
-        # Save category encoder
-        if self.category_encoder is not None:
-            cat_enc_path = model_dir / "category_encoder.pkl"
-            with open(cat_enc_path, "wb") as f:
-                pickle.dump(self.category_encoder, f)
-            print(f"Category encoder saved: {cat_enc_path}")
 
         # Save metrics
         metrics = {
