@@ -31,6 +31,7 @@ def main(args):
         sample_size = 2000
         args.iterations = min(args.iterations, 10)
         args.verbose = 1
+        args.cache_dir = args.cache_dir + "/test"
 
     print(f"Output directory: {output_dir}")
 
