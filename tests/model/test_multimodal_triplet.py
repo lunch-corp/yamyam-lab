@@ -107,6 +107,7 @@ class TestModel:
             "menu_embeddings": torch.randn(4, 768),
             "diner_name_embeddings": torch.randn(4, 768),
             "price_features": torch.randn(4, 3),
+            "review_text_embeddings": torch.randn(4, 768),
         }
         out = model(features)
         assert out.shape == (4, 32)
@@ -121,6 +122,7 @@ class TestModel:
             "menu_embeddings": torch.randn(2, 768),
             "diner_name_embeddings": torch.randn(2, 768),
             "price_features": torch.randn(2, 3),
+            "review_text_embeddings": torch.randn(2, 768),
         }
         out = model(features)
         norms = torch.norm(out, p=2, dim=-1)
@@ -137,6 +139,7 @@ class TestModel:
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),
+            "review_text_embeddings": torch.randn(n, 768),
         }
         model.compute_and_store_embeddings(all_features, batch_size=4)
         assert model._embedding is not None
@@ -165,6 +168,7 @@ class TestModel:
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),
+            "review_text_embeddings": torch.randn(n, 768),
         }
         model.compute_and_store_embeddings(all_features, batch_size=4)
         indices, scores = model.recommend(
@@ -191,6 +195,7 @@ class TestModel:
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),
+            "review_text_embeddings": torch.randn(n, 768),
         }
         model.compute_and_store_embeddings(all_features, batch_size=4)
         df = model.generate_candidates_for_each_diner(top_k_value=3)
@@ -265,6 +270,7 @@ class TestMultimodalTripletDataset:
         assert features["menu_embeddings"].shape == (n, 768)
         assert features["diner_name_embeddings"].shape == (n, 768)
         assert features["price_features"].shape == (n, 3)
+        assert features["review_text_embeddings"].shape == (n, 768)
 
     def test_get_features_by_indices(self, multimodal_triplet_parquet_data):
         """get_features_by_indices returns correct subset."""

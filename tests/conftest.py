@@ -621,6 +621,7 @@ def multimodal_triplet_parquet_data(tmp_path):
     diner_indices = list(range(NUM_TEST_DINERS))
     menu_data = rng.randn(NUM_TEST_DINERS, KOBERT_DIM).astype(np.float32)
     name_data = rng.randn(NUM_TEST_DINERS, KOBERT_DIM).astype(np.float32)
+    review_text_data = rng.randn(NUM_TEST_DINERS, KOBERT_DIM).astype(np.float32)
 
     features_dict = {
         "diner_idx": diner_indices,
@@ -631,6 +632,7 @@ def multimodal_triplet_parquet_data(tmp_path):
     for j in range(KOBERT_DIM):
         features_dict[f"menu_{j}"] = menu_data[:, j]
         features_dict[f"name_{j}"] = name_data[:, j]
+        features_dict[f"review_text_{j}"] = review_text_data[:, j]
     features_dict["avg_price"] = rng.uniform(5000, 30000, NUM_TEST_DINERS).astype(
         np.float32
     )
@@ -700,11 +702,13 @@ def multimodal_triplet_config(tmp_path, multimodal_triplet_parquet_data):
                 "menu_dim": 64,
                 "diner_name_dim": 16,
                 "price_dim": 8,
+                "review_text_dim": 16,
                 "num_attention_heads": 2,
                 "dropout": 0.0,
                 "kobert_model_name": "klue/bert-base",
                 "use_precomputed_menu_embeddings": True,
                 "use_precomputed_name_embeddings": True,
+                "use_precomputed_review_text_embeddings": True,
             },
             "training": {
                 "lr": 0.001,
@@ -760,10 +764,12 @@ def small_model_config():
         menu_dim=64,
         diner_name_dim=16,
         price_dim=8,
+        review_text_dim=16,
         num_attention_heads=2,
         dropout=0.0,
         use_precomputed_menu_embeddings=True,
         use_precomputed_name_embeddings=True,
+        use_precomputed_review_text_embeddings=True,
         device="cpu",
         top_k_values=[1, 3, 5],
         diner_ids=torch.arange(NUM_TEST_DINERS),
