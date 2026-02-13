@@ -1,378 +1,497 @@
-"""Tests for multimodal triplet embedding model components.
+"""Tests for multimodal triplet embedding model training pipeline."""
 
-Tests cover:
-- ReviewTextEncoder (precomputed path)
-- AttentionFusion with 4 and 5 modalities
-- Full Model forward pass with review text
-- Model backward pass (gradient flow)
-- MultimodalTripletConfig defaults
-"""
+import argparse
+import os
+from unittest.mock import patch
 
+import matplotlib
 import pytest
 import torch
+import torch.nn.functional as F
+from easydict import EasyDict
 
+from yamyam_lab.data.multimodal_triplet import (
+    MultimodalTripletDataset,
+    create_multimodal_triplet_dataloader,
+    multimodal_triplet_collate_fn,
+)
+from yamyam_lab.engine.multimodal_triplet_trainer import MultimodalTripletTrainer
+from yamyam_lab.loss.triplet import (
+    batch_hard_triplet_loss,
+    triplet_margin_loss,
+    triplet_margin_loss_with_category,
+    triplet_margin_loss_with_multiple_negatives,
+)
 from yamyam_lab.model.embedding.encoders import (
     AttentionFusion,
-    ReviewTextEncoder,
+    CategoryEncoder,
+    DinerNameEncoder,
+    FinalProjection,
+    MenuEncoder,
+    PriceEncoder,
 )
-from yamyam_lab.model.embedding.multimodal_triplet import Model, MultimodalTripletConfig
+from yamyam_lab.model.embedding.multimodal_triplet import Model
+from yamyam_lab.train import TrainerFactory
+
+matplotlib.use("Agg")
 
 
-class TestReviewTextEncoder:
-    """Tests for ReviewTextEncoder with precomputed embeddings."""
+class TestEncoders:
+    """Unit tests for encoder submodules."""
 
-    @pytest.fixture
-    def encoder(self):
-        return ReviewTextEncoder(output_dim=128, dropout=0.1)
-
-    def test_forward_precomputed_shape(self, encoder):
-        """Output shape should be (batch_size, output_dim)."""
-        batch_size = 4
-        x = torch.randn(batch_size, 768)
-        out = encoder.forward_precomputed(x)
-        assert out.shape == (batch_size, 128)
-
-    def test_forward_precomputed_batch_one(self, encoder):
-        """Should work with batch_size=1."""
-        x = torch.randn(1, 768)
-        out = encoder.forward_precomputed(x)
-        assert out.shape == (1, 128)
-
-    def test_output_dim_configurable(self):
-        """Output dimension should respect config."""
-        encoder = ReviewTextEncoder(output_dim=64)
-        x = torch.randn(2, 768)
-        out = encoder.forward_precomputed(x)
-        assert out.shape == (2, 64)
-
-    def test_gradient_flows(self, encoder):
-        """Gradients should flow through the MLP."""
-        x = torch.randn(4, 768)
-        out = encoder.forward_precomputed(x)
-        loss = out.sum()
-        loss.backward()
-        # Check that encoder parameters have gradients
-        for param in encoder.mlp.parameters():
-            if param.requires_grad:
-                assert param.grad is not None
-
-
-class TestAttentionFusion:
-    """Tests for AttentionFusion with 4 and 5 modalities."""
-
-    @pytest.fixture
-    def fusion_4mod(self):
-        """AttentionFusion with 4 modalities (no review text)."""
-        return AttentionFusion(
-            category_dim=128,
-            menu_dim=256,
-            diner_name_dim=64,
-            price_dim=32,
-            review_text_dim=0,
+    def test_category_encoder_output_shape(self):
+        """CategoryEncoder produces (batch_size, category_dim) output."""
+        encoder = CategoryEncoder(
+            num_large_categories=3,
+            num_middle_categories=5,
+            num_small_categories=8,
+            output_dim=32,
         )
-
-    @pytest.fixture
-    def fusion_5mod(self):
-        """AttentionFusion with 5 modalities (with review text)."""
-        return AttentionFusion(
-            category_dim=128,
-            menu_dim=256,
-            diner_name_dim=64,
-            price_dim=32,
-            review_text_dim=128,
+        out = encoder(
+            large_category_ids=torch.tensor([0, 1, 2, 0]),
+            middle_category_ids=torch.tensor([0, 1, 2, 3]),
+            small_category_ids=torch.tensor([0, 1, 2, 3]),
         )
+        assert out.shape == (4, 32)
 
-    @pytest.fixture
-    def base_inputs(self):
-        """Standard 4-modality inputs."""
-        batch_size = 4
-        return {
-            "category_emb": torch.randn(batch_size, 128),
-            "menu_emb": torch.randn(batch_size, 256),
-            "diner_name_emb": torch.randn(batch_size, 64),
-            "price_emb": torch.randn(batch_size, 32),
-        }
+    def test_menu_encoder_forward_precomputed_shape(self):
+        """MenuEncoder.forward_precomputed produces (batch_size, menu_dim) output."""
+        encoder = MenuEncoder(output_dim=64, dropout=0.0)
+        out = encoder.forward_precomputed(torch.randn(4, 768))
+        assert out.shape == (4, 64)
 
-    def test_4mod_output_shape(self, fusion_4mod, base_inputs):
-        """4-modality fusion should output total_dim = 480."""
-        out = fusion_4mod(**base_inputs)
-        assert out.shape == (4, 480)
+    def test_diner_name_encoder_forward_precomputed_shape(self):
+        """DinerNameEncoder.forward_precomputed produces (batch_size, diner_name_dim)."""
+        encoder = DinerNameEncoder(output_dim=16, dropout=0.0)
+        out = encoder.forward_precomputed(torch.randn(4, 768))
+        assert out.shape == (4, 16)
 
-    def test_4mod_total_dim(self, fusion_4mod):
-        """total_dim should be 128+256+64+32=480."""
-        assert fusion_4mod.total_dim == 480
-        assert fusion_4mod.num_modalities == 4
+    def test_price_encoder_output_shape(self):
+        """PriceEncoder produces (batch_size, price_dim) output."""
+        encoder = PriceEncoder(output_dim=8)
+        out = encoder(torch.randn(4, 3))
+        assert out.shape == (4, 8)
 
-    def test_5mod_output_shape(self, fusion_5mod, base_inputs):
-        """5-modality fusion should output total_dim = 608."""
-        review_emb = torch.randn(4, 128)
-        out = fusion_5mod(**base_inputs, review_text_emb=review_emb)
-        assert out.shape == (4, 608)
-
-    def test_5mod_total_dim(self, fusion_5mod):
-        """total_dim should be 128+256+64+32+128=608."""
-        assert fusion_5mod.total_dim == 608
-        assert fusion_5mod.num_modalities == 5
-
-    def test_5mod_none_review_falls_back(self, fusion_5mod, base_inputs):
-        """Passing review_text_emb=None to a 5-mod fusion should still work
-        (uses 4 modalities internally, but output_proj expects 5 tokens)."""
-        # This should raise or handle gracefully depending on implementation.
-        # Current implementation: if review_text_dim > 0 but emb is None,
-        # only 4 projections are stacked, causing shape mismatch in output_proj.
-        # This is expected - review_text_emb should always be provided when dim > 0.
-        with pytest.raises(RuntimeError):
-            fusion_5mod(**base_inputs, review_text_emb=None)
-
-    def test_gradient_flows_5mod(self, fusion_5mod, base_inputs):
-        """Gradients should flow through all 5 modalities."""
-        review_emb = torch.randn(4, 128, requires_grad=True)
-        base_inputs["category_emb"].requires_grad_(True)
-
-        out = fusion_5mod(**base_inputs, review_text_emb=review_emb)
-        out.sum().backward()
-
-        assert review_emb.grad is not None
-        assert base_inputs["category_emb"].grad is not None
-
-
-class TestFullModel:
-    """Tests for the full multimodal triplet Model."""
-
-    @pytest.fixture
-    def config_without_review(self):
-        """Config with 4 modalities (no review text)."""
-        return MultimodalTripletConfig(
-            num_large_categories=10,
-            num_middle_categories=20,
-            num_small_categories=30,
-            embedding_dim=128,
-            category_dim=128,
-            menu_dim=256,
-            diner_name_dim=64,
-            price_dim=32,
-            review_text_dim=0,
-            num_attention_heads=4,
-            dropout=0.1,
-            use_precomputed_menu_embeddings=True,
-            use_precomputed_name_embeddings=True,
-            device="cpu",
+    def test_attention_fusion_output_shape(self):
+        """AttentionFusion produces (batch_size, total_dim) output."""
+        fusion = AttentionFusion(
+            category_dim=32, menu_dim=64, diner_name_dim=16, price_dim=8, num_heads=2
         )
-
-    @pytest.fixture
-    def config_with_review(self):
-        """Config with 5 modalities (with review text)."""
-        return MultimodalTripletConfig(
-            num_large_categories=10,
-            num_middle_categories=20,
-            num_small_categories=30,
-            embedding_dim=128,
-            category_dim=128,
-            menu_dim=256,
-            diner_name_dim=64,
-            price_dim=32,
-            review_text_dim=128,
-            num_attention_heads=4,
-            dropout=0.1,
-            use_precomputed_menu_embeddings=True,
-            use_precomputed_name_embeddings=True,
-            use_precomputed_review_text_embeddings=True,
-            device="cpu",
+        out = fusion(
+            category_emb=torch.randn(4, 32),
+            menu_emb=torch.randn(4, 64),
+            diner_name_emb=torch.randn(4, 16),
+            price_emb=torch.randn(4, 8),
         )
+        assert out.shape == (4, 32 + 64 + 16 + 8)
 
-    @pytest.fixture
-    def features_4mod(self):
-        """Feature dict for 4 modalities."""
-        batch_size = 4
-        return {
-            "large_category_ids": torch.randint(0, 10, (batch_size,)),
-            "middle_category_ids": torch.randint(0, 20, (batch_size,)),
-            "small_category_ids": torch.randint(0, 30, (batch_size,)),
-            "menu_embeddings": torch.randn(batch_size, 768),
-            "diner_name_embeddings": torch.randn(batch_size, 768),
-            "price_features": torch.randn(batch_size, 3),
-        }
-
-    @pytest.fixture
-    def features_5mod(self, features_4mod):
-        """Feature dict for 5 modalities (adds review text)."""
-        batch_size = 4
-        features = dict(features_4mod)
-        features["review_text_embeddings"] = torch.randn(batch_size, 768)
-        return features
-
-    def test_forward_4mod(self, config_without_review, features_4mod):
-        """Model without review text should produce (B, 128) output."""
-        model = Model(config=config_without_review)
-        model.eval()
-        with torch.no_grad():
-            out = model(features_4mod)
-        assert out.shape == (4, 128)
-
-    def test_forward_5mod(self, config_with_review, features_5mod):
-        """Model with review text should produce (B, 128) output."""
-        model = Model(config=config_with_review)
-        model.eval()
-        with torch.no_grad():
-            out = model(features_5mod)
-        assert out.shape == (4, 128)
-
-    def test_output_is_l2_normalized(self, config_with_review, features_5mod):
-        """Output embeddings should be L2-normalized (unit vectors)."""
-        model = Model(config=config_with_review)
-        model.eval()
-        with torch.no_grad():
-            out = model(features_5mod)
-
+    def test_final_projection_l2_normalized(self):
+        """FinalProjection output is L2-normalized (norm ~= 1.0 per row)."""
+        proj = FinalProjection(input_dim=120, output_dim=32, dropout=0.0)
+        out = proj(torch.randn(4, 120))
         norms = torch.norm(out, p=2, dim=-1)
-        assert torch.allclose(norms, torch.ones_like(norms), atol=1e-5)
+        assert out.shape == (4, 32)
+        assert torch.allclose(norms, torch.ones(4), atol=1e-5)
 
-    def test_backward_pass(self, config_with_review, features_5mod):
-        """Gradients should flow through the model."""
-        model = Model(config=config_with_review)
-        model.train()
 
-        out = model(features_5mod)
-        loss = out.sum()
-        loss.backward()
+class TestModel:
+    """Unit tests for Model class."""
 
-        # Check that review text encoder has gradients
-        for param in model.review_text_encoder.mlp.parameters():
-            if param.requires_grad:
-                assert param.grad is not None
+    def test_forward_output_shape(self, small_model_config):
+        """Model.forward produces (batch_size, embedding_dim) output."""
+        model = Model(small_model_config)
+        features = {
+            "large_category_ids": torch.tensor([0, 1, 2, 0]),
+            "middle_category_ids": torch.tensor([0, 1, 2, 3]),
+            "small_category_ids": torch.tensor([0, 1, 2, 3]),
+            "menu_embeddings": torch.randn(4, 768),
+            "diner_name_embeddings": torch.randn(4, 768),
+            "price_features": torch.randn(4, 3),
+        }
+        out = model(features)
+        assert out.shape == (4, 32)
 
-    def test_model_has_review_encoder_when_dim_gt_zero(self, config_with_review):
-        """Model should have review_text_encoder when review_text_dim > 0."""
-        model = Model(config=config_with_review)
-        assert hasattr(model, "review_text_encoder")
-        assert isinstance(model.review_text_encoder, ReviewTextEncoder)
+    def test_forward_output_is_l2_normalized(self, small_model_config):
+        """Model output embeddings have unit L2 norm."""
+        model = Model(small_model_config)
+        features = {
+            "large_category_ids": torch.tensor([0, 1]),
+            "middle_category_ids": torch.tensor([0, 1]),
+            "small_category_ids": torch.tensor([0, 1]),
+            "menu_embeddings": torch.randn(2, 768),
+            "diner_name_embeddings": torch.randn(2, 768),
+            "price_features": torch.randn(2, 3),
+        }
+        out = model(features)
+        norms = torch.norm(out, p=2, dim=-1)
+        assert torch.allclose(norms, torch.ones(2), atol=1e-5)
 
-    def test_model_no_review_encoder_when_dim_zero(self, config_without_review):
-        """Model should NOT have review_text_encoder when review_text_dim = 0."""
-        model = Model(config=config_without_review)
-        assert not hasattr(model, "review_text_encoder")
+    def test_compute_and_store_embeddings(self, small_model_config):
+        """compute_and_store_embeddings populates _embedding with correct shape."""
+        model = Model(small_model_config)
+        n = 10
+        all_features = {
+            "large_category_ids": torch.randint(0, 3, (n,)),
+            "middle_category_ids": torch.randint(0, 5, (n,)),
+            "small_category_ids": torch.randint(0, 8, (n,)),
+            "menu_embeddings": torch.randn(n, 768),
+            "diner_name_embeddings": torch.randn(n, 768),
+            "price_features": torch.randn(n, 3),
+        }
+        model.compute_and_store_embeddings(all_features, batch_size=4)
+        assert model._embedding is not None
+        assert model._embedding.shape == (n, 32)
 
-    def test_parameter_count_increases_with_review(
-        self, config_without_review, config_with_review
+    def test_get_embedding_raises_without_compute(self, small_model_config):
+        """get_embedding raises RuntimeError if embeddings not computed."""
+        model = Model(small_model_config)
+        with pytest.raises(RuntimeError, match="Embeddings not computed"):
+            model.get_embedding(torch.tensor([0]))
+
+    def test_similarity_shape(self, small_model_config):
+        """similarity returns (batch_size, num_candidates) shape."""
+        model = Model(small_model_config)
+        sim = model.similarity(torch.randn(3, 32), torch.randn(10, 32))
+        assert sim.shape == (3, 10)
+
+    def test_recommend_returns_correct_format(self, small_model_config):
+        """recommend returns (indices, scores) with correct shape."""
+        model = Model(small_model_config)
+        n = 10
+        all_features = {
+            "large_category_ids": torch.randint(0, 3, (n,)),
+            "middle_category_ids": torch.randint(0, 5, (n,)),
+            "small_category_ids": torch.randint(0, 8, (n,)),
+            "menu_embeddings": torch.randn(n, 768),
+            "diner_name_embeddings": torch.randn(n, 768),
+            "price_features": torch.randn(n, 3),
+        }
+        model.compute_and_store_embeddings(all_features, batch_size=4)
+        indices, scores = model.recommend(
+            model._embedding[0:1], exclude_indices=[0], top_k=3
+        )
+        assert len(indices) == 3
+        assert len(scores) == 3
+        assert 0 not in indices
+
+    def test_recommend_raises_without_compute(self, small_model_config):
+        """recommend raises RuntimeError if embeddings not computed."""
+        model = Model(small_model_config)
+        with pytest.raises(RuntimeError, match="Embeddings not computed"):
+            model.recommend(torch.randn(1, 32))
+
+    def test_generate_candidates_for_each_diner(self, small_model_config):
+        """generate_candidates returns DataFrame with correct columns."""
+        model = Model(small_model_config)
+        n = 10
+        all_features = {
+            "large_category_ids": torch.randint(0, 3, (n,)),
+            "middle_category_ids": torch.randint(0, 5, (n,)),
+            "small_category_ids": torch.randint(0, 8, (n,)),
+            "menu_embeddings": torch.randn(n, 768),
+            "diner_name_embeddings": torch.randn(n, 768),
+            "price_features": torch.randn(n, 3),
+        }
+        model.compute_and_store_embeddings(all_features, batch_size=4)
+        df = model.generate_candidates_for_each_diner(top_k_value=3)
+        assert set(df.columns) == {"diner_id", "candidate_diner_id", "score"}
+        assert len(df) == n * 3
+        assert (df["diner_id"] != df["candidate_diner_id"]).all()
+
+
+class TestMultimodalTripletDataset:
+    """Unit tests for MultimodalTripletDataset."""
+
+    def test_dataset_length(self, multimodal_triplet_parquet_data):
+        """Dataset length equals number of training pairs."""
+        paths = multimodal_triplet_parquet_data
+        dataset = MultimodalTripletDataset(
+            features_path=paths["features_path"],
+            pairs_path=paths["pairs_path"],
+            category_mapping_path=paths["category_mapping_path"],
+            num_hard_negatives=2,
+            num_nearby_negatives=1,
+            num_random_negatives=1,
+        )
+        assert len(dataset) == 30
+
+    def test_getitem_returns_correct_keys(self, multimodal_triplet_parquet_data):
+        """__getitem__ returns dict with all expected keys."""
+        paths = multimodal_triplet_parquet_data
+        dataset = MultimodalTripletDataset(
+            features_path=paths["features_path"],
+            pairs_path=paths["pairs_path"],
+            category_mapping_path=paths["category_mapping_path"],
+            num_hard_negatives=2,
+            num_nearby_negatives=1,
+            num_random_negatives=1,
+        )
+        sample = dataset[0]
+        expected_keys = {
+            "anchor_idx",
+            "positive_idx",
+            "negative_indices",
+            "anchor_category",
+            "positive_category",
+            "negative_categories",
+        }
+        assert set(sample.keys()) == expected_keys
+
+    def test_getitem_negative_indices_shape(self, multimodal_triplet_parquet_data):
+        """Negative indices tensor has shape (total_negatives,)."""
+        paths = multimodal_triplet_parquet_data
+        dataset = MultimodalTripletDataset(
+            features_path=paths["features_path"],
+            pairs_path=paths["pairs_path"],
+            category_mapping_path=paths["category_mapping_path"],
+            num_hard_negatives=2,
+            num_nearby_negatives=1,
+            num_random_negatives=1,
+        )
+        sample = dataset[0]
+        assert sample["negative_indices"].shape == (4,)
+
+    def test_get_all_features_shape(self, multimodal_triplet_parquet_data):
+        """get_all_features returns tensors with correct shapes."""
+        paths = multimodal_triplet_parquet_data
+        dataset = MultimodalTripletDataset(
+            features_path=paths["features_path"],
+            pairs_path=paths["pairs_path"],
+            category_mapping_path=paths["category_mapping_path"],
+        )
+        features = dataset.get_all_features()
+        n = dataset.num_diners
+        assert features["large_category_ids"].shape == (n,)
+        assert features["menu_embeddings"].shape == (n, 768)
+        assert features["diner_name_embeddings"].shape == (n, 768)
+        assert features["price_features"].shape == (n, 3)
+
+    def test_get_features_by_indices(self, multimodal_triplet_parquet_data):
+        """get_features_by_indices returns correct subset."""
+        paths = multimodal_triplet_parquet_data
+        dataset = MultimodalTripletDataset(
+            features_path=paths["features_path"],
+            pairs_path=paths["pairs_path"],
+            category_mapping_path=paths["category_mapping_path"],
+        )
+        indices = torch.tensor([0, 2, 4])
+        features = dataset.get_features_by_indices(indices)
+        assert features["large_category_ids"].shape == (3,)
+        assert features["menu_embeddings"].shape == (3, 768)
+
+    def test_negative_sampling_produces_enough_negatives(
+        self, multimodal_triplet_parquet_data
     ):
-        """Model with review text should have more parameters."""
-        model_4 = Model(config=config_without_review)
-        model_5 = Model(config=config_with_review)
-
-        params_4 = sum(p.numel() for p in model_4.parameters())
-        params_5 = sum(p.numel() for p in model_5.parameters())
-
-        assert params_5 > params_4
-
-
-class TestMultimodalTripletConfig:
-    """Tests for MultimodalTripletConfig defaults."""
-
-    def test_defaults(self):
-        """Config should have correct default values."""
-        config = MultimodalTripletConfig(
-            num_large_categories=5,
-            num_middle_categories=10,
-            num_small_categories=15,
+        """Negative sampling always produces exactly total_negatives items."""
+        paths = multimodal_triplet_parquet_data
+        dataset = MultimodalTripletDataset(
+            features_path=paths["features_path"],
+            pairs_path=paths["pairs_path"],
+            category_mapping_path=paths["category_mapping_path"],
+            num_hard_negatives=2,
+            num_nearby_negatives=1,
+            num_random_negatives=1,
         )
-        assert config.embedding_dim == 128
-        assert config.review_text_dim == 128
-        assert config.use_precomputed_review_text_embeddings is True
+        for i in range(min(10, len(dataset))):
+            sample = dataset[i]
+            assert sample["negative_indices"].shape == (4,)
 
-    def test_review_text_dim_override(self):
-        """review_text_dim should be overridable."""
-        config = MultimodalTripletConfig(
-            num_large_categories=5,
-            num_middle_categories=10,
-            num_small_categories=15,
-            review_text_dim=0,
+
+class TestCollateFunction:
+    """Tests for collate function and DataLoader creation."""
+
+    def test_collate_fn_batches_correctly(self, multimodal_triplet_parquet_data):
+        """Collate function produces correctly batched tensors."""
+        paths = multimodal_triplet_parquet_data
+        dataset = MultimodalTripletDataset(
+            features_path=paths["features_path"],
+            pairs_path=paths["pairs_path"],
+            category_mapping_path=paths["category_mapping_path"],
+            num_hard_negatives=2,
+            num_nearby_negatives=1,
+            num_random_negatives=1,
         )
-        assert config.review_text_dim == 0
+        batch = [dataset[i] for i in range(4)]
+        collated = multimodal_triplet_collate_fn(batch)
+        assert collated["anchor_indices"].shape == (4,)
+        assert collated["positive_indices"].shape == (4,)
+        assert collated["negative_indices"].shape == (4, 4)
+        assert collated["anchor_categories"].shape == (4,)
+        assert collated["negative_categories"].shape == (4, 4)
 
-
-class TestLossIntegration:
-    """Integration tests: model output -> loss computation."""
-
-    @pytest.fixture
-    def model_and_features(self):
-        """Create model and sample features for integration testing."""
-        config = MultimodalTripletConfig(
-            num_large_categories=10,
-            num_middle_categories=20,
-            num_small_categories=30,
-            review_text_dim=128,
-            use_precomputed_menu_embeddings=True,
-            use_precomputed_name_embeddings=True,
-            use_precomputed_review_text_embeddings=True,
-            device="cpu",
+    def test_dataloader_iterates(self, multimodal_triplet_parquet_data):
+        """DataLoader from factory function yields valid batches."""
+        paths = multimodal_triplet_parquet_data
+        dl, ds = create_multimodal_triplet_dataloader(
+            features_path=paths["features_path"],
+            pairs_path=paths["pairs_path"],
+            category_mapping_path=paths["category_mapping_path"],
+            batch_size=4,
+            shuffle=False,
+            num_workers=0,
+            num_hard_negatives=2,
+            num_nearby_negatives=1,
+            num_random_negatives=1,
         )
-        model = Model(config=config)
+        batch = next(iter(dl))
+        assert "anchor_indices" in batch
+        assert batch["anchor_indices"].shape[0] <= 4
 
-        batch_size = 4
-        num_negatives = 5
 
-        def make_features(bs):
-            return {
-                "large_category_ids": torch.randint(0, 10, (bs,)),
-                "middle_category_ids": torch.randint(0, 20, (bs,)),
-                "small_category_ids": torch.randint(0, 30, (bs,)),
-                "menu_embeddings": torch.randn(bs, 768),
-                "diner_name_embeddings": torch.randn(bs, 768),
-                "price_features": torch.randn(bs, 3),
-                "review_text_embeddings": torch.randn(bs, 768),
-            }
+class TestTripletLoss:
+    """Unit tests for triplet loss functions."""
 
-        return model, make_features, batch_size, num_negatives
+    def test_triplet_margin_loss_non_negative(self):
+        """Loss is always non-negative."""
+        anchor = F.normalize(torch.randn(8, 32), p=2, dim=-1)
+        positive = F.normalize(torch.randn(8, 32), p=2, dim=-1)
+        negative = F.normalize(torch.randn(8, 32), p=2, dim=-1)
+        loss = triplet_margin_loss(anchor, positive, negative, margin=0.5)
+        assert loss.item() >= 0.0
 
-    def test_triplet_loss_integration(self, model_and_features):
-        """Model embeddings should work with triplet loss."""
-        from yamyam_lab.loss.triplet import triplet_margin_loss_with_multiple_negatives
+    def test_triplet_margin_loss_positive_when_negative_closer(self):
+        """Loss is positive when negative is closer than positive."""
+        anchor = F.normalize(torch.tensor([[1.0, 0.0]]), p=2, dim=-1)
+        positive = F.normalize(torch.tensor([[-1.0, 0.0]]), p=2, dim=-1)
+        negative = F.normalize(torch.tensor([[0.9, 0.1]]), p=2, dim=-1)
+        loss = triplet_margin_loss(anchor, positive, negative, margin=0.5)
+        assert loss.item() > 0.0
 
-        model, make_features, batch_size, num_negatives = model_and_features
-        model.train()
+    def test_triplet_margin_loss_is_differentiable(self):
+        """Loss supports gradient computation."""
+        anchor = F.normalize(torch.randn(4, 32, requires_grad=True), p=2, dim=-1)
+        positive = F.normalize(torch.randn(4, 32), p=2, dim=-1)
+        negative = F.normalize(torch.randn(4, 32), p=2, dim=-1)
+        loss = triplet_margin_loss(anchor, positive, negative)
+        loss.backward()
 
-        anchor_emb = model(make_features(batch_size))
-        positive_emb = model(make_features(batch_size))
+    def test_triplet_margin_loss_with_category_returns_scalar(self):
+        """Category-aware loss returns a scalar tensor."""
+        anchor = F.normalize(torch.randn(4, 32), p=2, dim=-1)
+        positive = F.normalize(torch.randn(4, 32), p=2, dim=-1)
+        negative = F.normalize(torch.randn(4, 32), p=2, dim=-1)
+        cats = torch.tensor([0, 0, 1, 1])
+        loss = triplet_margin_loss_with_category(
+            anchor, positive, negative, cats, cats, cats, margin=0.5
+        )
+        assert loss.dim() == 0
+        assert loss.item() >= 0.0
 
-        # Compute negatives in batch
-        flat_neg_features = make_features(batch_size * num_negatives)
-        flat_neg_emb = model(flat_neg_features)
-        neg_emb = flat_neg_emb.view(batch_size, num_negatives, -1)
-
+    def test_triplet_margin_loss_with_multiple_negatives_returns_scalar(self):
+        """Multiple-negatives loss returns a scalar."""
+        B, D, N = 4, 32, 3
+        anchor = F.normalize(torch.randn(B, D), p=2, dim=-1)
+        positive = F.normalize(torch.randn(B, D), p=2, dim=-1)
+        negatives = F.normalize(torch.randn(B, N, D), p=2, dim=-1)
+        a_cat = torch.tensor([0, 0, 1, 1])
+        p_cat = torch.tensor([0, 0, 1, 1])
+        n_cat = torch.tensor([[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]])
         loss = triplet_margin_loss_with_multiple_negatives(
-            anchor=anchor_emb,
-            positive=positive_emb,
-            negatives=neg_emb,
-            anchor_category=torch.randint(0, 5, (batch_size,)),
-            positive_category=torch.randint(0, 5, (batch_size,)),
-            negative_categories=torch.randint(0, 5, (batch_size, num_negatives)),
+            anchor, positive, negatives, a_cat, p_cat, n_cat, margin=0.5
+        )
+        assert loss.dim() == 0
+        assert loss.item() >= 0.0
+
+    def test_batch_hard_triplet_loss_zero_with_same_labels(self):
+        """batch_hard_triplet_loss returns 0 when all labels are the same."""
+        emb = F.normalize(torch.randn(4, 32), p=2, dim=-1)
+        labels = torch.tensor([0, 0, 0, 0])
+        loss = batch_hard_triplet_loss(emb, labels, margin=0.5)
+        assert loss.item() == 0.0
+
+    def test_batch_hard_triplet_loss_with_valid_triplets(self):
+        """batch_hard_triplet_loss returns non-negative value with mixed labels."""
+        emb = F.normalize(torch.randn(8, 32), p=2, dim=-1)
+        labels = torch.tensor([0, 0, 1, 1, 2, 2, 3, 3])
+        loss = batch_hard_triplet_loss(emb, labels, margin=0.5)
+        assert loss.item() >= 0.0
+
+
+class TestMultimodalTripletTrainer:
+    """Integration tests for the full training pipeline."""
+
+    def test_factory_creates_correct_trainer(self):
+        """TrainerFactory creates MultimodalTripletTrainer for multimodal_triplet."""
+        args = argparse.Namespace(model="multimodal_triplet")
+        trainer = TrainerFactory.create_trainer(args)
+        assert isinstance(trainer, MultimodalTripletTrainer)
+
+    def test_full_training_pipeline(
+        self, tmp_path, multimodal_triplet_parquet_data, multimodal_triplet_config
+    ):
+        """Integration test: full train() pipeline completes without error."""
+        result_path = str(tmp_path / "results")
+        os.makedirs(result_path, exist_ok=True)
+
+        args = argparse.Namespace(
+            model="multimodal_triplet",
+            device="cpu",
+            num_workers=0,
+            random_seed=42,
+            epochs=2,
+            lr=0.001,
+            batch_size=8,
+            patience=2,
+            result_path=result_path,
+            config_root_path=None,
+            postfix="pytest",
+            test=True,
+            save_candidate=False,
         )
 
-        assert loss.dim() == 0
-        loss.backward()
+        config = multimodal_triplet_config
 
-    def test_infonce_loss_integration(self, model_and_features):
-        """Model embeddings should work with InfoNCE loss."""
-        from yamyam_lab.loss.infonce import infonce_loss_with_multiple_negatives
+        with patch(
+            "yamyam_lab.engine.base_trainer.load_configs",
+            return_value=(config, EasyDict({})),
+        ), patch(
+            "yamyam_lab.engine.base_trainer.generate_result_path",
+            return_value=result_path,
+        ), patch(
+            "yamyam_lab.tools.parse_args.save_command_to_file",
+        ):
+            trainer = TrainerFactory.create_trainer(args)
+            trainer.train()
 
-        model, make_features, batch_size, num_negatives = model_and_features
-        model.train()
+        assert os.path.exists(os.path.join(result_path, "log.log"))
+        assert len(trainer.model.tr_loss) == 2
 
-        anchor_emb = model(make_features(batch_size))
-        positive_emb = model(make_features(batch_size))
+    def test_training_without_validation(
+        self, tmp_path, multimodal_triplet_parquet_data, multimodal_triplet_config
+    ):
+        """Training works when val_pairs_path doesn't exist."""
+        result_path = str(tmp_path / "results_noval")
+        os.makedirs(result_path, exist_ok=True)
 
-        flat_neg_features = make_features(batch_size * num_negatives)
-        flat_neg_emb = model(flat_neg_features)
-        neg_emb = flat_neg_emb.view(batch_size, num_negatives, -1)
+        config = multimodal_triplet_config
+        config.data.val_pairs_path = str(tmp_path / "nonexistent_val_pairs.parquet")
 
-        loss = infonce_loss_with_multiple_negatives(
-            anchor=anchor_emb,
-            positive=positive_emb,
-            negatives=neg_emb,
-            anchor_category=torch.randint(0, 5, (batch_size,)),
-            positive_category=torch.randint(0, 5, (batch_size,)),
-            negative_categories=torch.randint(0, 5, (batch_size, num_negatives)),
+        args = argparse.Namespace(
+            model="multimodal_triplet",
+            device="cpu",
+            num_workers=0,
+            random_seed=42,
+            epochs=1,
+            lr=0.001,
+            batch_size=8,
+            patience=1,
+            result_path=result_path,
+            config_root_path=None,
+            postfix="pytest",
+            test=True,
+            save_candidate=False,
         )
 
-        assert loss.dim() == 0
-        loss.backward()
+        with patch(
+            "yamyam_lab.engine.base_trainer.load_configs",
+            return_value=(config, EasyDict({})),
+        ), patch(
+            "yamyam_lab.engine.base_trainer.generate_result_path",
+            return_value=result_path,
+        ), patch(
+            "yamyam_lab.tools.parse_args.save_command_to_file",
+        ):
+            trainer = TrainerFactory.create_trainer(args)
+            trainer.train()
+
+        assert trainer.val_loader is None
