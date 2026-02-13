@@ -8,7 +8,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import sparse
 from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.preprocessing import OneHotEncoder
 
 from yamyam_lab.data.category_loader import CategoryData, CategoryDataLoader
 from yamyam_lab.model.embedding.base_embedder import BaseEmbedder
@@ -44,6 +46,7 @@ class BaseClassifier(ABC):
         data_dir: str = "data",
         cache_dir: str = "cache/classification",
         use_menu: bool = True,
+        use_large_category: bool = True,
         val_ratio: float = 0.1,
         min_class_samples: int = 10,
         random_state: int = 42,
@@ -54,6 +57,7 @@ class BaseClassifier(ABC):
         self.data_dir = data_dir
         self.cache_dir = cache_dir
         self.use_menu = use_menu
+        self.use_large_category = use_large_category
         self.val_ratio = val_ratio
         self.min_class_samples = min_class_samples
         self.random_state = random_state
@@ -64,6 +68,7 @@ class BaseClassifier(ABC):
         self.X_val = None
         self.X_missing = None
         self.model = None
+        self.category_encoder: OneHotEncoder = None
 
     @property
     @abstractmethod
@@ -103,11 +108,34 @@ class BaseClassifier(ABC):
             self.X_missing = self.embedder.load_embeddings("missing")
 
             if self.X_train is not None and self.X_val is not None:
+                # Validate cached dimensions match current data
+                n_train = len(self.data.train_tokenized)
+                n_val = len(self.data.val_tokenized)
+                if self.X_train.shape[0] != n_train or self.X_val.shape[0] != n_val:
+                    print(
+                        f"  Cached embeddings dimension mismatch "
+                        f"(cached train={self.X_train.shape[0]}, "
+                        f"expected={n_train}). Recomputing..."
+                    )
+                    self.X_train = None
+                    self.X_val = None
+                    self.X_missing = None
                 # Also need to load the fitted embedder
-                embedder_path = self.embedder.cache_dir / f"{self.embedder.name}.pkl"
-                if embedder_path.exists():
+                elif (
+                    embedder_path := self.embedder.cache_dir
+                    / f"{self.embedder.name}.pkl"
+                ).exists():
                     self.embedder = BaseEmbedder.load(embedder_path)
                     print("Using cached embeddings.")
+
+                    # Still need to append large category features
+                    if self.use_large_category:
+                        self._append_large_category_features()
+
+                    print(f"  Train shape: {self.X_train.shape}")
+                    print(f"  Val shape: {self.X_val.shape}")
+                    if self.X_missing is not None:
+                        print(f"  Missing shape: {self.X_missing.shape}")
                     return
 
         # Fit embedder on training data
@@ -128,10 +156,48 @@ class BaseClassifier(ABC):
             self.X_missing = self.embedder.transform(self.data.missing_tokenized)
             self.embedder.save_embeddings(self.X_missing, "missing")
 
+        # Append one-hot encoded large category features
+        if self.use_large_category:
+            self._append_large_category_features()
+
         print(f"  Train shape: {self.X_train.shape}")
         print(f"  Val shape: {self.X_val.shape}")
         if self.X_missing is not None:
             print(f"  Missing shape: {self.X_missing.shape}")
+
+    def _get_large_categories(self, df: pd.DataFrame) -> np.ndarray:
+        """Extract large category column, filling NaN with 'unknown'."""
+        return df["diner_category_large"].fillna("unknown").values.reshape(-1, 1)
+
+    def _append_large_category_features(self) -> None:
+        """One-hot encode diner_category_large and hstack with embeddings."""
+        print("Appending large category features...")
+
+        self.category_encoder = OneHotEncoder(
+            sparse_output=True, handle_unknown="ignore"
+        )
+
+        train_cats = self._get_large_categories(self.data.df_train)
+        self.category_encoder.fit(train_cats)
+
+        X_cat_train = self.category_encoder.transform(train_cats)
+        self.X_train = sparse.hstack([self.X_train, X_cat_train], format="csr")
+
+        X_cat_val = self.category_encoder.transform(
+            self._get_large_categories(self.data.df_val)
+        )
+        self.X_val = sparse.hstack([self.X_val, X_cat_val], format="csr")
+
+        if self.X_missing is not None and len(self.data.df_missing) > 0:
+            X_cat_missing = self.category_encoder.transform(
+                self._get_large_categories(self.data.df_missing)
+            )
+            self.X_missing = sparse.hstack(
+                [self.X_missing, X_cat_missing], format="csr"
+            )
+
+        cat_names = self.category_encoder.get_feature_names_out()
+        print(f"  Added {len(cat_names)} large category features: {list(cat_names)}")
 
     @abstractmethod
     def build_model(self) -> None:
@@ -143,11 +209,19 @@ class BaseClassifier(ABC):
         """Train the model. Must be implemented by subclasses."""
         raise NotImplementedError
 
-    def evaluate(self, X, y_true, set_name: str = "Validation") -> ClassificationResult:
-        """Evaluate model on given data."""
+    def evaluate(
+        self, X, y_true, set_name: str = "Validation", df: pd.DataFrame = None
+    ) -> ClassificationResult:
+        """Evaluate model on given data with optional hierarchy constraint."""
         print(f"\nEvaluating on {set_name} set...")
 
-        y_pred = self.model.predict(X)
+        if df is not None and hasattr(self.model, "predict_proba"):
+            y_proba = self.model.predict_proba(X)
+            y_pred, _ = self._constrained_predict(
+                y_proba, large_categories=df["diner_category_large"].values
+            )
+        else:
+            y_pred = self.model.predict(X)
 
         accuracy = accuracy_score(y_true, y_pred)
         f1_macro = f1_score(y_true, y_pred, average="macro")
@@ -223,7 +297,7 @@ class BaseClassifier(ABC):
         return result
 
     def _constrained_predict(
-        self, y_proba: np.ndarray
+        self, y_proba: np.ndarray, large_categories: np.ndarray = None
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply hierarchy constraint to predictions.
@@ -231,6 +305,11 @@ class BaseClassifier(ABC):
         For each sample, mask out middle categories that don't belong to
         the sample's large category, then select the highest probability
         valid category.
+
+        Args:
+            y_proba: Probability matrix from model.
+            large_categories: Array of large category values. If None,
+                uses df_missing large categories.
         """
         print("Applying hierarchy constraint...")
 
@@ -244,8 +323,8 @@ class BaseClassifier(ABC):
             for middle in middles:
                 middle_to_large[middle] = large
 
-        # Get large categories for missing data
-        large_categories = self.data.df_missing["diner_category_large"].values
+        if large_categories is None:
+            large_categories = self.data.df_missing["diner_category_large"].values
 
         y_pred = np.zeros(len(y_proba), dtype=int)
         y_conf = np.zeros(len(y_proba))
@@ -309,6 +388,13 @@ class BaseClassifier(ABC):
         with open(hierarchy_path, "wb") as f:
             pickle.dump(self.data.hierarchy, f)
         print(f"Hierarchy saved: {hierarchy_path}")
+
+        # Save category encoder
+        if self.category_encoder is not None:
+            cat_enc_path = model_dir / "category_encoder.pkl"
+            with open(cat_enc_path, "wb") as f:
+                pickle.dump(self.category_encoder, f)
+            print(f"Category encoder saved: {cat_enc_path}")
 
         # Save metrics
         metrics = {
@@ -410,7 +496,9 @@ class BaseClassifier(ABC):
         self.train_model()
 
         # Step 5: Evaluate on validation
-        val_result = self.evaluate(self.X_val, self.data.y_val, "Validation")
+        val_result = self.evaluate(
+            self.X_val, self.data.y_val, "Validation", df=self.data.df_val
+        )
 
         # Step 6: Predict missing
         predictions = self.predict_missing()

@@ -56,6 +56,7 @@ def main(args):
             data_dir=args.data_dir,
             cache_dir=args.cache_dir,
             use_menu=args.use_menu,
+            use_large_category=args.use_large_category,
             val_ratio=args.val_ratio,
             min_class_samples=args.min_class_samples,
             sample_size=sample_size,
@@ -113,6 +114,18 @@ if __name__ == "__main__":
         dest="use_menu",
         action="store_false",
         help="Don't use menu names",
+    )
+    parser.add_argument(
+        "--use-large-category",
+        action="store_true",
+        default=True,
+        help="Use large category as feature",
+    )
+    parser.add_argument(
+        "--no-large-category",
+        dest="use_large_category",
+        action="store_false",
+        help="Don't use large category as feature",
     )
     parser.add_argument(
         "--val-ratio",
