@@ -58,6 +58,16 @@ class GraphDatasetLoader(BaseDatasetLoader):
         diner_meta_feature = prepared_data["diner_meta_feature"]
         mapped_res = prepared_data["mapped_res"]
 
+        # Apply ranker-identical target definition:
+        # target=1 if reviewer_review_score >= temporal reviewer average
+        # Only keep positive interactions as graph edges / evaluation ground truth
+        train = self.create_target_column(train)
+        val = self.create_target_column(val)
+        test = self.create_target_column(test)
+        train = train[train["target"] == 1]
+        val = val[val["target"] == 1]
+        test = test[test["target"] == 1]
+
         val_warm_start_user_ids, val_cold_start_user_ids = (
             self.get_warm_cold_start_user_ids(
                 train_review=train,
