@@ -114,11 +114,11 @@ class TestCategoryClassifier:
 
             classifier.prepare_embeddings(force_recompute=True)
 
-            # Feature matrix should include extra one-hot columns for large categories
-            n_large_cats = len(mock_category_data.hierarchy)
+            # TF-IDF shape unchanged; cat features stored separately
             tfidf_dim = classifier.embedder.get_embedding_dim()
-            assert classifier.X_train.shape[1] == tfidf_dim + n_large_cats
-            assert classifier.category_encoder is not None
+            assert classifier.X_train.shape[1] == tfidf_dim
+            assert classifier.cat_feature_indices == [tfidf_dim]
+            assert classifier._cat_train is not None
 
             classifier.build_model()
             classifier.train_model()
@@ -139,7 +139,6 @@ class TestCategoryClassifier:
 
             classifier.save_results(result, predictions)
             assert (tmp_path / "output" / "model.pkl").exists()
-            assert (tmp_path / "output" / "category_encoder.pkl").exists()
 
     def test_pipeline_without_large_category(self, tmp_path, mock_category_data):
         """Test full pipeline with large category feature disabled."""
@@ -153,7 +152,7 @@ class TestCategoryClassifier:
 
             tfidf_dim = classifier.embedder.get_embedding_dim()
             assert classifier.X_train.shape[1] == tfidf_dim
-            assert classifier.category_encoder is None
+            assert classifier.cat_feature_indices is None
 
             classifier.build_model()
             classifier.train_model()
@@ -168,4 +167,3 @@ class TestCategoryClassifier:
 
             classifier.save_results(result)
             assert (tmp_path / "output" / "model.pkl").exists()
-            assert not (tmp_path / "output" / "category_encoder.pkl").exists()
