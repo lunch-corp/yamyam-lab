@@ -1,8 +1,13 @@
 import argparse
 
+import numpy as np
 import pandas as pd
 import pytest
+import torch
+from easydict import EasyDict
 from omegaconf import OmegaConf
+
+from yamyam_lab.model.embedding.multimodal_triplet import MultimodalTripletConfig
 
 
 @pytest.fixture
@@ -591,3 +596,180 @@ def setup_ranker_config(request):
         },
     }
     return OmegaConf.create(config)
+
+
+# ---------------------------------------------------------------------------
+# Multimodal Triplet Embedding Model Fixtures
+# ---------------------------------------------------------------------------
+
+NUM_TEST_DINERS = 20
+NUM_TEST_TRAIN_PAIRS = 30
+NUM_TEST_VAL_PAIRS = 10
+NUM_TEST_TEST_PAIRS = 10
+NUM_LARGE_CATEGORIES = 3
+NUM_MIDDLE_CATEGORIES = 5
+NUM_SMALL_CATEGORIES = 8
+KOBERT_DIM = 768
+
+
+@pytest.fixture
+def multimodal_triplet_parquet_data(tmp_path):
+    """Create synthetic parquet files for multimodal triplet model tests."""
+    rng = np.random.RandomState(42)
+
+    # --- features parquet ---
+    diner_indices = list(range(NUM_TEST_DINERS))
+    menu_data = rng.randn(NUM_TEST_DINERS, KOBERT_DIM).astype(np.float32)
+    name_data = rng.randn(NUM_TEST_DINERS, KOBERT_DIM).astype(np.float32)
+    review_text_data = rng.randn(NUM_TEST_DINERS, KOBERT_DIM).astype(np.float32)
+
+    features_dict = {
+        "diner_idx": diner_indices,
+        "large_category_id": [i % NUM_LARGE_CATEGORIES for i in diner_indices],
+        "middle_category_id": [i % NUM_MIDDLE_CATEGORIES for i in diner_indices],
+        "small_category_id": [i % NUM_SMALL_CATEGORIES for i in diner_indices],
+    }
+    for j in range(KOBERT_DIM):
+        features_dict[f"menu_{j}"] = menu_data[:, j]
+        features_dict[f"name_{j}"] = name_data[:, j]
+        features_dict[f"review_text_{j}"] = review_text_data[:, j]
+    features_dict["avg_price"] = rng.uniform(5000, 30000, NUM_TEST_DINERS).astype(
+        np.float32
+    )
+    features_dict["min_price"] = rng.uniform(3000, 15000, NUM_TEST_DINERS).astype(
+        np.float32
+    )
+    features_dict["max_price"] = rng.uniform(15000, 50000, NUM_TEST_DINERS).astype(
+        np.float32
+    )
+
+    features_df = pd.DataFrame(features_dict)
+    features_path = str(tmp_path / "diner_features.parquet")
+    features_df.to_parquet(features_path, index=False)
+
+    # --- pairs parquets ---
+    def _make_pairs(n: int, seed: int) -> pd.DataFrame:
+        pair_rng = np.random.RandomState(seed)
+        anchors, positives = [], []
+        while len(anchors) < n:
+            a = int(pair_rng.randint(0, NUM_TEST_DINERS))
+            p = int(pair_rng.randint(0, NUM_TEST_DINERS))
+            if a != p:
+                anchors.append(a)
+                positives.append(p)
+        return pd.DataFrame({"anchor_idx": anchors, "positive_idx": positives})
+
+    train_pairs_path = str(tmp_path / "training_pairs.parquet")
+    _make_pairs(NUM_TEST_TRAIN_PAIRS, seed=42).to_parquet(train_pairs_path, index=False)
+
+    val_pairs_path = str(tmp_path / "val_pairs.parquet")
+    _make_pairs(NUM_TEST_VAL_PAIRS, seed=43).to_parquet(val_pairs_path, index=False)
+
+    test_pairs_path = str(tmp_path / "test_pairs.parquet")
+    _make_pairs(NUM_TEST_TEST_PAIRS, seed=44).to_parquet(test_pairs_path, index=False)
+
+    # --- category mapping parquet ---
+    cat_df = pd.DataFrame(
+        {
+            "diner_idx": diner_indices,
+            "large_category_id": [i % NUM_LARGE_CATEGORIES for i in diner_indices],
+            "middle_category_id": [i % NUM_MIDDLE_CATEGORIES for i in diner_indices],
+        }
+    )
+    cat_path = str(tmp_path / "category_mapping.parquet")
+    cat_df.to_parquet(cat_path, index=False)
+
+    return {
+        "features_path": features_path,
+        "pairs_path": train_pairs_path,
+        "val_pairs_path": val_pairs_path,
+        "test_pairs_path": test_pairs_path,
+        "category_mapping_path": cat_path,
+    }
+
+
+@pytest.fixture
+def multimodal_triplet_config(tmp_path, multimodal_triplet_parquet_data):
+    """Create EasyDict config mirroring multimodal_triplet.yaml for tests."""
+    paths = multimodal_triplet_parquet_data
+    return EasyDict(
+        {
+            "model": {
+                "embedding_dim": 32,
+                "category_dim": 32,
+                "menu_dim": 64,
+                "diner_name_dim": 16,
+                "price_dim": 8,
+                "review_text_dim": 16,
+                "num_attention_heads": 2,
+                "dropout": 0.0,
+                "kobert_model_name": "klue/bert-base",
+                "use_precomputed_menu_embeddings": True,
+                "use_precomputed_name_embeddings": True,
+                "use_precomputed_review_text_embeddings": True,
+            },
+            "training": {
+                "lr": 0.001,
+                "weight_decay": 1e-5,
+                "batch_size": 8,
+                "epochs": 2,
+                "patience": 2,
+                "margin": 0.5,
+                "category_weight": 0.1,
+                "gradient_clip": 1.0,
+                "num_hard_negatives": 2,
+                "num_nearby_negatives": 1,
+                "num_random_negatives": 1,
+                "evaluation": {
+                    "recommend_batch_size": 10,
+                    "top_k_values_for_pred": [1, 3, 5],
+                    "top_k_values_for_candidate": [10],
+                },
+            },
+            "data": {
+                "features_path": paths["features_path"],
+                "pairs_path": paths["pairs_path"],
+                "val_pairs_path": paths["val_pairs_path"],
+                "test_pairs_path": paths["test_pairs_path"],
+                "category_mapping_path": paths["category_mapping_path"],
+            },
+            "post_training": {
+                "file_name": {
+                    "log": "log.log",
+                    "weight": "weight.pt",
+                    "training_loss": "training_loss.pkl",
+                    "metric": "metric.pkl",
+                    "data_object": "data_object.pkl",
+                    "user_mapping": "user_mapping.pkl",
+                    "diner_mapping": "diner_mapping.pkl",
+                    "candidate": "candidate.parquet",
+                },
+                "candidate_generation": {"top_k": 5},
+            },
+        }
+    )
+
+
+@pytest.fixture
+def small_model_config():
+    """Create a small MultimodalTripletConfig for fast unit tests."""
+    return MultimodalTripletConfig(
+        num_large_categories=NUM_LARGE_CATEGORIES,
+        num_middle_categories=NUM_MIDDLE_CATEGORIES,
+        num_small_categories=NUM_SMALL_CATEGORIES,
+        embedding_dim=32,
+        category_dim=32,
+        menu_dim=64,
+        diner_name_dim=16,
+        price_dim=8,
+        review_text_dim=16,
+        num_attention_heads=2,
+        dropout=0.0,
+        use_precomputed_menu_embeddings=True,
+        use_precomputed_name_embeddings=True,
+        use_precomputed_review_text_embeddings=True,
+        device="cpu",
+        top_k_values=[1, 3, 5],
+        diner_ids=torch.arange(NUM_TEST_DINERS),
+        recommend_batch_size=10,
+    )
