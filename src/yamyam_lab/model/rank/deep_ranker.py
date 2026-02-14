@@ -18,15 +18,15 @@ from yamyam_lab.model.rank.base import BaseModel
 
 class DeepRankerModel(nn.Module):
     """
-    Deep Learning Ranker using hybrid MLP architecture.
+    Deep Learning Ranker using hybrid MLP architecture with proper regularization.
 
     Architecture:
-        - User Embedding (num_users × embed_dim)
-        - Diner Embedding (num_diners × embed_dim)
-        - Tabular Features → BatchNorm
+        - User Embedding (num_users × small_embed_dim)
+        - Diner Embedding (num_diners × small_embed_dim)
+        - Tabular Features → Layer normalization (more stable than BatchNorm)
         - Concatenate: [User Embed | Diner Embed | Features]
-        - MLP Layers with BatchNorm + ReLU + Dropout
-        - Output: Scalar score
+        - MLP Layers with LayerNorm + ReLU + Dropout
+        - Output: Sigmoid-bounded score (0-1)
     """
 
     def __init__(
@@ -34,9 +34,9 @@ class DeepRankerModel(nn.Module):
         num_users: int,
         num_diners: int,
         num_features: int,
-        embedding_dim: int = 64,
-        hidden_dims: List[int] = [256, 128, 64],
-        dropout: float = 0.3,
+        embedding_dim: int = 16,  # Reduced from 64 to prevent overfitting
+        hidden_dims: List[int] = [128, 64, 32],  # Reduced hidden dims
+        dropout: float = 0.5,  # Increased from 0.3
     ):
         """
         Args:
@@ -56,14 +56,14 @@ class DeepRankerModel(nn.Module):
         self.hidden_dims = hidden_dims
         self.dropout = dropout
 
-        # Embedding layers
+        # Embedding layers - use smaller embeddings with L2 norm
         self.user_embedding = nn.Embedding(num_users, embedding_dim)
         self.diner_embedding = nn.Embedding(num_diners, embedding_dim)
 
-        # Feature normalization
-        self.feature_norm = nn.BatchNorm1d(num_features)
+        # Layer normalization (more stable than BatchNorm for features)
+        self.feature_norm = nn.LayerNorm(num_features)
 
-        # MLP layers
+        # MLP layers with LayerNorm instead of BatchNorm
         input_dim = embedding_dim * 2 + num_features
         mlp_layers = []
 
@@ -72,15 +72,16 @@ class DeepRankerModel(nn.Module):
             mlp_layers.extend(
                 [
                     nn.Linear(prev_dim, hidden_dim),
-                    nn.BatchNorm1d(hidden_dim),
+                    nn.LayerNorm(hidden_dim),
                     nn.ReLU(),
                     nn.Dropout(dropout),
                 ]
             )
             prev_dim = hidden_dim
 
-        # Output layer
+        # Output layer with sigmoid to bound scores
         mlp_layers.append(nn.Linear(prev_dim, 1))
+        mlp_layers.append(nn.Sigmoid())
 
         self.mlp = nn.Sequential(*mlp_layers)
 
@@ -88,13 +89,17 @@ class DeepRankerModel(nn.Module):
         self._init_weights()
 
     def _init_weights(self):
-        """Initialize model weights using Xavier initialization."""
-        nn.init.xavier_normal_(self.user_embedding.weight)
-        nn.init.xavier_normal_(self.diner_embedding.weight)
+        """Initialize model weights using uniform initialization (better for embeddings)."""
+        # Embeddings: use uniform initialization
+        nn.init.uniform_(self.user_embedding.weight, -0.05, 0.05)
+        nn.init.uniform_(self.diner_embedding.weight, -0.05, 0.05)
 
+        # Linear layers: use He initialization for ReLU
         for module in self.mlp.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight)
+                nn.init.kaiming_normal_(
+                    module.weight, mode="fan_in", nonlinearity="relu"
+                )
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
 
@@ -114,14 +119,14 @@ class DeepRankerModel(nn.Module):
         user_emb = self.user_embedding(user_idx)  # (batch_size, embedding_dim)
         diner_emb = self.diner_embedding(diner_idx)  # (batch_size, embedding_dim)
 
-        # Normalize features
+        # Normalize features (layer norm is stable regardless of batch size)
         features_norm = self.feature_norm(features)  # (batch_size, num_features)
 
         # Concatenate all inputs
         x = torch.cat([user_emb, diner_emb, features_norm], dim=1)
 
         # Pass through MLP
-        output = self.mlp(x).squeeze(-1)  # (batch_size,)
+        output = self.mlp(x).squeeze(-1)  # (batch_size,) - values in [0, 1]
 
         return output
 
@@ -139,10 +144,11 @@ class DeepRankerTrainer(BaseModel):
         model_path: str,
         results: str,
         features: List[str],
-        embedding_dim: int = 64,
-        hidden_dims: List[int] = [256, 128, 64],
-        dropout: float = 0.3,
+        embedding_dim: int = 16,  # Reduced from 64
+        hidden_dims: List[int] = [128, 64, 32],  # Reduced from [256, 128, 64]
+        dropout: float = 0.5,  # Increased from 0.3
         lr: float = 0.001,
+        weight_decay: float = 1e-4,  # Add L2 regularization
         batch_size: int = 2048,
         early_stopping_rounds: int = 10,
         num_boost_round: int = 100,  # epochs
@@ -169,6 +175,7 @@ class DeepRankerTrainer(BaseModel):
         self.hidden_dims = hidden_dims
         self.dropout = dropout
         self.lr = lr
+        self.weight_decay = weight_decay
         self.batch_size = batch_size
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
 
@@ -230,7 +237,7 @@ class DeepRankerTrainer(BaseModel):
         y_valid: pd.Series | np.ndarray | None = None,
     ) -> DeepRankerModel:
         """
-        Train the Deep Ranker model using BPR loss.
+        Train the Deep Ranker model using BPR loss with proper regularization.
 
         Args:
             X_train (pd.DataFrame): Training features.
@@ -269,8 +276,15 @@ class DeepRankerTrainer(BaseModel):
         else:
             valid_loader = None
 
-        # Optimizer
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        # Optimizer with weight decay (L2 regularization)
+        optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
+
+        # Learning rate scheduler for stability
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.5, patience=3, verbose=True
+        )
 
         # Training loop
         best_val_loss = float("inf")
@@ -306,6 +320,10 @@ class DeepRankerTrainer(BaseModel):
                 # Backward pass
                 optimizer.zero_grad()
                 loss.backward()
+
+                # Gradient clipping to prevent explosion
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+
                 optimizer.step()
 
                 train_loss += loss.item()
@@ -337,6 +355,9 @@ class DeepRankerTrainer(BaseModel):
                         val_batches += 1
 
                 avg_val_loss = val_loss / val_batches
+
+                # Update learning rate based on validation loss
+                scheduler.step(avg_val_loss)
 
                 # Logging
                 if (epoch + 1) % self.verbose_eval == 0:
@@ -415,6 +436,7 @@ class DeepRankerTrainer(BaseModel):
                 "embedding_dim": self.embedding_dim,
                 "hidden_dims": self.hidden_dims,
                 "dropout": self.dropout,
+                "weight_decay": self.weight_decay,
                 "features": self.features,
             },
             model_file,
@@ -438,6 +460,9 @@ class DeepRankerTrainer(BaseModel):
         self.embedding_dim = checkpoint["embedding_dim"]
         self.hidden_dims = checkpoint["hidden_dims"]
         self.dropout = checkpoint["dropout"]
+        self.weight_decay = checkpoint.get(
+            "weight_decay", 1e-4
+        )  # Default for backwards compat
         self.features = checkpoint["features"]
 
         # Initialize model
