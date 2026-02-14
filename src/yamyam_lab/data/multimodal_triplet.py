@@ -183,6 +183,20 @@ class MultimodalTripletDataset(Dataset):
         else:
             self.price_features = torch.zeros(self.num_diners, 3, dtype=torch.float32)
 
+        # Review text embeddings (precomputed KoBERT)
+        review_cols = [
+            col for col in self.features_df.columns if col.startswith("review_")
+        ]
+        if review_cols:
+            self.review_text_embeddings = torch.tensor(
+                self.features_df[review_cols].values, dtype=torch.float32
+            )
+        else:
+            # Placeholder if review text embeddings not available
+            self.review_text_embeddings = torch.zeros(
+                self.num_diners, 768, dtype=torch.float32
+            )
+
     def __len__(self) -> int:
         """Return number of positive pairs (each pair generates one triplet)."""
         return len(self.pairs_df)
@@ -319,6 +333,7 @@ class MultimodalTripletDataset(Dataset):
             "menu_embeddings": self.menu_embeddings,
             "diner_name_embeddings": self.diner_name_embeddings,
             "price_features": self.price_features,
+            "review_text_embeddings": self.review_text_embeddings,
         }
 
     def get_features_by_indices(self, indices: Tensor) -> Dict[str, Tensor]:
@@ -337,6 +352,7 @@ class MultimodalTripletDataset(Dataset):
             "menu_embeddings": self.menu_embeddings[indices],
             "diner_name_embeddings": self.diner_name_embeddings[indices],
             "price_features": self.price_features[indices],
+            "review_text_embeddings": self.review_text_embeddings[indices],
         }
 
 

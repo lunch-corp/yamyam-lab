@@ -29,6 +29,8 @@ def prepare_diner_features(
     normalize_numerical: bool = True,
     max_menu_length: int = 512,
     max_name_length: int = 64,
+    max_review_length: int = 512,
+    max_reviews_per_diner: int = 30,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     """Prepare diner features for embedding model training.
 
@@ -37,6 +39,7 @@ def prepare_diner_features(
     2. Menu text aggregation and KoBERT embedding
     3. Diner name KoBERT embedding
     4. Price statistics (avg, min, max)
+    5. Review text aggregation and KoBERT embedding
 
     Args:
         review_df: DataFrame with columns [diner_idx, reviewer_id, reviewer_review_score].
@@ -49,6 +52,8 @@ def prepare_diner_features(
         normalize_numerical: Whether to normalize numerical features. Default: True.
         max_menu_length: Maximum token length for menu text. Default: 512.
         max_name_length: Maximum token length for diner name. Default: 64.
+        max_review_length: Maximum token length for review text. Default: 512.
+        max_reviews_per_diner: Max reviews per diner before subsampling. Default: 30.
 
     Returns:
         Tuple of (features_df, category_mapping_df, metadata_dict).
@@ -89,11 +94,21 @@ def prepare_diner_features(
         max_length=max_name_length,
     )
 
+    # 5. Process review text embeddings (KoBERT)
+    review_text_embeddings = _process_review_text_embeddings(
+        review_df=review_df,
+        all_diner_ids=all_diner_ids,
+        kobert_model_name=kobert_model_name,
+        max_length=max_review_length,
+        max_reviews_per_diner=max_reviews_per_diner,
+    )
+
     # Combine all features
     features_df = category_features.copy()
     features_df = features_df.merge(price_features, on="diner_idx", how="left")
     features_df = features_df.merge(menu_embeddings, on="diner_idx", how="left")
     features_df = features_df.merge(diner_name_embeddings, on="diner_idx", how="left")
+    features_df = features_df.merge(review_text_embeddings, on="diner_idx", how="left")
 
     # Fill NaN values
     features_df = features_df.fillna(0)
@@ -417,6 +432,112 @@ def _process_diner_name_embeddings(
 
     # Create DataFrame with embedding columns
     embedding_cols = [f"name_{i}" for i in range(768)]
+    result = pd.DataFrame({"diner_idx": all_diner_ids})
+    for i, col in enumerate(embedding_cols):
+        result[col] = embeddings[:, i]
+
+    return result
+
+
+def _process_review_text_embeddings(
+    review_df: pd.DataFrame,
+    all_diner_ids: np.ndarray,
+    kobert_model_name: str = "klue/bert-base",
+    max_length: int = 512,
+    max_reviews_per_diner: int = 30,
+) -> pd.DataFrame:
+    """Process review text into KoBERT embeddings.
+
+    Aggregates review texts per diner (subsampled if needed) and encodes using KoBERT.
+
+    Args:
+        review_df: DataFrame with review data including reviewer_review column.
+        all_diner_ids: Array of all diner IDs.
+        kobert_model_name: HuggingFace model name.
+        max_length: Maximum token length.
+        max_reviews_per_diner: Maximum number of reviews to use per diner.
+            Diners with more reviews will be subsampled. Default: 30.
+
+    Returns:
+        DataFrame with review text embeddings (768 dimensions).
+    """
+    # Load tokenizer and model
+    tokenizer = AutoTokenizer.from_pretrained(kobert_model_name)
+    model = AutoModel.from_pretrained(kobert_model_name)
+    model.eval()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+
+    # Aggregate review texts per diner (subsample if exceeding max)
+    if "reviewer_review" in review_df.columns:
+        filtered = review_df[["diner_idx", "reviewer_review"]].dropna(
+            subset=["reviewer_review"]
+        )
+        if max_reviews_per_diner > 0:
+            filtered = (
+                filtered.groupby("diner_idx")
+                .apply(
+                    lambda x: x.sample(
+                        n=min(len(x), max_reviews_per_diner), random_state=42
+                    ),
+                    include_groups=False,
+                )
+                .reset_index(level=0)
+            )
+        review_text = (
+            filtered.groupby("diner_idx")["reviewer_review"]
+            .apply(lambda x: " ".join(x.astype(str)))
+            .reset_index()
+        )
+        review_text.columns = ["diner_idx", "review_text"]
+    else:
+        print("Warning: No reviewer_review column found. Returning zero embeddings.")
+        embedding_cols = [f"review_{i}" for i in range(768)]
+        result = pd.DataFrame({"diner_idx": all_diner_ids})
+        for col in embedding_cols:
+            result[col] = 0.0
+        return result
+
+    # Ensure all diners are present
+    all_diners_df = pd.DataFrame({"diner_idx": all_diner_ids})
+    review_text = all_diners_df.merge(review_text, on="diner_idx", how="left")
+    review_text["review_text"] = review_text["review_text"].fillna("")
+
+    # Generate embeddings
+    embeddings = []
+    batch_size = 32
+
+    with torch.no_grad():
+        for i in range(0, len(review_text), batch_size):
+            batch_texts = review_text["review_text"].iloc[i : i + batch_size].tolist()
+
+            # Tokenize
+            inputs = tokenizer(
+                batch_texts,
+                padding=True,
+                truncation=True,
+                max_length=max_length,
+                return_tensors="pt",
+            )
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+
+            # Get embeddings
+            outputs = model(**inputs)
+            # Mean pooling
+            attention_mask = inputs["attention_mask"]
+            hidden_states = outputs.last_hidden_state
+            mask_expanded = attention_mask.unsqueeze(-1).expand(hidden_states.size())
+            sum_hidden = torch.sum(hidden_states * mask_expanded, dim=1)
+            sum_mask = torch.clamp(mask_expanded.sum(dim=1), min=1e-9)
+            pooled = (sum_hidden / sum_mask).cpu().numpy()
+
+            embeddings.append(pooled)
+
+    embeddings = np.vstack(embeddings)
+
+    # Create DataFrame with embedding columns
+    embedding_cols = [f"review_{i}" for i in range(768)]
     result = pd.DataFrame({"diner_idx": all_diner_ids})
     for i, col in enumerate(embedding_cols):
         result[col] = embeddings[:, i]

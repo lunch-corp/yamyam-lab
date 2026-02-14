@@ -257,7 +257,7 @@ class BaseEmbeddingTrainer(BaseTrainer):
             # Compute and store embeddings for evaluation
             self.model.compute_and_store_embeddings(
                 all_features=all_features,
-                batch_size=self.args.batch_size,
+                batch_size=self._get_config("batch_size"),
             )
 
             # Validation

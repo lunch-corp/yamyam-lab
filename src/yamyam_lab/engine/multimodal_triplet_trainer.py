@@ -16,6 +16,7 @@ from yamyam_lab.data.multimodal_triplet import (
     create_multimodal_triplet_dataloader,
 )
 from yamyam_lab.engine.base_embedding_trainer import BaseEmbeddingTrainer
+from yamyam_lab.loss.infonce import infonce_loss_with_multiple_negatives
 from yamyam_lab.loss.triplet import triplet_margin_loss_with_multiple_negatives
 from yamyam_lab.model.embedding.multimodal_triplet import Model, MultimodalTripletConfig
 
@@ -137,11 +138,15 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
             menu_dim=model_config.menu_dim,
             diner_name_dim=model_config.diner_name_dim,
             price_dim=model_config.price_dim,
+            review_text_dim=getattr(model_config, "review_text_dim", 0),
             num_attention_heads=model_config.num_attention_heads,
             dropout=model_config.dropout,
             kobert_model_name=model_config.kobert_model_name,
             use_precomputed_menu_embeddings=model_config.use_precomputed_menu_embeddings,
             use_precomputed_name_embeddings=model_config.use_precomputed_name_embeddings,
+            use_precomputed_review_text_embeddings=getattr(
+                model_config, "use_precomputed_review_text_embeddings", True
+            ),
             device=self.args.device,
             top_k_values=top_k_values,
             diner_ids=torch.arange(self.data["num_diners"]),
@@ -165,7 +170,7 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
         Returns:
             Dictionary of feature tensors for the given indices.
         """
-        return {
+        features = {
             "large_category_ids": all_features["large_category_ids"][indices],
             "middle_category_ids": all_features["middle_category_ids"][indices],
             "small_category_ids": all_features["small_category_ids"][indices],
@@ -173,6 +178,11 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
             "diner_name_embeddings": all_features["diner_name_embeddings"][indices],
             "price_features": all_features["price_features"][indices],
         }
+        if "review_text_embeddings" in all_features:
+            features["review_text_embeddings"] = all_features["review_text_embeddings"][
+                indices
+            ]
+        return features
 
     def _create_test_dataloader(self):
         """Create dataloader for test set.
@@ -212,9 +222,13 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
         )
 
         # Get loss hyperparameters from config
+        loss_type = self._get_config("loss_type") or "triplet"
         margin = training_config.margin
+        temperature = getattr(training_config, "temperature", 0.07)
         category_weight = training_config.category_weight
         gradient_clip = training_config.gradient_clip
+
+        self.logger.info(f"Using loss function: {loss_type}")
 
         # Move all features to device
         all_features = {
@@ -269,17 +283,29 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
                     batch_size, num_negatives, embedding_dim
                 )
 
-                # Compute batched triplet loss with all negatives
-                batch_loss = triplet_margin_loss_with_multiple_negatives(
-                    anchor=anchor_emb,
-                    positive=positive_emb,
-                    negatives=negative_emb,
-                    anchor_category=anchor_categories,
-                    positive_category=positive_categories,
-                    negative_categories=negative_categories,
-                    margin=margin,
-                    category_weight=category_weight,
-                )
+                # Compute loss based on selected loss type
+                if loss_type == "infonce":
+                    batch_loss = infonce_loss_with_multiple_negatives(
+                        anchor=anchor_emb,
+                        positive=positive_emb,
+                        negatives=negative_emb,
+                        anchor_category=anchor_categories,
+                        positive_category=positive_categories,
+                        negative_categories=negative_categories,
+                        temperature=temperature,
+                        category_weight=category_weight,
+                    )
+                else:
+                    batch_loss = triplet_margin_loss_with_multiple_negatives(
+                        anchor=anchor_emb,
+                        positive=positive_emb,
+                        negatives=negative_emb,
+                        anchor_category=anchor_categories,
+                        positive_category=positive_categories,
+                        negative_categories=negative_categories,
+                        margin=margin,
+                        category_weight=category_weight,
+                    )
 
                 # Backward pass
                 batch_loss.backward()

@@ -31,6 +31,7 @@ from yamyam_lab.model.embedding.encoders import (
     FinalProjection,
     MenuEncoder,
     PriceEncoder,
+    ReviewTextEncoder,
 )
 
 
@@ -66,11 +67,13 @@ class MultimodalTripletConfig:
     menu_dim: int = 256
     diner_name_dim: int = 64
     price_dim: int = 32
+    review_text_dim: int = 128
     num_attention_heads: int = 4
     dropout: float = 0.1
     kobert_model_name: str = "klue/bert-base"
     use_precomputed_menu_embeddings: bool = True
     use_precomputed_name_embeddings: bool = True
+    use_precomputed_review_text_embeddings: bool = True
     device: str = "cpu"
     top_k_values: List[int] = None
     diner_ids: Tensor = None
@@ -103,6 +106,10 @@ class Model(nn.Module):
         self.device = config.device
         self.use_precomputed_menu_embeddings = config.use_precomputed_menu_embeddings
         self.use_precomputed_name_embeddings = config.use_precomputed_name_embeddings
+        self.use_precomputed_review_text_embeddings = (
+            config.use_precomputed_review_text_embeddings
+        )
+        self.review_text_dim = config.review_text_dim
         self.top_k_values = config.top_k_values or [3, 7, 10, 20, 100]
         self.diner_ids = config.diner_ids
         self.recommend_batch_size = config.recommend_batch_size
@@ -133,12 +140,21 @@ class Model(nn.Module):
             dropout=config.dropout,
         )
 
+        # Review text encoder (optional, enabled when review_text_dim > 0)
+        if config.review_text_dim > 0:
+            self.review_text_encoder = ReviewTextEncoder(
+                output_dim=config.review_text_dim,
+                dropout=config.dropout,
+                kobert_model_name=config.kobert_model_name,
+            )
+
         # Attention fusion layer
         self.attention_fusion = AttentionFusion(
             category_dim=config.category_dim,
             menu_dim=config.menu_dim,
             diner_name_dim=config.diner_name_dim,
             price_dim=config.price_dim,
+            review_text_dim=config.review_text_dim,
             num_heads=config.num_attention_heads,
             dropout=config.dropout,
         )
@@ -180,6 +196,8 @@ class Model(nn.Module):
                 - diner_name_embeddings: (batch_size, 768) precomputed KoBERT embeddings
                   OR diner_name_input_ids + diner_name_attention_mask for raw text
                 - price_features: (batch_size, 3) [avg_price, min_price, max_price]
+                - review_text_embeddings: (batch_size, 768) precomputed KoBERT embeddings
+                  (optional, used when review_text_dim > 0)
 
         Returns:
             Tensor of shape (batch_size, 128) with L2-normalized diner embeddings.
@@ -216,12 +234,26 @@ class Model(nn.Module):
         # Encode price
         price_emb = self.price_encoder(features["price_features"])
 
+        # Encode review text (optional)
+        review_text_emb = None
+        if self.review_text_dim > 0:
+            if self.use_precomputed_review_text_embeddings:
+                review_text_emb = self.review_text_encoder.forward_precomputed(
+                    review_text_embeddings=features["review_text_embeddings"]
+                )
+            else:
+                review_text_emb = self.review_text_encoder(
+                    input_ids=features["review_text_input_ids"],
+                    attention_mask=features["review_text_attention_mask"],
+                )
+
         # Fuse modalities with attention
         fused = self.attention_fusion(
             category_emb=category_emb,
             menu_emb=menu_emb,
             diner_name_emb=diner_name_emb,
             price_emb=price_emb,
+            review_text_emb=review_text_emb,
         )
 
         # Final projection with L2 normalization

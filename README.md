@@ -115,7 +115,7 @@ To download `diner.csv`, `review.csv`, `reviewer.csv`, `diner_raw_category.csv`,
 
 ## Implemented models
 
-| Type                 | Algorithm       | 
+| Type                 | Algorithm       |
 |----------------------|-----------------|
 | Baseline model       | Most Popular    |
 | Baseline model       | ALS             |

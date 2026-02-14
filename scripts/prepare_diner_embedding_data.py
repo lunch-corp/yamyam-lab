@@ -65,6 +65,12 @@ def parse_args():
         help="Maximum token length for menu text",
     )
     parser.add_argument(
+        "--max_reviews_per_diner",
+        type=int,
+        default=30,
+        help="Maximum number of reviews per diner for text embedding (subsample if more)",
+    )
+    parser.add_argument(
         "--min_co_reviews",
         type=int,
         default=2,
@@ -243,6 +249,7 @@ def main():
         kobert_model_name=args.kobert_model_name,
         normalize_numerical=args.normalize_numerical,
         max_menu_length=args.max_menu_length,
+        max_reviews_per_diner=args.max_reviews_per_diner,
     )
 
     print(f"  - Features prepared for {len(features_df)} diners")

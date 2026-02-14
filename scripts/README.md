@@ -436,4 +436,3 @@ poetry run python scripts/process_category.py \
 
 2. **MiddleCategorySimplifier** (`config/data/category_mappings.yaml`의 `simplify_mapping` 기반)
    - 브랜드/체인점 중심 분류를 음식 종류 중심으로 간소화
-

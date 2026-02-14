@@ -5,6 +5,7 @@ This module contains the encoder components used to create diner embeddings:
 - MenuEncoder: Encodes menu text using frozen KoBERT
 - DinerNameEncoder: Encodes diner name using frozen KoBERT
 - PriceEncoder: Encodes price statistics
+- ReviewTextEncoder: Encodes aggregated review text using frozen KoBERT
 - AttentionFusion: Multi-head attention fusion of modalities
 - FinalProjection: Projects fused features to final embedding dimension
 """
@@ -325,17 +326,113 @@ class PriceEncoder(nn.Module):
         return self.mlp(price_features)
 
 
+class ReviewTextEncoder(nn.Module):
+    """Encodes aggregated review text using frozen KoBERT with mean pooling.
+
+    Uses the pretrained Korean BERT model from HuggingFace
+    with frozen weights. The output is passed through an MLP to produce
+    128-dimensional output.
+
+    Args:
+        output_dim: Output embedding dimension. Default: 128.
+        dropout: Dropout probability. Default: 0.1.
+        kobert_model_name: HuggingFace model name. Default: "klue/bert-base".
+    """
+
+    def __init__(
+        self,
+        output_dim: int = 128,
+        dropout: float = 0.1,
+        kobert_model_name: str = "klue/bert-base",
+    ):
+        super().__init__()
+        self.output_dim = output_dim
+        self.kobert_model_name = kobert_model_name
+
+        # Lazy initialization - KoBERT will be loaded on first forward pass
+        self._kobert = None
+        self._kobert_dim = 768  # KoBERT hidden size
+
+        # MLP to project KoBERT output to desired dimension
+        self.mlp = nn.Sequential(
+            nn.Linear(self._kobert_dim, 384),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(384, output_dim),
+            nn.ReLU(),
+        )
+
+    def _load_kobert(self, device: torch.device) -> None:
+        """Lazy load KoBERT model."""
+        if self._kobert is None:
+            self._kobert = BertModel.from_pretrained(self.kobert_model_name)
+            self._kobert = self._kobert.to(device)
+            # Freeze KoBERT weights
+            for param in self._kobert.parameters():
+                param.requires_grad = False
+            self._kobert.eval()
+
+    def forward(
+        self,
+        input_ids: Tensor,
+        attention_mask: Tensor,
+    ) -> Tensor:
+        """Forward pass through review text encoder.
+
+        Args:
+            input_ids: Tensor of shape (batch_size, seq_len) with tokenized review text.
+            attention_mask: Tensor of shape (batch_size, seq_len) with attention mask.
+
+        Returns:
+            Tensor of shape (batch_size, output_dim) with encoded review text features.
+        """
+        device = input_ids.device
+        self._load_kobert(device)
+
+        # Get KoBERT outputs (frozen)
+        with torch.no_grad():
+            outputs = self._kobert(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            )
+            # Mean pooling over sequence dimension
+            hidden_states = outputs.last_hidden_state  # (B, seq_len, 768)
+            # Mask padding tokens
+            mask_expanded = attention_mask.unsqueeze(-1).expand(hidden_states.size())
+            sum_hidden = torch.sum(hidden_states * mask_expanded, dim=1)
+            sum_mask = torch.clamp(mask_expanded.sum(dim=1), min=1e-9)
+            pooled = sum_hidden / sum_mask  # (B, 768)
+
+        # Project through MLP (trainable)
+        return self.mlp(pooled)
+
+    def forward_precomputed(self, review_text_embeddings: Tensor) -> Tensor:
+        """Forward pass with precomputed KoBERT embeddings.
+
+        Use this method when KoBERT embeddings are precomputed during data preprocessing.
+
+        Args:
+            review_text_embeddings: Tensor of shape (batch_size, 768) with precomputed KoBERT embeddings.
+
+        Returns:
+            Tensor of shape (batch_size, output_dim) with encoded review text features.
+        """
+        return self.mlp(review_text_embeddings)
+
+
 class AttentionFusion(nn.Module):
     """Multi-head attention fusion layer for combining modality embeddings.
 
-    Takes embeddings from 4 modalities (category, menu, diner_name, price) and
-    fuses them using multi-head self-attention.
+    Takes embeddings from multiple modalities and fuses them using
+    multi-head self-attention. Supports 4 base modalities (category, menu,
+    diner_name, price) plus an optional review_text modality.
 
     Args:
         category_dim: Dimension of category embeddings. Default: 128.
         menu_dim: Dimension of menu embeddings. Default: 256.
         diner_name_dim: Dimension of diner name embeddings. Default: 64.
         price_dim: Dimension of price embeddings. Default: 32.
+        review_text_dim: Dimension of review text embeddings. Default: 0 (disabled).
         num_heads: Number of attention heads. Default: 4.
         dropout: Dropout probability. Default: 0.1.
     """
@@ -346,6 +443,7 @@ class AttentionFusion(nn.Module):
         menu_dim: int = 256,
         diner_name_dim: int = 64,
         price_dim: int = 32,
+        review_text_dim: int = 0,
         num_heads: int = 4,
         dropout: float = 0.1,
     ):
@@ -354,7 +452,11 @@ class AttentionFusion(nn.Module):
         self.menu_dim = menu_dim
         self.diner_name_dim = diner_name_dim
         self.price_dim = price_dim
-        self.total_dim = category_dim + menu_dim + diner_name_dim + price_dim  # 480
+        self.review_text_dim = review_text_dim
+        self.total_dim = (
+            category_dim + menu_dim + diner_name_dim + price_dim + review_text_dim
+        )
+        self.num_modalities = 4 + (1 if review_text_dim > 0 else 0)
         self.num_heads = num_heads
 
         # Project all modalities to same dimension for attention
@@ -363,6 +465,9 @@ class AttentionFusion(nn.Module):
         self.menu_proj = nn.Linear(menu_dim, self.attention_dim)
         self.diner_name_proj = nn.Linear(diner_name_dim, self.attention_dim)
         self.price_proj = nn.Linear(price_dim, self.attention_dim)
+
+        if review_text_dim > 0:
+            self.review_text_proj = nn.Linear(review_text_dim, self.attention_dim)
 
         # Multi-head self-attention
         self.attention = nn.MultiheadAttention(
@@ -376,7 +481,9 @@ class AttentionFusion(nn.Module):
         self.layer_norm = nn.LayerNorm(self.attention_dim)
 
         # Output projection to concatenate attention-weighted features
-        self.output_proj = nn.Linear(self.attention_dim * 4, self.total_dim)
+        self.output_proj = nn.Linear(
+            self.attention_dim * self.num_modalities, self.total_dim
+        )
 
     def forward(
         self,
@@ -384,39 +491,44 @@ class AttentionFusion(nn.Module):
         menu_emb: Tensor,
         diner_name_emb: Tensor,
         price_emb: Tensor,
+        review_text_emb: Tensor = None,
     ) -> Tensor:
         """Forward pass through attention fusion layer.
 
         Args:
-            category_emb: Tensor of shape (batch_size, 128).
-            menu_emb: Tensor of shape (batch_size, 256).
-            diner_name_emb: Tensor of shape (batch_size, 64).
-            price_emb: Tensor of shape (batch_size, 32).
+            category_emb: Tensor of shape (batch_size, category_dim).
+            menu_emb: Tensor of shape (batch_size, menu_dim).
+            diner_name_emb: Tensor of shape (batch_size, diner_name_dim).
+            price_emb: Tensor of shape (batch_size, price_dim).
+            review_text_emb: Optional tensor of shape (batch_size, review_text_dim).
 
         Returns:
-            Tensor of shape (batch_size, 480) with fused features.
+            Tensor of shape (batch_size, total_dim) with fused features.
         """
         batch_size = category_emb.size(0)
 
         # Project each modality to attention dimension
-        cat_proj = self.category_proj(category_emb)  # (B, 128)
-        menu_proj = self.menu_proj(menu_emb)  # (B, 128)
-        diner_name_proj = self.diner_name_proj(diner_name_emb)  # (B, 128)
-        price_proj = self.price_proj(price_emb)  # (B, 128)
+        projections = [
+            self.category_proj(category_emb),  # (B, 128)
+            self.menu_proj(menu_emb),  # (B, 128)
+            self.diner_name_proj(diner_name_emb),  # (B, 128)
+            self.price_proj(price_emb),  # (B, 128)
+        ]
 
-        # Stack as sequence for attention: (B, 4, 128)
-        modalities = torch.stack(
-            [cat_proj, menu_proj, diner_name_proj, price_proj], dim=1
-        )
+        if self.review_text_dim > 0 and review_text_emb is not None:
+            projections.append(self.review_text_proj(review_text_emb))  # (B, 128)
+
+        # Stack as sequence for attention: (B, num_modalities, 128)
+        modalities = torch.stack(projections, dim=1)
 
         # Apply self-attention
         attn_output, _ = self.attention(modalities, modalities, modalities)
         attn_output = self.layer_norm(attn_output + modalities)  # Residual connection
 
-        # Flatten attention output: (B, 4 * 128) = (B, 512)
+        # Flatten attention output: (B, num_modalities * 128)
         attn_flat = attn_output.view(batch_size, -1)
 
-        # Project to output dimension: (B, 480)
+        # Project to output dimension: (B, total_dim)
         output = self.output_proj(attn_flat)
 
         return output

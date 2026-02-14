@@ -150,6 +150,11 @@ def parse_args_multimodal_triplet():
     parser.add_argument("--batch_size", type=int, default=None)
     parser.add_argument("--patience", type=int, default=None)
 
+    # Loss function selection (defaults loaded from yaml)
+    parser.add_argument(
+        "--loss_type", type=str, default=None, choices=["triplet", "infonce"]
+    )
+
     # Output configuration
     parser.add_argument("--result_path", type=str, default=None)
     parser.add_argument("--config_root_path", type=str, default=None)
