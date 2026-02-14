@@ -87,3 +87,14 @@ data_paths = ensure_data_files()
 - Python 3.11
 - Ruff for linting/formatting (line length 88, Black-compatible)
 - Pre-commit hooks: run `pre-commit install` after cloning
+
+## Skills
+
+| Skill | Description |
+|-------|-------------|
+| manage-skills | Analyzes session changes to detect missing verification skills. Dynamically explores existing skills, creates new skills or updates existing ones, and manages CLAUDE.md. |
+| verify-implementation | Sequentially executes all verify skills in the project to generate an integrated verification report. Use after feature implementation, before PRs, or during code review. |
+| verify-test-coverage | Verifies new models/trainers/pipelines have corresponding unit and integration tests. |
+| verify-code-convention | Validates PEP 8 naming, type hints, ruff compliance, and import ordering. |
+| verify-model-registration | Ensures new models are registered in factory, have configs, train.py routing, and implement abstract methods. |
+| verify-config-consistency | Validates Hydra config files have required sections, correct YAML structure, and resolvable references. |
