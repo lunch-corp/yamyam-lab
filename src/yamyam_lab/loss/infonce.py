@@ -70,3 +70,70 @@ def infonce_loss_with_multiple_negatives(
     category_loss = category_loss.mean()
 
     return base_loss + category_weight * category_loss
+
+
+def build_positive_mask(
+    anchor_diner_indices: Tensor,
+    positive_diner_indices: Tensor,
+    diner_to_positives: dict,
+) -> Tensor:
+    """Build a boolean mask of known positive pairs for in-batch InfoNCE.
+
+    mask[i][j] is True when positive_diner_indices[j] is a known positive
+    of anchor_diner_indices[i] AND i != j (diagonal is never masked so the
+    paired positive stays in the denominator).
+
+    Args:
+        anchor_diner_indices: (B,) tensor of anchor diner indices.
+        positive_diner_indices: (B,) tensor of positive diner indices.
+        diner_to_positives: Mapping from diner_idx to set of positive diner indices.
+
+    Returns:
+        Boolean tensor of shape (B, B).
+    """
+    B = anchor_diner_indices.size(0)
+    mask = torch.zeros(B, B, dtype=torch.bool, device=anchor_diner_indices.device)
+
+    anchor_list = anchor_diner_indices.tolist()
+    positive_list = positive_diner_indices.tolist()
+
+    for i, a_idx in enumerate(anchor_list):
+        pos_set = diner_to_positives.get(a_idx, set())
+        for j, p_idx in enumerate(positive_list):
+            if i != j and p_idx in pos_set:
+                mask[i, j] = True
+
+    return mask
+
+
+def infonce_in_batch_loss(
+    anchor_emb: Tensor,
+    positive_emb: Tensor,
+    positive_mask: Tensor,
+    temperature: float = 0.07,
+) -> Tensor:
+    """CLIP-style in-batch InfoNCE loss.
+
+    Computes B x B similarity matrix between anchors and positives.
+    Known positive pairs (other than the diagonal) are masked out
+    so they don't act as false negatives.
+
+    Args:
+        anchor_emb: (B, D) L2-normalized anchor embeddings.
+        positive_emb: (B, D) L2-normalized positive embeddings.
+        positive_mask: (B, B) boolean mask — True entries are set to -inf.
+        temperature: Temperature scaling parameter.
+
+    Returns:
+        Scalar loss tensor.
+    """
+    # (B, B) similarity matrix
+    sim_matrix = anchor_emb @ positive_emb.T / temperature
+
+    # Mask known positives (set to -inf so they don't contribute to denominator)
+    sim_matrix = sim_matrix.masked_fill(positive_mask, float("-inf"))
+
+    # Labels: diagonal (i-th anchor matches i-th positive)
+    labels = torch.arange(anchor_emb.size(0), device=anchor_emb.device)
+
+    return F.cross_entropy(sim_matrix, labels)
