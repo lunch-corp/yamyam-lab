@@ -101,6 +101,11 @@ def parse_args():
         action="store_true",
         help="Only run threshold analysis, do not save pairs",
     )
+    parser.add_argument(
+        "--skip_analysis",
+        action="store_true",
+        help="Skip threshold analysis and directly compute pairs",
+    )
     return parser.parse_args()
 
 
@@ -177,13 +182,14 @@ def main():
             )
 
     # 5. Threshold analysis
-    print("\n[4/5] Threshold analysis...")
-    analyze_threshold(
-        morpheme_matrix=morpheme_matrix,
-        category_df=cat_df,
-        diner_idx_to_pos=diner_idx_to_pos,
-        diner_df=data["diner"],
-    )
+    if not args.skip_analysis:
+        print("\n[4/5] Threshold analysis...")
+        analyze_threshold(
+            morpheme_matrix=morpheme_matrix,
+            category_df=cat_df,
+            diner_idx_to_pos=diner_idx_to_pos,
+            diner_df=data["diner"],
+        )
 
     if args.analyze_only:
         print("\nAnalysis-only mode. Exiting.")
