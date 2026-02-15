@@ -82,7 +82,6 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
             "num_diners": self.dataset.num_diners,
             "num_large_categories": len(set(self.dataset.large_category_ids.numpy())),
             "num_middle_categories": len(set(self.dataset.middle_category_ids.numpy())),
-            "num_small_categories": len(set(self.dataset.small_category_ids.numpy())),
             "all_features": self.dataset.get_all_features(),
         }
 
@@ -100,9 +99,6 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
         self.logger.info(
             f"Number of middle categories: {self.data['num_middle_categories']}"
         )
-        self.logger.info(
-            f"Number of small categories: {self.data['num_small_categories']}"
-        )
         self.logger.info(f"Number of training pairs: {len(self.dataset)}")
         if self.val_dataset:
             self.logger.info(f"Number of validation pairs: {len(self.val_dataset)}")
@@ -116,7 +112,6 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
         self.model_config = MultimodalTripletConfig(
             num_large_categories=self.data["num_large_categories"],
             num_middle_categories=self.data["num_middle_categories"],
-            num_small_categories=self.data["num_small_categories"],
             embedding_dim=model_config.embedding_dim,
             category_dim=model_config.category_dim,
             menu_dim=model_config.menu_dim,
@@ -146,7 +141,6 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
         features = {
             "large_category_ids": all_features["large_category_ids"][indices],
             "middle_category_ids": all_features["middle_category_ids"][indices],
-            "small_category_ids": all_features["small_category_ids"][indices],
             "menu_embeddings": all_features["menu_embeddings"][indices],
             "diner_name_embeddings": all_features["diner_name_embeddings"][indices],
             "price_features": all_features["price_features"][indices],

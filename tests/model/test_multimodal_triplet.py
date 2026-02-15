@@ -44,13 +44,11 @@ class TestEncoders:
         encoder = CategoryEncoder(
             num_large_categories=3,
             num_middle_categories=5,
-            num_small_categories=8,
             output_dim=32,
         )
         out = encoder(
             large_category_ids=torch.tensor([0, 1, 2, 0]),
             middle_category_ids=torch.tensor([0, 1, 2, 3]),
-            small_category_ids=torch.tensor([0, 1, 2, 3]),
         )
         assert out.shape == (4, 32)
 
@@ -103,7 +101,6 @@ class TestModel:
         features = {
             "large_category_ids": torch.tensor([0, 1, 2, 0]),
             "middle_category_ids": torch.tensor([0, 1, 2, 3]),
-            "small_category_ids": torch.tensor([0, 1, 2, 3]),
             "menu_embeddings": torch.randn(4, 768),
             "diner_name_embeddings": torch.randn(4, 768),
             "price_features": torch.randn(4, 3),
@@ -118,7 +115,6 @@ class TestModel:
         features = {
             "large_category_ids": torch.tensor([0, 1]),
             "middle_category_ids": torch.tensor([0, 1]),
-            "small_category_ids": torch.tensor([0, 1]),
             "menu_embeddings": torch.randn(2, 768),
             "diner_name_embeddings": torch.randn(2, 768),
             "price_features": torch.randn(2, 3),
@@ -135,7 +131,6 @@ class TestModel:
         all_features = {
             "large_category_ids": torch.randint(0, 3, (n,)),
             "middle_category_ids": torch.randint(0, 5, (n,)),
-            "small_category_ids": torch.randint(0, 8, (n,)),
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),
@@ -164,7 +159,6 @@ class TestModel:
         all_features = {
             "large_category_ids": torch.randint(0, 3, (n,)),
             "middle_category_ids": torch.randint(0, 5, (n,)),
-            "small_category_ids": torch.randint(0, 8, (n,)),
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),
@@ -191,7 +185,6 @@ class TestModel:
         all_features = {
             "large_category_ids": torch.randint(0, 3, (n,)),
             "middle_category_ids": torch.randint(0, 5, (n,)),
-            "small_category_ids": torch.randint(0, 8, (n,)),
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),

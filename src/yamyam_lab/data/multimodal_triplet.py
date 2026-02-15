@@ -91,10 +91,6 @@ class MultimodalTripletDataset(Dataset):
         self.middle_category_ids = torch.tensor(
             self.features_df["middle_category_id"].values, dtype=torch.long
         )
-        self.small_category_ids = torch.tensor(
-            self.features_df["small_category_id"].values, dtype=torch.long
-        )
-
         # Menu embeddings (precomputed KoBERT)
         menu_cols = [col for col in self.features_df.columns if col.startswith("menu_")]
         if menu_cols:
@@ -175,7 +171,6 @@ class MultimodalTripletDataset(Dataset):
         return {
             "large_category_ids": self.large_category_ids,
             "middle_category_ids": self.middle_category_ids,
-            "small_category_ids": self.small_category_ids,
             "menu_embeddings": self.menu_embeddings,
             "diner_name_embeddings": self.diner_name_embeddings,
             "price_features": self.price_features,
@@ -187,7 +182,6 @@ class MultimodalTripletDataset(Dataset):
         return {
             "large_category_ids": self.large_category_ids[indices],
             "middle_category_ids": self.middle_category_ids[indices],
-            "small_category_ids": self.small_category_ids[indices],
             "menu_embeddings": self.menu_embeddings[indices],
             "diner_name_embeddings": self.diner_name_embeddings[indices],
             "price_features": self.price_features[indices],
