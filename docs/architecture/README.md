@@ -12,7 +12,9 @@ This folder contains architecture documentation for the yamyam-lab recommendatio
 │  Stage 1: Candidate Generation                              │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │  Multimodal Triplet Embedding Model                 │    │
-│  │  - Input: Diner metadata (category, menu, reviews)  │    │
+│  │  - Input: 5 modalities (category, menu, name,       │    │
+    │  │    price, review text)                               │    │
+    │  │  - Loss: In-batch InfoNCE with morpheme Jaccard     │    │
 │  │  - Output: 128-d embedding                          │    │
 │  │  - Retrieval: Top-K similar diners via dot product  │    │
 │  └─────────────────────────────────────────────────────┘    │

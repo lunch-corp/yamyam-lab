@@ -10,6 +10,7 @@
 | `scripts/generate_candidate.py`        | Used when generating candidates from trained model                 |
 | `scripts/build_regions.py`             | Used when generating region cluster                                |
 | `scripts/prepare_diner_embedding_data.py` | Used when preparing data for diner embedding model              |
+| `scripts/prepare_morpheme_pairs.py`    | Used when generating morpheme-Jaccard positive pairs for embedding model |
 | `scripts/evaluate_diner_similarity.py` | Used for qualitative evaluation of diner embedding model           |
 | `scripts/process_category.py`          | Used when processing diner category data                           |
 ## How to download candidate generation or trained model result
@@ -291,7 +292,46 @@ Output files:
 - `training_pairs.parquet` - Positive training pairs
 - `val_pairs.parquet` - Validation pairs
 - `test_pairs.parquet` - Test pairs
-- `category_mapping.parquet` - Category mapping for hard negative mining
+- `category_mapping.parquet` - Category mapping for evaluation
+
+### Morpheme-Based Positive Pair Generation
+
+Use `scripts/prepare_morpheme_pairs.py` to replace co-review-based pairs with morpheme Jaccard similarity pairs. This generates positive pairs from diners in the same middle category whose review morpheme sets have high overlap.
+
+**Prerequisites:** `diner_features.parquet` and `category_mapping.parquet` must already exist (run `prepare_diner_embedding_data.py` first).
+
+```bash
+# Step 1: Generate features (if not already done)
+poetry run python scripts/prepare_diner_embedding_data.py \
+    --local_data_dir data/ \
+    --output_dir data/processed
+
+# Step 2: Generate morpheme-based pairs (overwrites pair files from step 1)
+poetry run python scripts/prepare_morpheme_pairs.py \
+    --output_dir data/processed \
+    --jaccard_threshold 0.2 \
+    --skip_analysis
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `--output_dir` | Directory to save pair parquet files (default: `data/processed`) |
+| `--jaccard_threshold` | Minimum Jaccard similarity for positive pairs (default: 0.3) |
+| `--included_tags` | POS tags to keep (default: `NNG NNP VA`) |
+| `--min_df` | Minimum document frequency for morpheme vocabulary (default: 3) |
+| `--max_df` | Maximum document frequency as fraction (default: 0.5) |
+| `--n_processes` | Number of worker processes for morpheme extraction (default: cpu_count) |
+| `--analyze_only` | Only run threshold analysis, do not save pairs |
+| `--skip_analysis` | Skip threshold analysis and directly compute pairs |
+| `--local_data_dir` | Local directory containing CSV files (if not using Google Drive) |
+| `--test` | Run in test mode with subset of data |
+
+Output files (overwrites existing pair files):
+- `training_pairs.parquet` - Morpheme-Jaccard positive training pairs
+- `val_pairs.parquet` - Validation pairs
+- `test_pairs.parquet` - Test pairs
+- `morpheme_matrix.npz` - Binary sparse morpheme matrix
+- `morpheme_vocab.pkl` - Vocabulary and diner index mapping
 
 ### Training
 
@@ -299,8 +339,9 @@ After data preparation, train the model:
 
 ```bash
 poetry run python -m yamyam_lab.train \
-    --model diner_embedding \
-    --epochs 50 \
+    --model multimodal_triplet \
+    --epochs 100 \
+    --batch_size 512 \
     --device cuda
 ```
 
