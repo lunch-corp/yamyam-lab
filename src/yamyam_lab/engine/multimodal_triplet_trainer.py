@@ -180,10 +180,12 @@ class MultimodalTripletTrainer(BaseEmbeddingTrainer):
             optimizer, mode="max", factor=0.5, patience=3, verbose=True
         )
 
-        temperature = getattr(training_config, "temperature", 0.07)
+        temperature = self._get_config("temperature") or getattr(
+            training_config, "temperature", 0.07
+        )
         gradient_clip = training_config.gradient_clip
 
-        self.logger.info("Using in-batch InfoNCE loss")
+        self.logger.info(f"Using in-batch InfoNCE loss (temperature={temperature})")
 
         # Move all features to device
         all_features = {

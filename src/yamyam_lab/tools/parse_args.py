@@ -154,6 +154,13 @@ def parse_args_multimodal_triplet():
     parser.add_argument(
         "--loss_type", type=str, default=None, choices=["triplet", "infonce"]
     )
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument(
+        "--early_stop_metric",
+        type=str,
+        default=None,
+        choices=["recall@1", "recall@5", "recall@10", "recall@20", "mrr"],
+    )
 
     # Output configuration
     parser.add_argument("--result_path", type=str, default=None)
