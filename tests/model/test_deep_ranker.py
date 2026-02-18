@@ -125,7 +125,6 @@ class TestDeepRankerTrainer:
             "verbose_eval": 1,
             "seed": 42,
             "device": "cpu",
-            "recommend_batch_size": 16,
         }
 
     @pytest.fixture

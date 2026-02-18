@@ -32,6 +32,7 @@ def bpr_loss_sampled(
     targets: Tensor,
     user_ids: Tensor | None = None,
     sample_negatives: int = 20,  # Increased from 10 for better gradient signal
+    debug: bool = False,
 ) -> Tensor:
     """
     Calculate BPR loss from a batch containing both positive and negative samples.
