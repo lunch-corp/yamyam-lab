@@ -146,9 +146,7 @@ class UserFeatureStore(BaseFeatureStore):
         safe_total = total.where(total > 0, other=1)
 
         for col in available:
-            self.user[f"{col}_ratio"] = (self.user[col] / safe_total).astype(
-                np.float32
-            )
+            self.user[f"{col}_ratio"] = (self.user[col] / safe_total).astype(np.float32)
 
         total_col = "log_total_visits" if log_transform_total else "total_visits"
         self.user[total_col] = (
