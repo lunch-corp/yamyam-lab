@@ -15,11 +15,12 @@ features:
   - is_open_weekend
   - avg_open_hours_per_day
   - total_open_hours_per_week
-  - asian
-  - japanese
-  - chinese
-  - korean
-  - western
+  - korean_ratio
+  - japanese_ratio
+  - chinese_ratio
+  - western_ratio
+  - asian_ratio
+  - log_total_visits
 
 # Deep Learning specific parameters
 embedding_dim: 32
@@ -30,13 +31,10 @@ hidden_dims:
 dropout: 0.3
 
 # Categorical feature embedding
-use_categorical_embedding: true
-categorical_features:
-  - asian
-  - japanese
-  - chinese
-  - korean
-  - western
+# asian/japanese/chinese/korean/western are visit frequency counts (continuous),
+# not categorical labels, so categorical embedding is disabled.
+use_categorical_embedding: false
+categorical_features: []
 categorical_embedding_dim: 8
 categorical_embedding_buckets: 20
 

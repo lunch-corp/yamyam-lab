@@ -58,6 +58,10 @@ def bpr_loss_sampled(
     pos_scores = scores[pos_mask]
     neg_scores = scores[neg_mask]
 
+    # Edge case: no pairs can be formed; return zero while keeping grad_fn
+    if pos_scores.numel() == 0 or neg_scores.numel() == 0:
+        return (scores * 0).sum()
+
     # If user_ids are provided, compute user-wise BPR loss with sampling
     if user_ids is not None:
         pos_user_ids = user_ids[pos_mask]

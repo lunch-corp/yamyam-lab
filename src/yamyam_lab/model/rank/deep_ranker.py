@@ -500,6 +500,14 @@ class DeepRankerTrainer(BaseModel):
 
         return self.model
 
+    def calculate_rank(self, candidates: pd.DataFrame) -> pd.DataFrame:
+        """Override to pass full DataFrame (reviewer_id and diner_idx are required)."""
+        candidates["pred_score"] = self.predict(candidates)
+        candidates = candidates.sort_values(
+            by=["reviewer_id", "pred_score"], ascending=[True, False]
+        )
+        return candidates
+
     def _predict(self, X_test: pd.DataFrame | np.ndarray) -> np.ndarray:
         """
         Predict scores for test data.

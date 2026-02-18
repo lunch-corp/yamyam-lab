@@ -9,6 +9,13 @@ user_engineered_feature_names:
   categorical_feature_count:
     categorical_feature_names:
       - diner_category_large
+  visit_ratio_features:
+    genre_columns:
+      - korean
+      - japanese
+      - chinese
+      - western
+      - asian
   user_activity_patterns: {}
 
 diner_engineered_feature_names:
