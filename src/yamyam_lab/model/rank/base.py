@@ -32,7 +32,6 @@ class BaseModel(ABC):
         verbose_eval: int,
         seed: int,
         features: list[str],
-        recommend_batch_size: int = 1000,
     ) -> None:
         self.model_path = model_path
         self.results = results
@@ -43,7 +42,6 @@ class BaseModel(ABC):
         self.seed = seed
         self.model = None
         self.features = features
-        self.recommend_batch_size = recommend_batch_size
 
     @abstractmethod
     def save_model(self: Self) -> None:
@@ -119,18 +117,7 @@ class BaseModel(ABC):
         Returns:
             pd.DataFrame: Candidates with rank.
         """
-        predictions = np.zeros(len(candidates))
-
-        num_batches = (
-            len(candidates) + self.recommend_batch_size - 1
-        ) // self.recommend_batch_size
-        for i in tqdm(range(num_batches)):
-            start_idx = i * self.recommend_batch_size
-            end_idx = min((i + 1) * self.recommend_batch_size, len(candidates))
-            batch = candidates[self.features].iloc[start_idx:end_idx]
-            predictions[start_idx:end_idx] = self.predict(batch)
-
-        candidates["pred_score"] = predictions
+        candidates["pred_score"] = self.predict(candidates[self.features])
         candidates = candidates.sort_values(
             by=["reviewer_id", "pred_score"], ascending=[True, False]
         )

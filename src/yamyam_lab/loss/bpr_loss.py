@@ -31,8 +31,7 @@ def bpr_loss_sampled(
     scores: Tensor,
     targets: Tensor,
     user_ids: Tensor | None = None,
-    sample_negatives: int = 10,
-    debug: bool = False,
+    sample_negatives: int = 20,  # Increased from 10 for better gradient signal
 ) -> Tensor:
     """
     Calculate BPR loss from a batch containing both positive and negative samples.
@@ -57,17 +56,6 @@ def bpr_loss_sampled(
 
     pos_scores = scores[pos_mask]
     neg_scores = scores[neg_mask]
-
-    if debug:
-        print(
-            f"[BPR DEBUG] Batch size: {len(scores)}, Positives: {pos_scores.numel()}, Negatives: {neg_scores.numel()}"
-        )
-
-    # If no positive or negative samples, return a valid zero loss
-    if pos_scores.numel() == 0 or neg_scores.numel() == 0:
-        if debug:
-            print("[BPR DEBUG] Skipping batch: no positives or negatives")
-        return scores.new_zeros(1, requires_grad=True).squeeze()
 
     # If user_ids are provided, compute user-wise BPR loss with sampling
     if user_ids is not None:
@@ -116,11 +104,6 @@ def bpr_loss_sampled(
             user_loss = -torch.log(torch.sigmoid(diff) + EPS).mean()
             losses.append(user_loss)
             users_with_loss += 1
-
-        if debug:
-            print(
-                f"[BPR DEBUG] Unique users: {len(unique_users)}, Users with loss: {users_with_loss}, Cross-user negatives: {users_with_cross_neg}"
-            )
 
         if len(losses) == 0:
             # Fallback: compute global loss if no user-specific loss could be computed

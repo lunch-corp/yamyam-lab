@@ -260,7 +260,7 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
         return (train, val, test)
 
-    def _precompute_category_groups(self: Self) -> Dict[str, list]:
+    def _precompute_category_groups(self: Self) -> Dict[str, set]:
         """
         Precompute diner indices grouped by category.
         This is computed once and reused to avoid repeated CSV reads and groupby operations.

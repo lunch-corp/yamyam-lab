@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 from pathlib import Path
 from typing import List
@@ -34,18 +35,25 @@ class DeepRankerModel(nn.Module):
         num_users: int,
         num_diners: int,
         num_features: int,
-        embedding_dim: int = 16,  # Reduced from 64 to prevent overfitting
-        hidden_dims: List[int] = [128, 64, 32],  # Reduced hidden dims
-        dropout: float = 0.5,  # Increased from 0.3
+        embedding_dim: int = 16,
+        hidden_dims: List[int] | None = None,
+        dropout: float = 0.5,
+        num_categorical: int = 0,
+        categorical_embedding_dim: int = 8,
+        categorical_embedding_buckets: int = 20,
     ):
         """
         Args:
             num_users (int): Number of unique users.
             num_diners (int): Number of unique diners.
-            num_features (int): Number of tabular features.
+            num_features (int): Number of tabular features (continuous only when
+                categorical embedding is used).
             embedding_dim (int): Dimension of user/diner embeddings.
             hidden_dims (List[int]): List of hidden layer dimensions.
             dropout (float): Dropout probability.
+            num_categorical (int): Number of categorical features to embed.
+            categorical_embedding_dim (int): Embedding dim per categorical feature.
+            categorical_embedding_buckets (int): Number of buckets for discretization.
         """
         super().__init__()
 
@@ -55,16 +63,37 @@ class DeepRankerModel(nn.Module):
         self.embedding_dim = embedding_dim
         self.hidden_dims = hidden_dims
         self.dropout = dropout
+        self.num_categorical = num_categorical
+        self.categorical_embedding_dim = categorical_embedding_dim
+        self.categorical_embedding_buckets = categorical_embedding_buckets
 
-        # Embedding layers - use smaller embeddings with L2 norm
+        # Embedding layers
         self.user_embedding = nn.Embedding(num_users, embedding_dim)
         self.diner_embedding = nn.Embedding(num_diners, embedding_dim)
 
-        # Layer normalization (more stable than BatchNorm for features)
-        self.feature_norm = nn.LayerNorm(num_features)
+        # Categorical feature embeddings (bucket index → dense vector)
+        if num_categorical > 0:
+            self.categorical_embeddings = nn.ModuleList(
+                [
+                    nn.Embedding(
+                        categorical_embedding_buckets, categorical_embedding_dim
+                    )
+                    for _ in range(num_categorical)
+                ]
+            )
+            cat_total_dim = num_categorical * categorical_embedding_dim
+        else:
+            self.categorical_embeddings = None
+            cat_total_dim = 0
 
-        # MLP layers with LayerNorm instead of BatchNorm
-        input_dim = embedding_dim * 2 + num_features
+        # Layer normalization for continuous features
+        if num_features > 0:
+            self.feature_norm = nn.LayerNorm(num_features)
+        else:
+            self.feature_norm = None
+
+        # MLP layers
+        input_dim = embedding_dim * 2 + num_features + cat_total_dim
         mlp_layers = []
 
         prev_dim = input_dim
@@ -90,11 +119,13 @@ class DeepRankerModel(nn.Module):
 
     def _init_weights(self):
         """Initialize model weights using uniform initialization (better for embeddings)."""
-        # Embeddings: use uniform initialization
         nn.init.uniform_(self.user_embedding.weight, -0.05, 0.05)
         nn.init.uniform_(self.diner_embedding.weight, -0.05, 0.05)
 
-        # Linear layers: use He initialization for ReLU
+        if self.categorical_embeddings is not None:
+            for emb in self.categorical_embeddings:
+                nn.init.uniform_(emb.weight, -0.05, 0.05)
+
         for module in self.mlp.modules():
             if isinstance(module, nn.Linear):
                 nn.init.kaiming_normal_(
@@ -103,30 +134,48 @@ class DeepRankerModel(nn.Module):
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
 
-    def forward(self, user_idx: Tensor, diner_idx: Tensor, features: Tensor) -> Tensor:
+    def forward(
+        self,
+        user_idx: Tensor,
+        diner_idx: Tensor,
+        features: Tensor,
+        categorical_bucket_idx: Tensor | None = None,
+    ) -> Tensor:
         """
         Forward pass.
 
         Args:
             user_idx (Tensor): User indices. Shape: (batch_size,)
             diner_idx (Tensor): Diner indices. Shape: (batch_size,)
-            features (Tensor): Tabular features. Shape: (batch_size, num_features)
+            features (Tensor): Continuous features. Shape: (batch_size, num_features)
+            categorical_bucket_idx (Tensor | None): Bucket indices for categorical
+                features. Shape: (batch_size, num_categorical). LongTensor.
 
         Returns (Tensor):
             Predicted scores. Shape: (batch_size,)
         """
-        # Get embeddings
-        user_emb = self.user_embedding(user_idx)  # (batch_size, embedding_dim)
-        diner_emb = self.diner_embedding(diner_idx)  # (batch_size, embedding_dim)
+        user_emb = self.user_embedding(user_idx)
+        diner_emb = self.diner_embedding(diner_idx)
 
-        # Normalize features (layer norm is stable regardless of batch size)
-        features_norm = self.feature_norm(features)  # (batch_size, num_features)
+        parts = [user_emb, diner_emb]
 
-        # Concatenate all inputs
-        x = torch.cat([user_emb, diner_emb, features_norm], dim=1)
+        # Continuous features
+        if self.feature_norm is not None and features.shape[1] > 0:
+            parts.append(self.feature_norm(features))
 
-        # Pass through MLP
-        output = self.mlp(x).squeeze(-1)  # (batch_size,) - values in [0, 1]
+        # Categorical feature embeddings
+        if (
+            self.categorical_embeddings is not None
+            and categorical_bucket_idx is not None
+        ):
+            cat_embs = [
+                emb(categorical_bucket_idx[:, i])
+                for i, emb in enumerate(self.categorical_embeddings)
+            ]
+            parts.append(torch.cat(cat_embs, dim=1))
+
+        x = torch.cat(parts, dim=1)
+        output = self.mlp(x).squeeze(-1)
 
         return output
 
@@ -144,20 +193,22 @@ class DeepRankerTrainer(BaseModel):
         model_path: str,
         results: str,
         features: List[str],
-        embedding_dim: int = 16,  # Reduced from 64
-        hidden_dims: List[int] = [128, 64, 32],  # Reduced from [256, 128, 64]
-        dropout: float = 0.5,  # Increased from 0.3
+        embedding_dim: int = 16,
+        hidden_dims: List[int] | None = None,
+        dropout: float = 0.5,
         lr: float = 0.001,
-        weight_decay: float = 1e-4,  # Add L2 regularization
+        weight_decay: float = 1e-4,
         batch_size: int = 2048,
         early_stopping_rounds: int = 10,
-        num_boost_round: int = 100,  # epochs
+        num_boost_round: int = 100,
         verbose_eval: int = 5,
         seed: int = 42,
         device: str = "cuda",
-        recommend_batch_size: int = 1000,
+        use_categorical_embedding: bool = False,
+        categorical_features: List[str] | None = None,
+        categorical_embedding_dim: int = 8,
+        categorical_embedding_buckets: int = 20,
     ) -> None:
-        # Initialize base model without params
         super().__init__(
             model_path=model_path,
             results=results,
@@ -167,7 +218,6 @@ class DeepRankerTrainer(BaseModel):
             verbose_eval=verbose_eval,
             seed=seed,
             features=features,
-            recommend_batch_size=recommend_batch_size,
         )
 
         # Deep learning specific parameters
@@ -179,10 +229,36 @@ class DeepRankerTrainer(BaseModel):
         self.batch_size = batch_size
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
 
+        # Categorical embedding parameters
+        self.use_categorical_embedding = use_categorical_embedding
+        self.categorical_features = categorical_features or []
+        self.categorical_embedding_dim = categorical_embedding_dim
+        self.categorical_embedding_buckets = categorical_embedding_buckets
+        self._bucket_boundaries: dict[str, np.ndarray] | None = None
+
         # Model will be initialized in _fit
         self.model = None
         self.num_users = None
         self.num_diners = None
+
+    def _compute_bucket_boundaries(self, X: pd.DataFrame) -> None:
+        """Compute quantile-based bucket boundaries from training data."""
+        self._bucket_boundaries = {}
+        n_buckets = self.categorical_embedding_buckets
+        for col in self.categorical_features:
+            quantiles = np.linspace(0, 1, n_buckets + 1)[1:-1]
+            boundaries = np.quantile(X[col].values, quantiles)
+            boundaries = np.unique(boundaries)
+            self._bucket_boundaries[col] = boundaries
+
+    def _bucketize(self, X: pd.DataFrame) -> torch.LongTensor:
+        """Convert categorical feature values to bucket indices."""
+        bucket_indices = []
+        for col in self.categorical_features:
+            boundaries = self._bucket_boundaries[col]
+            indices = np.searchsorted(boundaries, X[col].values, side="right")
+            bucket_indices.append(indices)
+        return torch.LongTensor(np.stack(bucket_indices, axis=1))
 
     def _prepare_dataloader(
         self,
@@ -201,33 +277,60 @@ class DeepRankerTrainer(BaseModel):
         Returns (DataLoader):
             PyTorch DataLoader.
         """
-        # Extract user and diner indices
         user_idx = torch.LongTensor(X["reviewer_id"].values)
         diner_idx = torch.LongTensor(X["diner_idx"].values)
 
-        # Extract features (exclude user/diner IDs)
-        feature_cols = [
-            col for col in self.features if col not in ["reviewer_id", "diner_idx"]
-        ]
-        features = torch.FloatTensor(X[feature_cols].values)
+        # Split features into continuous and categorical
+        excluded = {"reviewer_id", "diner_idx"}
+        if self.use_categorical_embedding:
+            excluded.update(self.categorical_features)
 
-        # Prepare targets
+        continuous_cols = [col for col in self.features if col not in excluded]
+        features = torch.FloatTensor(X[continuous_cols].values)
+
         if isinstance(y, pd.Series):
             targets = torch.FloatTensor(y.values)
         else:
             targets = torch.FloatTensor(y)
 
-        # Create dataset and dataloader
-        dataset = TensorDataset(user_idx, diner_idx, features, targets)
+        if self.use_categorical_embedding and self.categorical_features:
+            cat_bucket_idx = self._bucketize(X)
+            dataset = TensorDataset(
+                user_idx, diner_idx, features, cat_bucket_idx, targets
+            )
+        else:
+            dataset = TensorDataset(user_idx, diner_idx, features, targets)
+
         dataloader = DataLoader(
             dataset,
             batch_size=self.batch_size,
             shuffle=shuffle,
             num_workers=0,
-            pin_memory=True if self.device.type == "cuda" else False,
+            pin_memory=self.device.type == "cuda",
         )
 
         return dataloader
+
+    def _unpack_batch(
+        self, batch: tuple[Tensor, ...]
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor | None, Tensor]:
+        """Unpack a batch from DataLoader and move to device.
+
+        Returns (user_idx, diner_idx, features, cat_idx_or_None, targets).
+        """
+        if len(batch) == 5:
+            user_idx, diner_idx, features, cat_idx, targets = batch
+            cat_idx = cat_idx.to(self.device)
+        else:
+            user_idx, diner_idx, features, targets = batch
+            cat_idx = None
+
+        user_idx = user_idx.to(self.device)
+        diner_idx = diner_idx.to(self.device)
+        features = features.to(self.device)
+        targets = targets.to(self.device)
+
+        return user_idx, diner_idx, features, cat_idx, targets
 
     def _fit(
         self,
@@ -255,9 +358,19 @@ class DeepRankerTrainer(BaseModel):
         # Get number of users and diners
         self.num_users = X_train["reviewer_id"].max() + 1
         self.num_diners = X_train["diner_idx"].max() + 1
-        num_features = len(
-            [col for col in self.features if col not in ["reviewer_id", "diner_idx"]]
-        )
+
+        # Compute bucket boundaries from training data
+        if self.use_categorical_embedding and self.categorical_features:
+            self._compute_bucket_boundaries(X_train)
+            num_categorical = len(self.categorical_features)
+        else:
+            num_categorical = 0
+
+        # Count continuous features (exclude IDs and categorical)
+        excluded = {"reviewer_id", "diner_idx"}
+        if self.use_categorical_embedding:
+            excluded.update(self.categorical_features)
+        num_features = len([col for col in self.features if col not in excluded])
 
         # Initialize model
         self.model = DeepRankerModel(
@@ -267,6 +380,9 @@ class DeepRankerTrainer(BaseModel):
             embedding_dim=self.embedding_dim,
             hidden_dims=self.hidden_dims,
             dropout=self.dropout,
+            num_categorical=num_categorical,
+            categorical_embedding_dim=self.categorical_embedding_dim,
+            categorical_embedding_buckets=self.categorical_embedding_buckets,
         ).to(self.device)
 
         # Prepare data loaders
@@ -288,6 +404,7 @@ class DeepRankerTrainer(BaseModel):
 
         # Training loop
         best_val_loss = float("inf")
+        best_model_state = None
         patience_counter = 0
 
         for epoch in range(self.num_boost_round):
@@ -296,26 +413,20 @@ class DeepRankerTrainer(BaseModel):
             train_loss = 0.0
             train_batches = 0
 
-            for user_idx, diner_idx, features, targets in tqdm(
+            for batch in tqdm(
                 train_loader,
                 desc=f"Epoch {epoch + 1}/{self.num_boost_round}",
                 leave=False,
             ):
-                # Move to device
-                user_idx = user_idx.to(self.device)
-                diner_idx = diner_idx.to(self.device)
-                features = features.to(self.device)
-                targets = targets.to(self.device)
+                user_idx, diner_idx, features, cat_idx, targets = self._unpack_batch(
+                    batch
+                )
 
                 # Forward pass
-                scores = self.model(user_idx, diner_idx, features)
+                scores = self.model(user_idx, diner_idx, features, cat_idx)
 
                 # Calculate BPR loss (pass user_ids for user-wise comparison)
-                # Enable debug mode for first batch of first epoch
-                debug_mode = epoch == 0 and train_batches == 0
-                loss = bpr_loss_sampled(
-                    scores, targets, user_ids=user_idx, debug=debug_mode
-                )
+                loss = bpr_loss_sampled(scores, targets, user_ids=user_idx)
 
                 # Backward pass
                 optimizer.zero_grad()
@@ -338,15 +449,13 @@ class DeepRankerTrainer(BaseModel):
                 val_batches = 0
 
                 with torch.no_grad():
-                    for user_idx, diner_idx, features, targets in valid_loader:
-                        # Move to device
-                        user_idx = user_idx.to(self.device)
-                        diner_idx = diner_idx.to(self.device)
-                        features = features.to(self.device)
-                        targets = targets.to(self.device)
+                    for batch in valid_loader:
+                        user_idx, diner_idx, features, cat_idx, targets = (
+                            self._unpack_batch(batch)
+                        )
 
                         # Forward pass
-                        scores = self.model(user_idx, diner_idx, features)
+                        scores = self.model(user_idx, diner_idx, features, cat_idx)
 
                         # Calculate BPR loss (pass user_ids for user-wise comparison)
                         loss = bpr_loss_sampled(scores, targets, user_ids=user_idx)
@@ -369,6 +478,7 @@ class DeepRankerTrainer(BaseModel):
                 # Early stopping
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
+                    best_model_state = copy.deepcopy(self.model.state_dict())
                     patience_counter = 0
                 else:
                     patience_counter += 1
@@ -382,6 +492,11 @@ class DeepRankerTrainer(BaseModel):
                         f"Epoch {epoch + 1}/{self.num_boost_round} - "
                         f"Train Loss: {avg_train_loss:.4f}"
                     )
+
+        # Restore best model state
+        if best_model_state is not None:
+            self.model.load_state_dict(best_model_state)
+            print(f"Restored best model (val_loss: {best_val_loss:.4f})")
 
         return self.model
 
@@ -407,14 +522,10 @@ class DeepRankerTrainer(BaseModel):
         predictions = []
 
         with torch.no_grad():
-            for user_idx, diner_idx, features, _ in test_loader:
-                # Move to device
-                user_idx = user_idx.to(self.device)
-                diner_idx = diner_idx.to(self.device)
-                features = features.to(self.device)
+            for batch in tqdm(test_loader):
+                user_idx, diner_idx, features, cat_idx, _ = self._unpack_batch(batch)
 
-                # Forward pass
-                scores = self.model(user_idx, diner_idx, features)
+                scores = self.model(user_idx, diner_idx, features, cat_idx)
 
                 predictions.append(scores.cpu().numpy())
 
@@ -438,6 +549,11 @@ class DeepRankerTrainer(BaseModel):
                 "dropout": self.dropout,
                 "weight_decay": self.weight_decay,
                 "features": self.features,
+                "use_categorical_embedding": self.use_categorical_embedding,
+                "categorical_features": self.categorical_features,
+                "categorical_embedding_dim": self.categorical_embedding_dim,
+                "categorical_embedding_buckets": self.categorical_embedding_buckets,
+                "bucket_boundaries": self._bucket_boundaries,
             },
             model_file,
         )
@@ -460,15 +576,30 @@ class DeepRankerTrainer(BaseModel):
         self.embedding_dim = checkpoint["embedding_dim"]
         self.hidden_dims = checkpoint["hidden_dims"]
         self.dropout = checkpoint["dropout"]
-        self.weight_decay = checkpoint.get(
-            "weight_decay", 1e-4
-        )  # Default for backwards compat
+        self.weight_decay = checkpoint.get("weight_decay", 1e-4)
         self.features = checkpoint["features"]
 
-        # Initialize model
-        num_features = len(
-            [col for col in self.features if col not in ["reviewer_id", "diner_idx"]]
+        # Categorical embedding metadata
+        self.use_categorical_embedding = checkpoint.get(
+            "use_categorical_embedding", False
         )
+        self.categorical_features = checkpoint.get("categorical_features", [])
+        self.categorical_embedding_dim = checkpoint.get("categorical_embedding_dim", 8)
+        self.categorical_embedding_buckets = checkpoint.get(
+            "categorical_embedding_buckets", 20
+        )
+        self._bucket_boundaries = checkpoint.get("bucket_boundaries", None)
+
+        # Count features
+        excluded = {"reviewer_id", "diner_idx"}
+        if self.use_categorical_embedding:
+            excluded.update(self.categorical_features)
+            num_categorical = len(self.categorical_features)
+        else:
+            num_categorical = 0
+        num_features = len([col for col in self.features if col not in excluded])
+
+        # Initialize model
         self.model = DeepRankerModel(
             num_users=self.num_users,
             num_diners=self.num_diners,
@@ -476,6 +607,9 @@ class DeepRankerTrainer(BaseModel):
             embedding_dim=self.embedding_dim,
             hidden_dims=self.hidden_dims,
             dropout=self.dropout,
+            num_categorical=num_categorical,
+            categorical_embedding_dim=self.categorical_embedding_dim,
+            categorical_embedding_buckets=self.categorical_embedding_buckets,
         ).to(self.device)
 
         # Load state dict
@@ -485,39 +619,3 @@ class DeepRankerTrainer(BaseModel):
         print(f"Model loaded from {model_file}")
 
         return self.model
-
-    def calculate_rank(self, candidates: pd.DataFrame) -> pd.DataFrame:
-        """
-        Calculate rank for candidates.
-
-        Override base method to ensure ID columns are included in predictions.
-
-        Args:
-            candidates (pd.DataFrame): Candidates to calculate rank.
-
-        Returns (pd.DataFrame):
-            Candidates with rank.
-        """
-        predictions = np.zeros(len(candidates))
-
-        num_batches = (
-            len(candidates) + self.recommend_batch_size - 1
-        ) // self.recommend_batch_size
-
-        for i in tqdm(range(num_batches)):
-            start_idx = i * self.recommend_batch_size
-            end_idx = min((i + 1) * self.recommend_batch_size, len(candidates))
-
-            # Include both ID columns and features for DeepRanker prediction
-            required_cols = ["reviewer_id", "diner_idx"] + [
-                col for col in self.features if col not in ["reviewer_id", "diner_idx"]
-            ]
-            batch = candidates[required_cols].iloc[start_idx:end_idx]
-            predictions[start_idx:end_idx] = self.predict(batch)
-
-        candidates["pred_score"] = predictions
-        candidates = candidates.sort_values(
-            by=["reviewer_id", "pred_score"], ascending=[True, False]
-        )
-
-        return candidates
