@@ -42,7 +42,6 @@ class MultimodalTripletConfig:
     Attributes:
         num_large_categories: Number of unique large categories.
         num_middle_categories: Number of unique middle categories.
-        num_small_categories: Number of unique small categories.
         embedding_dim: Final embedding dimension. Default: 128.
         category_dim: Category encoder output dimension. Default: 128.
         menu_dim: Menu encoder output dimension. Default: 256.
@@ -61,7 +60,6 @@ class MultimodalTripletConfig:
 
     num_large_categories: int
     num_middle_categories: int
-    num_small_categories: int
     embedding_dim: int = 128
     category_dim: int = 128
     menu_dim: int = 256
@@ -118,7 +116,6 @@ class Model(nn.Module):
         self.category_encoder = CategoryEncoder(
             num_large_categories=config.num_large_categories,
             num_middle_categories=config.num_middle_categories,
-            num_small_categories=config.num_small_categories,
             output_dim=config.category_dim,
             dropout=config.dropout,
         )
@@ -190,7 +187,6 @@ class Model(nn.Module):
             features: Dictionary containing:
                 - large_category_ids: (batch_size,) large category indices
                 - middle_category_ids: (batch_size,) middle category indices
-                - small_category_ids: (batch_size,) small category indices
                 - menu_embeddings: (batch_size, 768) precomputed KoBERT embeddings
                   OR menu_input_ids + menu_attention_mask for raw text
                 - diner_name_embeddings: (batch_size, 768) precomputed KoBERT embeddings
@@ -206,7 +202,6 @@ class Model(nn.Module):
         category_emb = self.category_encoder(
             large_category_ids=features["large_category_ids"],
             middle_category_ids=features["middle_category_ids"],
-            small_category_ids=features["small_category_ids"],
         )
 
         # Encode menu

@@ -1,7 +1,7 @@
 # Multimodal Triplet Embedding Model Configuration
 # Creates 128-d embeddings for diners where dot-product similarity
 # returns semantically similar restaurants.
-# Uses triplet loss with hard negative mining for training.
+# Uses in-batch InfoNCE loss with morpheme-Jaccard positive pairs.
 
 preprocess:
   data:
@@ -44,23 +44,23 @@ training:
   weight_decay: 0.00001
 
   # Batch and epochs
-  batch_size: 256
+  batch_size: 512
   epochs: 100
   patience: 10
 
-  # Loss function ("triplet" or "infonce")
-  loss_type: "triplet"
-  margin: 0.5           # used for triplet loss
-  temperature: 0.07     # used for infonce loss
-  category_weight: 0.1
+  # In-batch InfoNCE loss
+  loss_type: "infonce"
+  temperature: 0.07
 
   # Gradient clipping
   gradient_clip: 1.0
 
-  # Hard negative mining
-  num_hard_negatives: 5
-  num_nearby_negatives: 3
-  num_random_negatives: 2
+  # Morpheme-based positive pair generation
+  morpheme:
+    jaccard_threshold: 0.3
+    included_tags: ["NNG", "NNP", "VA"]
+    max_df: 0.5
+    min_df: 3
 
   # Evaluation
   evaluation:

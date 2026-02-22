@@ -608,7 +608,6 @@ NUM_TEST_VAL_PAIRS = 10
 NUM_TEST_TEST_PAIRS = 10
 NUM_LARGE_CATEGORIES = 3
 NUM_MIDDLE_CATEGORIES = 5
-NUM_SMALL_CATEGORIES = 8
 KOBERT_DIM = 768
 
 
@@ -627,7 +626,6 @@ def multimodal_triplet_parquet_data(tmp_path):
         "diner_idx": diner_indices,
         "large_category_id": [i % NUM_LARGE_CATEGORIES for i in diner_indices],
         "middle_category_id": [i % NUM_MIDDLE_CATEGORIES for i in diner_indices],
-        "small_category_id": [i % NUM_SMALL_CATEGORIES for i in diner_indices],
     }
     for j in range(KOBERT_DIM):
         features_dict[f"menu_{j}"] = menu_data[:, j]
@@ -714,12 +712,9 @@ def multimodal_triplet_config(tmp_path, multimodal_triplet_parquet_data):
                 "batch_size": 8,
                 "epochs": 2,
                 "patience": 2,
-                "margin": 0.5,
-                "category_weight": 0.1,
+                "loss_type": "infonce",
+                "temperature": 0.07,
                 "gradient_clip": 1.0,
-                "num_hard_negatives": 2,
-                "num_nearby_negatives": 1,
-                "num_random_negatives": 1,
                 "evaluation": {
                     "recommend_batch_size": 10,
                     "top_k_values_for_pred": [1, 3, 5],
@@ -756,7 +751,6 @@ def small_model_config():
     return MultimodalTripletConfig(
         num_large_categories=NUM_LARGE_CATEGORIES,
         num_middle_categories=NUM_MIDDLE_CATEGORIES,
-        num_small_categories=NUM_SMALL_CATEGORIES,
         embedding_dim=32,
         category_dim=32,
         menu_dim=64,

@@ -1,7 +1,7 @@
 """Encoder modules for multimodal triplet embedding model.
 
 This module contains the encoder components used to create diner embeddings:
-- CategoryEncoder: Encodes hierarchical category features (large, middle, small)
+- CategoryEncoder: Encodes hierarchical category features (large, middle)
 - MenuEncoder: Encodes menu text using frozen KoBERT
 - DinerNameEncoder: Encodes diner name using frozen KoBERT
 - PriceEncoder: Encodes price statistics
@@ -18,19 +18,17 @@ from transformers import BertModel
 
 
 class CategoryEncoder(nn.Module):
-    """Encodes hierarchical category features (large, middle, small) into a single embedding.
+    """Encodes hierarchical category features (large, middle) into a single embedding.
 
     The encoder uses separate embedding tables for each category level:
     - Large category: 32-dimensional
     - Middle category: 48-dimensional
-    - Small category: 64-dimensional
 
     These are concatenated and passed through an MLP to produce 128-dimensional output.
 
     Args:
         num_large_categories: Number of unique large categories.
         num_middle_categories: Number of unique middle categories.
-        num_small_categories: Number of unique small categories.
         output_dim: Output embedding dimension. Default: 128.
         dropout: Dropout probability. Default: 0.1.
     """
@@ -39,7 +37,6 @@ class CategoryEncoder(nn.Module):
         self,
         num_large_categories: int,
         num_middle_categories: int,
-        num_small_categories: int,
         output_dim: int = 128,
         dropout: float = 0.1,
     ):
@@ -47,13 +44,11 @@ class CategoryEncoder(nn.Module):
 
         self.large_dim = 32
         self.middle_dim = 48
-        self.small_dim = 64
-        self.concat_dim = self.large_dim + self.middle_dim + self.small_dim  # 144
+        self.concat_dim = self.large_dim + self.middle_dim  # 80
 
         # Embedding tables for each category level
         self.large_embedding = nn.Embedding(num_large_categories, self.large_dim)
         self.middle_embedding = nn.Embedding(num_middle_categories, self.middle_dim)
-        self.small_embedding = nn.Embedding(num_small_categories, self.small_dim)
 
         # MLP to project concatenated embeddings to output dimension
         self.mlp = nn.Sequential(
@@ -70,30 +65,26 @@ class CategoryEncoder(nn.Module):
         """Initialize embedding weights with Xavier uniform."""
         nn.init.xavier_uniform_(self.large_embedding.weight)
         nn.init.xavier_uniform_(self.middle_embedding.weight)
-        nn.init.xavier_uniform_(self.small_embedding.weight)
 
     def forward(
         self,
         large_category_ids: Tensor,
         middle_category_ids: Tensor,
-        small_category_ids: Tensor,
     ) -> Tensor:
         """Forward pass through category encoder.
 
         Args:
             large_category_ids: Tensor of shape (batch_size,) with large category indices.
             middle_category_ids: Tensor of shape (batch_size,) with middle category indices.
-            small_category_ids: Tensor of shape (batch_size,) with small category indices.
 
         Returns:
-            Tensor of shape (batch_size, 128) with encoded category features.
+            Tensor of shape (batch_size, output_dim) with encoded category features.
         """
         large_emb = self.large_embedding(large_category_ids)  # (B, 32)
         middle_emb = self.middle_embedding(middle_category_ids)  # (B, 48)
-        small_emb = self.small_embedding(small_category_ids)  # (B, 64)
 
-        concat_emb = torch.cat([large_emb, middle_emb, small_emb], dim=-1)  # (B, 144)
-        return self.mlp(concat_emb)  # (B, 128)
+        concat_emb = torch.cat([large_emb, middle_emb], dim=-1)  # (B, 80)
+        return self.mlp(concat_emb)
 
 
 class MenuEncoder(nn.Module):

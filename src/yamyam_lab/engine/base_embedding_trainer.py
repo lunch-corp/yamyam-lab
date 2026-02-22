@@ -241,6 +241,9 @@ class BaseEmbeddingTrainer(BaseTrainer):
             all_features: All features moved to device.
             train_epoch_fn: Function to train one epoch, returns average loss.
         """
+        early_stop_metric = self._get_config("early_stop_metric") or "recall@10"
+        self.logger.info(f"Early stopping metric: {early_stop_metric}")
+
         best_val_metric = -float("inf")
         best_val_epoch = -1
         best_model_weights = None
@@ -263,7 +266,7 @@ class BaseEmbeddingTrainer(BaseTrainer):
             # Validation
             if self.val_loader is not None:
                 val_metrics = self._evaluate_epoch(epoch)
-                val_metric = val_metrics.get("recall@10", 0.0)
+                val_metric = val_metrics.get(early_stop_metric, 0.0)
 
                 # Track metrics history for plotting
                 for metric_name, value in val_metrics.items():
@@ -284,18 +287,21 @@ class BaseEmbeddingTrainer(BaseTrainer):
                     # Save checkpoint
                     self._save_checkpoint(epoch, val_metrics)
                     self.logger.info(
-                        f"New best Recall@10: {best_val_metric:.4f} at epoch {epoch}"
+                        f"New best {early_stop_metric}: {best_val_metric:.4f} "
+                        f"at epoch {epoch}"
                     )
                 else:
                     patience_counter -= 1
                     self.logger.info(
-                        f"Recall@10 did not improve. Patience: {patience_counter}/{patience}"
+                        f"{early_stop_metric} did not improve. "
+                        f"Patience: {patience_counter}/{patience}"
                     )
 
                     if patience_counter <= 0:
                         self.logger.info(
                             f"Early stopping at epoch {epoch}. "
-                            f"Best Recall@10: {best_val_metric:.4f} at epoch {best_val_epoch}"
+                            f"Best {early_stop_metric}: {best_val_metric:.4f} "
+                            f"at epoch {best_val_epoch}"
                         )
                         break
 

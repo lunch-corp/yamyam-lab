@@ -44,13 +44,11 @@ class TestEncoders:
         encoder = CategoryEncoder(
             num_large_categories=3,
             num_middle_categories=5,
-            num_small_categories=8,
             output_dim=32,
         )
         out = encoder(
             large_category_ids=torch.tensor([0, 1, 2, 0]),
             middle_category_ids=torch.tensor([0, 1, 2, 3]),
-            small_category_ids=torch.tensor([0, 1, 2, 3]),
         )
         assert out.shape == (4, 32)
 
@@ -103,7 +101,6 @@ class TestModel:
         features = {
             "large_category_ids": torch.tensor([0, 1, 2, 0]),
             "middle_category_ids": torch.tensor([0, 1, 2, 3]),
-            "small_category_ids": torch.tensor([0, 1, 2, 3]),
             "menu_embeddings": torch.randn(4, 768),
             "diner_name_embeddings": torch.randn(4, 768),
             "price_features": torch.randn(4, 3),
@@ -118,7 +115,6 @@ class TestModel:
         features = {
             "large_category_ids": torch.tensor([0, 1]),
             "middle_category_ids": torch.tensor([0, 1]),
-            "small_category_ids": torch.tensor([0, 1]),
             "menu_embeddings": torch.randn(2, 768),
             "diner_name_embeddings": torch.randn(2, 768),
             "price_features": torch.randn(2, 3),
@@ -135,7 +131,6 @@ class TestModel:
         all_features = {
             "large_category_ids": torch.randint(0, 3, (n,)),
             "middle_category_ids": torch.randint(0, 5, (n,)),
-            "small_category_ids": torch.randint(0, 8, (n,)),
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),
@@ -164,7 +159,6 @@ class TestModel:
         all_features = {
             "large_category_ids": torch.randint(0, 3, (n,)),
             "middle_category_ids": torch.randint(0, 5, (n,)),
-            "small_category_ids": torch.randint(0, 8, (n,)),
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),
@@ -191,7 +185,6 @@ class TestModel:
         all_features = {
             "large_category_ids": torch.randint(0, 3, (n,)),
             "middle_category_ids": torch.randint(0, 5, (n,)),
-            "small_category_ids": torch.randint(0, 8, (n,)),
             "menu_embeddings": torch.randn(n, 768),
             "diner_name_embeddings": torch.randn(n, 768),
             "price_features": torch.randn(n, 3),
@@ -214,9 +207,6 @@ class TestMultimodalTripletDataset:
             features_path=paths["features_path"],
             pairs_path=paths["pairs_path"],
             category_mapping_path=paths["category_mapping_path"],
-            num_hard_negatives=2,
-            num_nearby_negatives=1,
-            num_random_negatives=1,
         )
         assert len(dataset) == 30
 
@@ -227,34 +217,27 @@ class TestMultimodalTripletDataset:
             features_path=paths["features_path"],
             pairs_path=paths["pairs_path"],
             category_mapping_path=paths["category_mapping_path"],
-            num_hard_negatives=2,
-            num_nearby_negatives=1,
-            num_random_negatives=1,
         )
         sample = dataset[0]
         expected_keys = {
             "anchor_idx",
             "positive_idx",
-            "negative_indices",
-            "anchor_category",
-            "positive_category",
-            "negative_categories",
+            "anchor_diner_idx",
+            "positive_diner_idx",
         }
         assert set(sample.keys()) == expected_keys
 
-    def test_getitem_negative_indices_shape(self, multimodal_triplet_parquet_data):
-        """Negative indices tensor has shape (total_negatives,)."""
+    def test_getitem_indices_are_scalars(self, multimodal_triplet_parquet_data):
+        """All returned tensors are scalars (0-dim)."""
         paths = multimodal_triplet_parquet_data
         dataset = MultimodalTripletDataset(
             features_path=paths["features_path"],
             pairs_path=paths["pairs_path"],
             category_mapping_path=paths["category_mapping_path"],
-            num_hard_negatives=2,
-            num_nearby_negatives=1,
-            num_random_negatives=1,
         )
         sample = dataset[0]
-        assert sample["negative_indices"].shape == (4,)
+        for key in sample:
+            assert sample[key].dim() == 0
 
     def test_get_all_features_shape(self, multimodal_triplet_parquet_data):
         """get_all_features returns tensors with correct shapes."""
@@ -285,22 +268,18 @@ class TestMultimodalTripletDataset:
         assert features["large_category_ids"].shape == (3,)
         assert features["menu_embeddings"].shape == (3, 768)
 
-    def test_negative_sampling_produces_enough_negatives(
-        self, multimodal_triplet_parquet_data
-    ):
-        """Negative sampling always produces exactly total_negatives items."""
+    def test_diner_to_positives_populated(self, multimodal_triplet_parquet_data):
+        """diner_to_positives is populated after loading."""
         paths = multimodal_triplet_parquet_data
         dataset = MultimodalTripletDataset(
             features_path=paths["features_path"],
             pairs_path=paths["pairs_path"],
             category_mapping_path=paths["category_mapping_path"],
-            num_hard_negatives=2,
-            num_nearby_negatives=1,
-            num_random_negatives=1,
         )
-        for i in range(min(10, len(dataset))):
-            sample = dataset[i]
-            assert sample["negative_indices"].shape == (4,)
+        assert len(dataset.diner_to_positives) > 0
+        # Each value should be a set
+        for v in dataset.diner_to_positives.values():
+            assert isinstance(v, set)
 
 
 class TestCollateFunction:
@@ -313,17 +292,13 @@ class TestCollateFunction:
             features_path=paths["features_path"],
             pairs_path=paths["pairs_path"],
             category_mapping_path=paths["category_mapping_path"],
-            num_hard_negatives=2,
-            num_nearby_negatives=1,
-            num_random_negatives=1,
         )
         batch = [dataset[i] for i in range(4)]
         collated = multimodal_triplet_collate_fn(batch)
         assert collated["anchor_indices"].shape == (4,)
         assert collated["positive_indices"].shape == (4,)
-        assert collated["negative_indices"].shape == (4, 4)
-        assert collated["anchor_categories"].shape == (4,)
-        assert collated["negative_categories"].shape == (4, 4)
+        assert collated["anchor_diner_indices"].shape == (4,)
+        assert collated["positive_diner_indices"].shape == (4,)
 
     def test_dataloader_iterates(self, multimodal_triplet_parquet_data):
         """DataLoader from factory function yields valid batches."""
@@ -335,12 +310,10 @@ class TestCollateFunction:
             batch_size=4,
             shuffle=False,
             num_workers=0,
-            num_hard_negatives=2,
-            num_nearby_negatives=1,
-            num_random_negatives=1,
         )
         batch = next(iter(dl))
         assert "anchor_indices" in batch
+        assert "anchor_diner_indices" in batch
         assert batch["anchor_indices"].shape[0] <= 4
 
 
