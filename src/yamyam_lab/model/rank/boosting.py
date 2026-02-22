@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from catboost import CatBoostRanker, Pool
 from omegaconf import OmegaConf
+from tqdm import tqdm
 
 from yamyam_lab.model.rank.base import BaseModel
 
@@ -26,7 +27,6 @@ class LightGBMTrainer(BaseModel):
         seed: int,
         features: list[str],
         cat_features: list[str],
-        recommend_batch_size: int = 1000,
     ) -> None:
         super().__init__(
             model_path,
@@ -37,7 +37,6 @@ class LightGBMTrainer(BaseModel):
             verbose_eval,
             seed,
             features,
-            recommend_batch_size,
         )
         self.cat_features = cat_features
 
@@ -93,7 +92,10 @@ class LightGBMTrainer(BaseModel):
 
     def _predict(self: Self, X_test: pd.DataFrame | np.ndarray) -> np.ndarray:
         self.model = self.load_model()
-        return self.model.predict(X_test)
+        with tqdm(total=1, desc="Predicting") as pbar:
+            result = self.model.predict(X_test)
+            pbar.update(1)
+        return result
 
     def save_model(self: Self) -> None:
         if not os.path.exists(self.model_path):
@@ -127,7 +129,6 @@ class CatBoostRankerTrainer(BaseModel):
         seed: int,
         features: list[str],
         cat_features: list[str],
-        recommend_batch_size: int = 1000,
     ) -> None:
         super().__init__(
             model_path,
@@ -138,7 +139,6 @@ class CatBoostRankerTrainer(BaseModel):
             verbose_eval,
             seed,
             features,
-            recommend_batch_size,
         )
         self.cat_features = cat_features
 
@@ -209,4 +209,7 @@ class CatBoostRankerTrainer(BaseModel):
         self.model = self.load_model()
         if isinstance(X_test, pd.DataFrame):
             X_test = self._prepare_cat_features(X_test)
-        return self.model.predict(X_test)
+        with tqdm(total=1, desc="Predicting") as pbar:
+            result = self.model.predict(X_test)
+            pbar.update(1)
+        return result

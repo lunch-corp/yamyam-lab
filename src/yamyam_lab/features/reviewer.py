@@ -1,6 +1,7 @@
 import datetime as dt
 from typing import Any, Dict, List, Self
 
+import numpy as np
 import pandas as pd
 
 from .base import BaseFeatureStore
@@ -40,6 +41,7 @@ class UserFeatureStore(BaseFeatureStore):
         )
         self.feature_methods = {
             "categorical_feature_count": self.calculate_categorical_feature_count,
+            "visit_ratio_features": self.calculate_visit_ratio_features,
             "user_mean_review_score": self.calculate_user_mean_review_score,
             "user_activity_patterns": self.calculate_activity_patterns,
             # "scaled_scores": self.calculate_scaled_scores,
@@ -113,6 +115,43 @@ class UserFeatureStore(BaseFeatureStore):
                 how="left",
                 on="reviewer_id",
             )
+
+    def calculate_visit_ratio_features(
+        self: Self,
+        genre_columns: List[str],
+        log_transform_total: bool = True,
+        **kwargs,
+    ) -> None:
+        """
+        Compute visit ratio and activity features from raw genre visit counts.
+
+        Must be called after calculate_categorical_feature_count, since it reads
+        genre count columns already merged into self.user.
+
+        For each available genre column adds:
+          - {genre}_ratio: genre visits / total genre visits (0.0 when total == 0)
+        Also adds:
+          - log_total_visits: log(1 + sum of all genre visits)
+
+        Args:
+            genre_columns: Genre column names present in self.user
+                (e.g. ["korean", "japanese", "chinese", "western", "asian"]).
+            log_transform_total: Apply log1p to total visits feature (default True).
+        """
+        available = [col for col in genre_columns if col in self.user.columns]
+        if not available:
+            return
+
+        total = self.user[available].sum(axis=1)
+        safe_total = total.where(total > 0, other=1)
+
+        for col in available:
+            self.user[f"{col}_ratio"] = (self.user[col] / safe_total).astype(np.float32)
+
+        total_col = "log_total_visits" if log_transform_total else "total_visits"
+        self.user[total_col] = (
+            np.log1p(total) if log_transform_total else total
+        ).astype(np.float32)
 
     def calculate_user_mean_review_score(self: Self, **kwargs) -> None:
         """

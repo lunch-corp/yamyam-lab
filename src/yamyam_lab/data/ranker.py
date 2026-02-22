@@ -260,6 +260,28 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
         return (train, val, test)
 
+    def _precompute_category_groups(self: Self) -> Dict[str, set]:
+        """
+        Precompute diner indices grouped by category.
+        This is computed once and reused to avoid repeated CSV reads and groupby operations.
+
+        Returns:
+            Dictionary mapping category name to list of diner indices
+        """
+        diner_category = pd.read_csv(self.data_paths["category"])
+        diner_category = diner_category[
+            diner_category["diner_category_large"].isin(
+                ["한식", "중식", "양식", "일식", "아시안", "패스트푸드", "치킨", "술집"]
+            )
+        ]
+
+        category_groups = diner_category.groupby("diner_category_large")[
+            "diner_idx"
+        ].apply(list)
+
+        # Convert to dict for faster lookup
+        return {category: set(diners) for category, diners in category_groups.items()}
+
     def negative_sampling(
         self: Self,
         sampling_type: str,
@@ -290,6 +312,7 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
         # Get all unique diners and users
         candidate_pool = df["diner_idx"].unique().tolist()
+        candidate_pool_set = set(candidate_pool)
         all_users = list(user_2_diner_map.keys())
 
         # Generate negative samples using popularity-based sampling
@@ -298,33 +321,23 @@ class RankerDatasetLoader(BaseDatasetLoader):
         neg_samples_list = []
         batch_size = 1000
 
-        # load diner category
-        diner_category = pd.read_csv(self.data_paths["category"])
-        diner_category = diner_category[
-            diner_category["diner_category_large"].isin(
-                ["한식", "중식", "양식", "일식", "아시안", "패스트푸드", "치킨", "술집"]
-            )
-        ]
-
-        # group by category
-        category_groups = diner_category.groupby("diner_category_large")[
-            "diner_idx"
-        ].apply(list)
+        # Precompute category groups once (use sets for O(1) intersections)
+        category_groups = self._precompute_category_groups()
 
         for i in tqdm(range(0, len(all_users), batch_size), desc="sampling"):
             batch_users = all_users[i : i + batch_size]
             batch_neg_diners = []
             for user_id in batch_users:
                 user_diners = set(user_2_diner_map[user_id])
-                available_diners = list(set(candidate_pool) - user_diners)
+                available_diners_set = candidate_pool_set - user_diners
 
                 if sampling_type == "popularity":
                     # Get popularity scores for available diners
-                    available_probs = diner_popularity[available_diners]
+                    available_probs = diner_popularity[list(available_diners_set)]
 
                     # Sort diners by popularity and get top 50% most popular diners
                     sorted_diners = sorted(
-                        zip(available_diners, available_probs),
+                        zip(available_probs.index, available_probs.values),
                         key=lambda x: x[1],
                         reverse=True,
                     )
@@ -341,44 +354,42 @@ class RankerDatasetLoader(BaseDatasetLoader):
 
                 elif sampling_type == "random":
                     sampled_diners = np.random.choice(
-                        available_diners,
+                        list(available_diners_set),
                         size=num_neg_samples,
-                        replace=len(available_diners) < num_neg_samples,
+                        replace=len(available_diners_set) < num_neg_samples,
                     )
                 elif sampling_type == "diversity":
                     sampled_diners = []
-                    categories = list(category_groups.keys())
 
-                    # 사용자가 리뷰하지 않은 레스토랑만 필터링
-                    available_diners = list(set(candidate_pool) - user_diners)
+                    # Compute available diners per category using set intersection (O(1) per category)
+                    available_category_diners = {
+                        category: category_groups[category] & available_diners_set
+                        for category in category_groups
+                    }
+                    # Filter out empty categories
+                    available_category_diners = {
+                        cat: diners
+                        for cat, diners in available_category_diners.items()
+                        if diners
+                    }
 
-                    # 각 카테고리에서 사용 가능한 레스토랑만 필터링
-                    available_category_groups = {}
-                    for category in categories:
-                        category_diners = category_groups[category]
-                        available_in_category = list(
-                            set(category_diners) & set(available_diners)
-                        )
-                        if available_in_category:  # 사용 가능한 레스토랑이 있는 경우만
-                            available_category_groups[category] = available_in_category
-
-                    if available_category_groups:
-                        categories = list(available_category_groups.keys())
+                    if available_category_diners:
+                        categories = list(available_category_diners.keys())
                         samples_per_category = num_neg_samples // len(categories)
                         remaining_samples = num_neg_samples % len(categories)
 
-                        for i, category in enumerate(categories):
-                            category_diners = available_category_groups[category]
+                        for idx, category in enumerate(categories):
+                            category_diners = available_category_diners[category]
 
                             # basic sample + remaining sample
                             n_samples = samples_per_category + (
-                                1 if i < remaining_samples else 0
+                                1 if idx < remaining_samples else 0
                             )
                             n_samples = min(n_samples, len(category_diners))
 
                             if n_samples > 0:
                                 category_samples = np.random.choice(
-                                    category_diners,
+                                    list(category_diners),
                                     size=n_samples,
                                     replace=len(category_diners) < n_samples,
                                 )
@@ -387,7 +398,7 @@ class RankerDatasetLoader(BaseDatasetLoader):
                         # 부족한 경우 랜덤으로 보충
                         if len(sampled_diners) < num_neg_samples:
                             remaining_diners = list(
-                                set(available_diners) - set(sampled_diners)
+                                available_diners_set - set(sampled_diners)
                             )
                             if remaining_diners:
                                 additional_samples = np.random.choice(
@@ -399,9 +410,9 @@ class RankerDatasetLoader(BaseDatasetLoader):
                     else:
                         # 사용 가능한 카테고리가 없는 경우 기본 샘플링
                         sampled_diners = np.random.choice(
-                            available_diners,
+                            list(available_diners_set),
                             size=num_neg_samples,
-                            replace=len(available_diners) < num_neg_samples,
+                            replace=len(available_diners_set) < num_neg_samples,
                         )
                 else:
                     raise ValueError(f"Invalid sampling type: {sampling_type}")

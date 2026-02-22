@@ -1,0 +1,52 @@
+_target_: yamyam_lab.model.rank.deep_ranker.DeepRankerTrainer
+
+model_path: result/deep_ranker/
+results: deep_ranker
+
+# Features (same as LightGBM for fair comparison)
+features:
+  - reviewer_id
+  - diner_idx
+  - min_price
+  - max_price
+  - mean_price
+  - median_price
+  - open_days_per_week
+  - is_open_weekend
+  - avg_open_hours_per_day
+  - total_open_hours_per_week
+  - korean_ratio
+  - japanese_ratio
+  - chinese_ratio
+  - western_ratio
+  - asian_ratio
+  - log_total_visits
+
+# Deep Learning specific parameters
+embedding_dim: 32
+hidden_dims:
+  - 256
+  - 128
+  - 64
+dropout: 0.3
+
+# Categorical feature embedding
+# asian/japanese/chinese/korean/western are visit frequency counts (continuous),
+# not categorical labels, so categorical embedding is disabled.
+use_categorical_embedding: false
+categorical_features: []
+categorical_embedding_dim: 8
+categorical_embedding_buckets: 20
+
+# Training parameters
+lr: 0.001
+batch_size: 2048
+
+# Training control (matching LightGBM interface)
+early_stopping_rounds: 10
+num_boost_round: 100  # epochs
+verbose_eval: 5
+seed: 42
+
+# Device
+device: cuda

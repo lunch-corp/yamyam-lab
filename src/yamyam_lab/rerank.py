@@ -46,10 +46,7 @@ def main(cfg: DictConfig):
             data["X_test_warm_start_user"],
         )
 
-        trainer = hydra.utils.instantiate(
-            cfg.models.ranker,
-            recommend_batch_size=cfg.training.evaluation.recommend_batch_size,
-        )
+        trainer = hydra.utils.instantiate(cfg.models.ranker)
 
         trainer.fit(X_train, y_train, X_valid, y_valid)
 
