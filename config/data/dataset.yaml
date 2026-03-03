@@ -29,7 +29,7 @@ diner_engineered_feature_names:
     open_hours_path: data/kakao_diner_open_hours.csv
 
 # negative sampling 시 user별 candidate에서만 샘플링 → candidate score 사용 가능
-num_neg_samples: 10
+num_neg_samples: 100
 sampling_type: random
 is_timeseries_by_users: false
 is_timeseries_by_time_point: true

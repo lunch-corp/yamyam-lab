@@ -5,8 +5,6 @@ results: deep_ranker
 
 # Features (same as LightGBM for fair comparison)
 features:
-  - reviewer_id
-  - diner_idx
   - min_price
   - max_price
   - mean_price

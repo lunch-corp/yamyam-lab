@@ -35,6 +35,7 @@ This folder contains architecture documentation for the yamyam-lab recommendatio
 | Document | Description |
 |----------|-------------|
 | [multimodal_triplet.md](./multimodal_triplet.md) | Candidate generation model architecture |
+| [two_stage_search.md](./two_stage_search.md) | Two-stage search system design plan |
 | reranker.md | (TODO) Reranking model architecture |
 | data_pipeline.md | (TODO) Data preprocessing pipeline |
 | evaluation.md | (TODO) Evaluation metrics and methodology |

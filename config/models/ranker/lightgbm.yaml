@@ -13,11 +13,17 @@ features:
   - is_open_weekend
   - avg_open_hours_per_day
   - total_open_hours_per_week
-  - asian
+  - korean
   - japanese
   - chinese
-  - korean
   - western
+  - asian
+  - korean_ratio
+  - japanese_ratio
+  - chinese_ratio
+  - western_ratio
+  - asian_ratio
+  - log_total_visits
 
 cat_features:
   - open_days_per_week
