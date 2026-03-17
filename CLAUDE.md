@@ -98,3 +98,4 @@ data_paths = ensure_data_files()
 | verify-code-convention | Validates PEP 8 naming, type hints, ruff compliance, and import ordering. |
 | verify-model-registration | Ensures new models are registered in factory, have configs, train.py routing, and implement abstract methods. |
 | verify-config-consistency | Validates Hydra config files have required sections, correct YAML structure, and resolvable references. |
+| pr-reviewer | Reviews GitHub pull requests with code analysis, verification skills, line-level comments, and approve/request-changes decisions. |
